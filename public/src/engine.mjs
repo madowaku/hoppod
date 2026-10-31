@@ -71,16 +71,20 @@ export function isSafe(terrain, x) {
 export function predictLanding(state, fast) {
   return state.x + (fast ? FAST_SPEED : SLOW_SPEED) * Math.max(0, PERIOD - state.phase);
 }
-export function landingMiss(terrain, x) {
+export function landingMiss(terrain, x, hopStartX) {
   let nearest = Infinity, direction = 'short';
+  const low = hopStartX === undefined ? -Infinity : hopStartX + PERIOD * SLOW_SPEED;
+  const high = hopStartX === undefined ? Infinity : hopStartX + PERIOD * FAST_SPEED;
   for (const [a, b] of terrain.platforms) {
-    const safeX = Math.max(a + INSET, Math.min(b - INSET, x));
+    const left = Math.max(a + INSET, low), right = Math.min(b - INSET, high);
+    if (left > right) continue;
+    const safeX = Math.max(left, Math.min(right, x));
     if (Math.abs(safeX - x) < nearest) { nearest = Math.abs(safeX - x); direction = safeX < x ? 'far' : 'short'; }
   }
   return direction;
 }
 export function newRun() {
-  return { x: 75, phase: 0, hops: 0, beacons: 0, status: 'playing', lastEvent: null };
+  return { x: 75, hopStartX: 75, phase: 0, hops: 0, beacons: 0, status: 'playing', lastEvent: null };
 }
 export function advance(state, terrain, seconds, fast) {
   if (state.status !== 'playing' || !Number.isFinite(seconds) || seconds <= 0) return [];
@@ -99,6 +103,7 @@ export function advance(state, terrain, seconds, fast) {
         events.push('fall');
       } else {
         state.hops += 1;
+        state.hopStartX = state.x;
         state.lastEvent = 'land';
         events.push('land');
         for (const beacon of terrain.beacons) {

@@ -80,6 +80,12 @@ test('failure advice uses the nearest supported edge, including the invisible in
   assert.equal(landingMiss(t,93),'far');assert.equal(landingMiss(t,167),'short');
   assert.equal(landingMiss(t,110),'far');assert.equal(landingMiss(t,150),'short');
 });
+test('failure advice never asks an all-SLOW hop to brake or an all-FAST hop to accelerate',()=>{
+  for(let seed=0;seed<128;seed++) for(const fast of [false,true]) {
+    const s=newRun(),t=new Terrain(seed);advance(s,t,PERIOD*100,fast);
+    assert.equal(s.status,'dead');assert.equal(landingMiss(t,s.x,s.hopStartX),fast?'far':'short');
+  }
+});
 
 test('32 seeds × 1000 aggressive hops: trimming is tied to world position, not score',()=>{
   for(let seed=0;seed<32;seed++) {

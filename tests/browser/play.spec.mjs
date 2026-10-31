@@ -29,7 +29,7 @@ test('real-time start → 3+ landings → fall → immediate retry',async({page}
   await expect.poll(async()=>Number(await page.locator('#score').textContent()),{timeout:4500}).toBeGreaterThanOrEqual(3);
   await page.screenshot({path:artifacts+'/v02-playing.png'});
   await expect(page.locator('#overlay')).toBeVisible({timeout:10000});
-  await expect(page.locator('#overlay-subtitle')).toContainText(/TOO (SHORT|FAR)/);
+  await expect(page.locator('#overlay-subtitle')).toHaveText('TOO SHORT · HOLD A LITTLE LONGER');
   await page.screenshot({path:artifacts+'/v02-result.png'});
   await page.locator('#action').click();await expect(page.locator('#score')).toHaveText('0');
   await expect(page.locator('#hold-state')).toHaveText('SLOW');await expect(page.locator('#overlay')).toBeHidden();

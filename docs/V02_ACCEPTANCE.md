@@ -17,7 +17,7 @@ Started v0.1 locally in Chrome at 390×844 with FREE seed 42, used START, waited
 - A 735px initial runway guarantees three successful hops at any combination of the two speeds, including full FAST. Tutorial cues disappear after three landings. SLOW-only can linger for seven hops, which leaves room to understand the ring. Thereafter, platform centers are 150–180px apart, widths gradually tighten toward roughly 106px, and wide merged runways recur every ten reference hops. The random widths/distances and rest runways break up the rhythm; the difficulty plateaus rather than becoming impossible.
 - A single supported platform can have several safe landing positions. Non-intro edge/middle positions must have at least a 20px next-hop reachable interval on the current/next platform. The tests separately use a geometry-only controller with timing errors, not just the generator's reference route. This demonstrates physical recoverability and margin, not proof that a human can read or enjoy every pattern.
 - The landing ring and countdown read the same `phase`, `predictLanding` and inset-aware `isSafe` as collision. Edge ticks show the 8px support margin. Mint is safe if the current speed continues; coral suggests HOLD/RELEASE. Advice is a cue, not an automatic solver or guarantee after a late input change.
-- Results report TOO SHORT / TOO FAR relative to the nearest supported edge and offer immediate retry. HOPS/BEST are the only persistent counters. Optional beacon pickups remain small world accents and internal counts; their counter was removed from the HUD.
+- Results report TOO SHORT / TOO FAR relative to the nearest supported edge reachable from the start of that hop and offer immediate retry. Advice never asks an already all-SLOW hop to brake, or an already all-FAST hop to accelerate. HOPS/BEST are the only persistent counters. Optional beacon pickups remain small world accents and internal counts; their counter was removed from the HUD.
 - The full original elapsed frame time advances physics at ordinary frame rates. A stall over 250ms pauses and clears input instead of silently slowing time with the old 50ms cap. Blur, pagehide and hidden-document transitions require explicit RESUME at SLOW.
 - `pointercancel`, lost capture, release outside the control, keyboard retry and mode changes clear their input state. Keyboard Space still activates focused START/RESUME controls. Starting/resuming releases that button's focus so Space can control the game immediately.
 - Sound unlocks only on a user gesture. FAST/SLOW and rhythmic land/fall cues are short and optional (SOUND ON/OFF); silent play and blocked storage remain supported.
@@ -36,7 +36,7 @@ POST TO X passes HOPS, BEST and the exact normalized replay URL to the composer.
 
 Windows local run, Node 24.14.0, Playwright 1.64.1 / bundled Chromium. CI uses Node 22 on Ubuntu. Commands: `npm test`, `npm run check`, `npm run test:browser`.
 
-15 Node tests pass:
+16 Node tests pass:
 
 - Existing deterministic geometry/reference route, 100 seeds × 100 successful hops, successful-landing scoring and invalid delta checks retained; reference plans now store FAST seconds per hop rather than booleans.
 - 128 seeds × all 8 whole-hop input combinations in the first 3 hops.

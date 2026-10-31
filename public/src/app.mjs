@@ -50,7 +50,7 @@ function updateHud() {
   get('hold-instruction').textContent = fast() ? 'RELEASE TO SLOW' : 'HOLD TO GO FAST';
 }
 function endRun() {
-  failure = landingMiss(terrain, state.x) === 'short' ? 'TOO SHORT · HOLD A LITTLE LONGER' : 'TOO FAR · RELEASE A LITTLE EARLIER';
+  failure = landingMiss(terrain, state.x, state.hopStartX) === 'short' ? 'TOO SHORT · HOLD A LITTLE LONGER' : 'TOO FAR · RELEASE A LITTLE EARLIER';
   failureX = state.x; running = false; deathAge = .001; audio.play('fall');
   const record = state.hops > best;
   if (record) { best = state.hops; try { localStorage.setItem(bestKey(), String(best)); } catch {} }
