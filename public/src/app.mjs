@@ -1,228 +1,198 @@
-import { PERIOD, SLOW_SPEED, FAST_SPEED, Terrain, hashSeed, newRun, advance, isSafe, predictLanding } from './engine.mjs';
+import { PERIOD, Terrain, newRun, advance, isSafe, predictLanding, landingMiss } from './engine.mjs';
+import { resolveRun, jstDate, shareUrl } from './links.mjs';
+import { drawPod } from './pod.mjs';
+import { createAudio } from './audio.mjs';
 
 const get = id => document.getElementById(id);
 const canvas = get('play'), ctx = canvas.getContext('2d');
-const W = canvas.width, H = canvas.height, FLOOR = 370, HERO_X = 80;
-const pointerIds = new Set(), keys = new Set();
-let state, terrain, running = false, paused = false, lastTime = null;
-let mode = 'daily', seed = 1, date = '', best = 0;
-let frameFlash = 0;
-
-function jstDate() {
-  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
-  const p = type => parts.find(part => part.type === type).value;
-  return p('year') + '-' + p('month') + '-' + p('day');
+const W = 360, H = 510, FLOOR = 382, HERO_X = 80;
+const pointers = new Set(), keys = new Set(), audio = createAudio();
+const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+let run, state, terrain, best = 0, running = false, paused = false, lastTime = null;
+let landAge = 10, deathAge = 0, particles = [], modeFast = false, worldTime = 0;
+let failure = '', failureX = 0;
+const fast = () => pointers.size + keys.size > 0;
+function releaseInput() { pointers.clear(); keys.clear(); modeFast = false; updateHud(); }
+function bestKey() { return 'hoppod.best.v2.' + (run.mode === 'daily' ? run.date : 'free'); }
+function loadCourse() {
+  run = resolveRun(location.href);
+  history.replaceState(null, '', run.url);
+  try { best = Math.max(0, Math.floor(Number(localStorage.getItem(bestKey())) || 0)); if (!Number.isFinite(best)) best = 0; } catch { best = 0; }
+  get('mode-name').textContent = run.mode === 'daily' ? 'MOON / ' + run.date : 'FREE / ' + run.seed;
+  for (const mode of ['daily', 'free']) {
+    get(mode).classList.toggle('selected', run.mode === mode);
+    get(mode).setAttribute('aria-pressed', String(run.mode === mode));
+  }
+  state = newRun(); terrain = new Terrain(run.seed);
+  running = false; paused = false; deathAge = 0; particles = []; landAge = 10;
+  get('share-actions').hidden = true; get('result-details').hidden = true;
+  get('overlay').dataset.screen = 'start';
+  overlay('ONE MORE HOP!', 'It hops. You set the pace.', 'LET’S HOP');
+  releaseInput();
 }
-function applyUrl() {
-  const params = new URLSearchParams(location.search);
-  mode = params.get('mode') === 'free' ? 'free' : 'daily';
-  date = /^\d{4}-\d{2}-\d{2}$/.test(params.get('date') || '') ? params.get('date') : jstDate();
-  const raw = Number(params.get('seed'));
-  seed = mode === 'daily' ? hashSeed('HOPPOD-' + date) : (Number.isInteger(raw) && raw >= 0 && raw <= 4294967295 ? raw >>> 0 : randomSeed());
-  const url = new URL(location.href);
-  url.searchParams.set('mode', mode);
-  if (mode === 'daily') { url.searchParams.set('date', date); url.searchParams.delete('seed'); }
-  else { url.searchParams.set('seed', String(seed)); url.searchParams.delete('date'); }
-  history.replaceState(null, '', url);
-  get('mode-name').textContent = mode === 'daily' ? 'DAILY MOON ' + date : 'FREE RUN';
-  get('daily').classList.toggle('selected', mode === 'daily');
-  get('free').classList.toggle('selected', mode === 'free');
-  readBest();
-}
-function randomSeed() {
-  const values = new Uint32Array(1);
-  if (globalThis.crypto?.getRandomValues) globalThis.crypto.getRandomValues(values);
-  else values[0] = Date.now() >>> 0;
-  return values[0];
-}
-function bestKey() { return 'hoppod.best.v1.' + (mode === 'daily' ? date : 'free'); }
-function readBest() {
-  try { best = Math.max(0, Number(localStorage.getItem(bestKey())) || 0); } catch { best = 0; }
-  get('best').textContent = String(best);
-}
-function saveBest() {
-  if (state.hops <= best) return false;
-  best = state.hops;
-  try { localStorage.setItem(bestKey(), String(best)); } catch {}
-  get('best').textContent = String(best);
-  return true;
-}
-function releaseInput() { pointerIds.clear(); keys.clear(); get('hold').classList.remove('active'); }
-function fast() { return pointerIds.size + keys.size > 0; }
-function setOverlay(title, subtitle, button) {
-  get('overlay-title').textContent = title;
-  get('overlay-subtitle').textContent = subtitle;
-  get('action').textContent = button;
-  get('overlay').hidden = false;
+function overlay(title, subtitle, button) {
+  get('overlay-title').textContent = title; get('overlay-subtitle').textContent = subtitle;
+  get('action').textContent = button; get('overlay').hidden = false;
 }
 function reset() {
-  releaseInput();
-  terrain = new Terrain(seed);
-  state = newRun();
-  lastTime = null;
-  paused = false;
-  running = true;
-  frameFlash = 0;
-  get('overlay').hidden = true;
-  updateHud();
+  get('action').blur();
+  audio.unlock(); state = newRun(); terrain = new Terrain(run.seed);
+  running = true; paused = false; lastTime = null;
+  deathAge = 0; landAge = 10; particles = []; failure = '';
+  releaseInput(); get('overlay').hidden = true;
+  get('share-actions').hidden = true; get('result-details').hidden = true;
 }
 function updateHud() {
-  get('score').textContent = String(state.hops);
-  get('beacons').textContent = String(state.beacons);
-  get('hold').textContent = fast() ? 'FAST · RELEASE TO BRAKE' : 'HOLD = FAST';
-  get('hold').classList.toggle('active', fast());
+  if (!state) return;
+  get('score').textContent = String(state.hops); get('best').textContent = String(best);
+  get('hold').classList.toggle('active', fast()); get('hold').setAttribute('aria-pressed', String(fast()));
+  get('hold-state').textContent = fast() ? 'FAST' : 'SLOW';
+  get('hold-instruction').textContent = fast() ? 'RELEASE TO SLOW' : 'HOLD TO GO FAST';
 }
 function endRun() {
-  running = false;
-  releaseInput();
-  const record = saveBest();
-  setOverlay(record ? 'NEW BEST!  ' + state.hops : state.hops + ' HOPS', 'SIGNAL LOST · ' + state.beacons + ' BEACONS', 'TRY AGAIN');
-  get('share-actions').hidden = false;
-  get('save').hidden = false;
+  failure = landingMiss(terrain, state.x) === 'short' ? 'TOO SHORT · HOLD A LITTLE LONGER' : 'TOO FAR · RELEASE A LITTLE EARLIER';
+  failureX = state.x; running = false; deathAge = .001; audio.play('fall');
+  const record = state.hops > best;
+  if (record) { best = state.hops; try { localStorage.setItem(bestKey(), String(best)); } catch {} }
+  releaseInput(); get('overlay').dataset.screen = 'result';
+  get('result-score').textContent = String(state.hops); get('result-best').textContent = String(best);
+  get('result-course').textContent = run.mode === 'daily' ? 'DAILY MOON / ' + run.date : 'FREE RUN / ' + run.seed;
+  get('result-details').hidden = false; get('share-actions').hidden = false;
+  overlay(record ? 'A NEW LITTLE RECORD.' : 'ONE MORE HOP?', failure, 'TRY AGAIN');
 }
 function pause() {
-  releaseInput();
-  if (!running || paused) return;
-  paused = true;
-  lastTime = null;
-  setOverlay('PAUSED', 'Tap to resume with SLOW.', 'RESUME');
-}
-function changeMode(next) {
-  releaseInput();
-  mode = next;
-  const url = new URL(location.href);
-  url.search = next === 'daily' ? '?mode=daily&date=' + jstDate() : '?mode=free&seed=' + randomSeed();
-  history.replaceState(null, '', url);
-  applyUrl();
-  terrain = new Terrain(seed);
-  state = newRun();
-  paused = false;
-  running = false;
-  get('share-actions').hidden = true;
-  setOverlay('HOPPOD', 'HOLD TO SPEED UP · RELEASE TO SLOW DOWN', 'START');
-  updateHud();
+  releaseInput(); if (!running || paused) return;
+  paused = true; lastTime = null; get('overlay').dataset.screen = 'pause';
+  overlay('TAKE A BREATHER.', 'Resume at SLOW.', 'RESUME');
 }
 get('action').addEventListener('click', () => {
-  if (paused) { paused = false; releaseInput(); lastTime = null; get('overlay').hidden = true; }
+  audio.unlock();
+  if (paused) { paused = false; releaseInput(); lastTime = null; get('overlay').hidden = true; get('action').blur(); }
   else reset();
 });
-get('daily').addEventListener('click', () => changeMode('daily'));
-get('free').addEventListener('click', () => changeMode('free'));
+for (const mode of ['daily', 'free']) get(mode).addEventListener('click', () => {
+  releaseInput(); const url = new URL(location.href);
+  url.search = mode === 'daily' ? '?mode=daily&date=' + jstDate() : '?mode=free';
+  history.replaceState(null, '', url); loadCourse();
+});
+window.addEventListener('popstate', loadCourse);
+get('sound').addEventListener('click', () => {
+  audio.unlock(); const muted = audio.toggle(); get('sound').textContent = muted ? 'SOUND OFF' : 'SOUND ON';
+  get('sound').setAttribute('aria-pressed', String(!muted));
+});
 for (const target of [canvas, get('hold')]) {
   target.addEventListener('pointerdown', e => {
-    if (!running || paused) return;
-    e.preventDefault(); pointerIds.add(e.pointerId);
-    target.setPointerCapture(e.pointerId);
+    if (!running || paused || e.button > 0) return;
+    e.preventDefault(); audio.unlock(); pointers.add(e.pointerId); target.setPointerCapture(e.pointerId); updateHud();
   });
-  target.addEventListener('lostpointercapture', e => pointerIds.delete(e.pointerId));
+  target.addEventListener('lostpointercapture', e => { pointers.delete(e.pointerId); updateHud(); });
 }
-window.addEventListener('pointerup', e => pointerIds.delete(e.pointerId));
+window.addEventListener('pointerup', e => { pointers.delete(e.pointerId); updateHud(); });
 window.addEventListener('pointercancel', releaseInput);
 window.addEventListener('keydown', e => {
-  if (e.code === 'Space') { e.preventDefault(); if (!e.repeat && running && !paused) keys.add('Space'); }
+  if (e.code === 'Space') {
+    if (!get('overlay').hidden || (document.activeElement?.tagName === 'BUTTON' && document.activeElement !== get('hold'))) return;
+    e.preventDefault(); if (!e.repeat && running && !paused) { audio.unlock(); keys.add('Space'); updateHud(); }
+  }
   if (e.code === 'KeyR' && !e.repeat) reset();
+  if (e.code === 'Escape') pause();
 });
-window.addEventListener('keyup', e => { if (e.code === 'Space') keys.delete('Space'); });
+window.addEventListener('keyup', e => { if (e.code === 'Space') { keys.delete('Space'); updateHud(); } });
 window.addEventListener('blur', pause);
 document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
 window.addEventListener('pagehide', pause);
-
-function shareText() { return 'HOPPOD 🚀 ' + state.hops + ' HOPS! How far can you bounce? #HOPPOD'; }
-get('share').addEventListener('click', () => {
-  const link = 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(shareText()) + '&url=' + encodeURIComponent(location.href);
-  window.open(link, '_blank', 'noopener,noreferrer');
-});
+get('share').addEventListener('click', () => window.open(shareUrl(run, state.hops, best), '_blank', 'noopener,noreferrer'));
 get('save').addEventListener('click', () => {
-  const c = document.createElement('canvas');
-  c.width = 1080; c.height = 1350;
-  const g = c.getContext('2d');
-  const gradient = g.createLinearGradient(0,0,0,1350);
-  gradient.addColorStop(0, '#101d37'); gradient.addColorStop(1, '#3b325a');
-  g.fillStyle = gradient; g.fillRect(0,0,1080,1350);
-  g.fillStyle = '#d5dfff'; g.font = 'bold 92px monospace'; g.textAlign = 'center';
-  g.fillText('HOPPOD', 540, 210);
-  g.fillStyle = '#ffe19a'; g.font = 'bold 196px monospace'; g.fillText(String(state.hops), 540, 530);
-  g.font = '48px monospace'; g.fillText('HOPS', 540, 620);
-  drawPod(g, 540, 920, 7, false, 0);
-  g.fillStyle = '#e3e7f3'; g.font = '42px monospace';
-  g.fillText(mode === 'daily' ? 'DAILY ' + date : 'FREE RUN', 540, 1160);
-  g.font = '30px monospace'; g.fillText('#HOPPOD', 540, 1230);
-  const link = document.createElement('a');
-  link.href = c.toDataURL('image/png'); link.download = 'HOPPOD-' + state.hops + '-hops.png';
-  link.click();
+  const c = document.createElement('canvas'); c.width = 1080; c.height = 1350;
+  const g = c.getContext('2d'); g.imageSmoothingEnabled = false;
+  g.fillStyle = '#101f2c'; g.fillRect(0, 0, 1080, 1350);
+  g.strokeStyle = '#f0d49a'; g.lineWidth = 3; g.strokeRect(45, 45, 990, 1260);
+  for (let i = 0; i < 75; i++) { g.fillStyle = i % 3 ? '#526875' : '#e9c996'; g.fillRect(75 + i * 97 % 930, 80 + i * 137 % 1150, 3, 3); }
+  g.textAlign = 'center'; g.fillStyle = '#fff0d0'; g.font = 'bold 90px monospace'; g.fillText('HOPPOD', 540, 200);
+  g.fillStyle = '#ffad73'; g.font = '24px monospace'; g.fillText('O N E  M O R E  H O P !', 540, 252);
+  g.fillStyle = '#fff0d0'; g.font = 'bold 190px monospace'; g.fillText(String(state.hops), 540, 510);
+  g.font = '32px monospace'; g.fillText('HOPS  /  BEST ' + best, 540, 582);
+  g.fillStyle = '#718e93'; g.fillRect(330, 970, 420, 8); g.fillStyle = '#25404a'; g.fillRect(330, 978, 420, 65);
+  drawPod(g, 540, 960, 8, { phase: .15 });
+  g.fillStyle = '#fff0d0'; g.font = '30px monospace';
+  g.fillText(run.mode === 'daily' ? 'DAILY MOON / ' + run.date : 'FREE RUN / ' + run.seed, 540, 1150);
+  g.fillStyle = '#a2b9ba'; g.font = '22px monospace'; g.fillText('#HOPPOD  ·  COURSE v0.2', 540, 1212);
+  const link = document.createElement('a'); link.href = c.toDataURL('image/png');
+  link.download = 'HOPPOD-' + state.hops + '-hops.png'; link.click();
 });
-function drawPod(g, x, y, s, falling, phase) {
-  g.save();
-  g.translate(Math.round(x), Math.round(y));
-  g.rotate(falling ? 0.55 : 0);
-  g.scale(s, s);
-  const rect = (color,x,y,w,h) => { g.fillStyle=color; g.fillRect(x,y,w,h); };
-  const outline='#23314d', shell='#fff2d8', orange='#ff9871', dark='#27314a', gold='#ffe286';
-  // Two angular ear antennas; body is a capsule with a spring below.
-  rect(outline,-9,-27,6,17); rect(outline,5,-27,6,17);
-  rect(shell,-8,-26,4,14); rect(shell,6,-26,4,14);
-  rect(orange,-7,-24,2,10); rect(orange,7,-24,2,10);
-  rect(outline,-15,-13,30,29); rect(shell,-13,-11,26,23);
-  rect(orange,-13,5,26,8); rect(dark,-9,-7,18,16);
-  rect(gold,-5,-3,3,9); rect(gold,3,-3,3,9);
-  rect(outline,-7,16,14,3); rect(shell,-5,19,10,2);
-  rect(outline,-7,21,14,2); rect(shell,-5,23,10,2);
-  if (phase > 0.45 && !falling) rect('#fff8ec',-12,13,24,3);
-  g.restore();
-}
-function draw() {
-  ctx.fillStyle = '#101b32'; ctx.fillRect(0,0,W,H);
-  const offset = state.x - HERO_X;
-  ctx.fillStyle = '#ebe4cb'; ctx.beginPath(); ctx.arc(283,72,34,0,Math.PI*2); ctx.fill();
-  ctx.fillStyle = '#bfc4d4'; ctx.beginPath(); ctx.arc(274,65,8,0,Math.PI*2); ctx.fill();
-  for (let i=0;i<44;i++) {
-    const px=(i*97 - offset*.12) % (W+30), py=25+(i*37)%205;
-    ctx.fillStyle='#7687b8';ctx.fillRect(((px+W+30)%(W+30))|0, py, i%7===0?3:2,2);
+
+function draw(now) {
+  const offset = state.x - HERO_X, screen = x => Math.round(x - offset), dead = state.status === 'dead';
+  ctx.fillStyle = '#101f2c'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#efddae'; ctx.beginPath(); ctx.arc(285, 84, 29, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#c8bd99'; ctx.fillRect(272, 71, 8, 8); ctx.fillRect(290, 89, 10, 6);
+  for (let i = 0; i < 44; i++) {
+    const x = ((i * 97 - offset * .09) % 390 + 390) % 390;
+    ctx.fillStyle = i % 7 ? '#526976' : '#ead6a4'; ctx.fillRect(x | 0, 22 + i * 37 % 220, 2, i % 7 ? 2 : 3);
   }
-  ctx.fillStyle='#273450';
-  for(let x=0;x<W+40;x+=28) {
-    const h=12+(Math.sin((x+offset*.05)*.035)+1)*10;
-    ctx.fillRect(x,H-110-h,30,110+h);
+  for (let layer = 0; layer < 2; layer++) {
+    ctx.fillStyle = layer ? '#1c343e' : '#162b36';
+    for (let x = -28; x < W + 28; x += 28) {
+      const height = 20 + (Math.sin((x + offset * (.04 + layer * .03)) * .025) + 1) * (24 + layer * 10);
+      ctx.fillRect(x, FLOOR - height, 29, H);
+    }
   }
-  ctx.fillStyle='#a1a7c8';ctx.font='bold 12px monospace';
-  ctx.fillText(fast()?'FAST':'SLOW',16,28);
-  const groundY=FLOOR;
-  const screen = x => Math.round(x - offset);
-  for(const [a,b] of terrain.platforms) {
-    const sx=screen(a), ex=screen(b);
-    if(ex < -15 || sx > W+15) continue;
-    ctx.fillStyle='#52627f';ctx.fillRect(sx,groundY,ex-sx,H-groundY);
-    ctx.fillStyle='#d4d4e2';ctx.fillRect(sx,groundY,ex-sx,7);
-    ctx.fillStyle='#8193b3';
-    for(let tx=sx;tx<ex;tx+=18)ctx.fillRect(tx,groundY+17,2,8);
+  for (const [a, b] of terrain.platforms) {
+    const x = screen(a), end = screen(b); if (end < 0 || x > W) continue;
+    ctx.fillStyle = '#2e4850'; ctx.fillRect(x, FLOOR, end - x, H - FLOOR);
+    ctx.fillStyle = '#a8b7a5'; ctx.fillRect(x, FLOOR, end - x, 6);
+    ctx.fillStyle = '#65858a'; ctx.fillRect(x, FLOOR + 6, end - x, 8);
+    ctx.fillStyle = '#42616a';
+    for (let tx = a + 13; tx < b - 6; tx += 24) ctx.fillRect(screen(tx), FLOOR + 27 + Math.round(tx) % 19, 6, 3);
+    ctx.fillStyle = '#edcf98'; ctx.fillRect(x + 8, FLOOR, 2, 5); ctx.fillRect(end - 10, FLOOR, 2, 5);
   }
-  for(const item of terrain.beacons) {
-    if(item.taken)continue;
-    const sx=screen(item.x);
-    if(sx<-15||sx>W+15)continue;
-    ctx.fillStyle='#ffdc88';ctx.fillRect(sx-6,groundY-32,12,12);
-    ctx.fillStyle='#fff7da';ctx.fillRect(sx-2,groundY-28,4,4);
+  for (const b of terrain.beacons) {
+    const x = screen(b.x); if (b.taken || x < -10 || x > W + 10) continue;
+    ctx.fillStyle = '#ffcb78'; ctx.fillRect(x - 3, FLOOR - 29, 6, 6); ctx.fillStyle = '#fff1bb'; ctx.fillRect(x - 1, FLOOR - 31, 2, 10);
   }
-  const landing=screen(predictLanding(state,fast()));
-  ctx.strokeStyle=isSafe(terrain,predictLanding(state,fast()))?'#7df6d4':'#ff8e9e';
-  ctx.lineWidth=3;ctx.beginPath();ctx.ellipse(landing,groundY-8,13,4,0,0,Math.PI*2);ctx.stroke();
-  ctx.setLineDash([3,6]);ctx.beginPath();ctx.moveTo(HERO_X,groundY-22);ctx.lineTo(landing,groundY-22);ctx.stroke();ctx.setLineDash([]);
-  const height = state.status==='dead'?15:Math.sin(state.phase/PERIOD*Math.PI)*96;
-  drawPod(ctx,HERO_X,groundY-29-height,2,state.status==='dead',state.phase/PERIOD);
-  if(frameFlash>0){ ctx.fillStyle='rgba(255,225,150,0.10)';ctx.fillRect(0,0,W,H);frameFlash--; }
+  const height = running || paused ? Math.sin(state.phase / PERIOD * Math.PI) * 96 : 0;
+  const heroY = FLOOR - 2 - height + (dead ? Math.min(110, deathAge * deathAge * 160) : 0);
+  if (!dead && get('overlay').hidden) {
+    const projected = predictLanding(state, fast()), safe = isSafe(terrain, projected), x = screen(projected), color = safe ? '#8ee6c4' : '#ff9b80';
+    ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.setLineDash([2, 5]);
+    ctx.beginPath(); ctx.moveTo(HERO_X + 12, heroY - 12); ctx.lineTo(x, FLOOR - 5); ctx.stroke(); ctx.setLineDash([]);
+    ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(x, FLOOR - 3, 12, 4, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(x, FLOOR - 22, 5, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (1 - state.phase / PERIOD)); ctx.stroke();
+    if (!safe) { ctx.font = 'bold 10px monospace'; ctx.textAlign = 'center'; ctx.fillStyle = color;
+      ctx.fillText(fast() ? 'RELEASE' : 'HOLD', Math.max(30, Math.min(W - 30, x)), FLOOR - 39); }
+  }
+  if (dead) { ctx.strokeStyle = '#ff9b80'; ctx.lineWidth = 2; const x = screen(failureX);
+    ctx.beginPath(); ctx.moveTo(x - 6, FLOOR - 6); ctx.lineTo(x + 6, FLOOR + 6); ctx.moveTo(x + 6, FLOOR - 6); ctx.lineTo(x - 6, FLOOR + 6); ctx.stroke(); }
+  for (const p of particles) { ctx.fillStyle = p.color; ctx.globalAlpha = Math.max(0, 1 - p.age / .35);
+    ctx.fillRect(screen(p.x) + p.vx * p.age, FLOOR - 5 + p.vy * p.age + 100 * p.age ** 2, 3, 3); }
+  ctx.globalAlpha = 1;
+  if (!reducedMotion.matches && modeFast && running) {
+    ctx.fillStyle = '#ffb17b'; for (let i = 0; i < 3; i++) ctx.fillRect(HERO_X - 28 - i * 10, heroY - 20 + i * 7, 5 + i * 2, 2);
+  }
+  drawPod(ctx, HERO_X, heroY, 2, { phase: state.phase / PERIOD, fast: modeFast, land: Math.max(0, 1 - landAge / .13), dead: dead ? deathAge : 0, time: now, idle: !running });
+  ctx.textAlign = 'left'; ctx.font = 'bold 10px monospace'; ctx.fillStyle = modeFast ? '#ffb17b' : '#8ee6c4'; ctx.fillText(modeFast ? '» FAST' : '· SLOW', 16, 26);
+  if (running && state.hops < 3) {
+    ctx.textAlign = 'center'; ctx.fillStyle = '#c3d1c7'; ctx.font = '11px monospace';
+    ctx.fillText(['AUTO HOP. YOUR PACE.', 'HOLD → FAST', 'RELEASE → SLOW'][state.hops], W / 2, 190);
+  }
 }
 function frame(now) {
-  if(running && !paused && lastTime !== null) {
-    const events=advance(state,terrain,Math.min(0.05,Math.max(0,(now-lastTime)/1000)),fast());
-    if(events.includes('beacon'))frameFlash=4;
-    if(state.status==='dead')endRun();
+  const dt = lastTime === null ? 0 : Math.max(0, (now - lastTime) / 1000);
+  lastTime = now; worldTime += Math.min(dt, .05);
+  if (running && !paused) {
+    if (dt > .25) pause();
+    else {
+      if (modeFast !== fast()) { modeFast = fast(); audio.play(modeFast ? 'fast' : 'slow'); }
+      const events = advance(state, terrain, dt, fast()); landAge += dt;
+      if (events.includes('land')) {
+        landAge = 0; audio.play('land', state.hops);
+        if (!reducedMotion.matches) for (let i = 0; i < 8; i++) particles.push({x: state.x, vx: (i - 3.5) * 17, vy: -20 - i % 3 * 10, age: 0, color: i % 2 ? '#efdaad' : '#8ee6c4'});
+      }
+      if (state.status === 'dead') endRun();
+    }
   }
-  lastTime = now; updateHud(); draw();
-  requestAnimationFrame(frame);
+  if (deathAge > 0) deathAge += Math.min(dt, .05);
+  particles.forEach(p => p.age += Math.min(dt, .05)); particles = particles.filter(p => p.age < .35);
+  updateHud(); draw(worldTime); requestAnimationFrame(frame);
 }
-applyUrl();
-terrain=new Terrain(seed);state=newRun();
-get('share-actions').hidden=true;
-setOverlay('HOPPOD', 'HOLD TO SPEED UP · RELEASE TO SLOW DOWN', 'START');
-updateHud();
-requestAnimationFrame(frame);
+loadCourse(); requestAnimationFrame(frame);

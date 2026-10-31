@@ -20,9 +20,9 @@ test('100 seeds: 100 safe reference landings, no terminal course',()=>{
     const terrain=new Terrain(seed),state=newRun();
     for(let i=0;i<100;i++){
       terrain.extendTo(state.x+1600);
-      const fast=terrain.plan.get(state.hops+1);
-      assert.equal(typeof fast,'boolean','plan present seed '+seed+' hop '+i);
-      const events=advance(state,terrain,PERIOD,fast);
+      const duration=terrain.plan.get(state.hops+1);
+      assert.equal(typeof duration,'number','plan present seed '+seed+' hop '+i);
+      const events=[...advance(state,terrain,duration,true),...advance(state,terrain,PERIOD-duration,false)];
       assert.equal(state.status,'playing','seed '+seed+' hop '+i);
       assert.equal(state.hops,i+1);
       assert.ok(events.includes('land'));
@@ -50,8 +50,11 @@ test('30/60/120/144 Hz independent of animation frame rate',()=>{
   for(const hz of [30,60,120,144]){
     const terrain=new Terrain(42),s=newRun();
     for(let hop=0;hop<60;hop++){
-      const fast=terrain.plan.get(s.hops+1);
-      for(let tick=0;tick<hz;tick++)advance(s,terrain,PERIOD/hz,fast);
+      const duration=terrain.plan.get(s.hops+1);
+      for (const [seconds, fast] of [[duration,true],[PERIOD-duration,false]]) {
+        let elapsed=0;
+        while(elapsed < seconds-1e-10) { const dt=Math.min(1/hz,seconds-elapsed);advance(s,terrain,dt,fast);elapsed+=dt; }
+      }
     }
     assert.equal(s.status,'playing');results.push([s.hops,s.beacons,Math.round(s.x*1000)]);
   }

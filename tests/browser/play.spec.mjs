@@ -1,0 +1,111 @@
+import {test,expect} from '@playwright/test';
+import {mkdir} from 'node:fs/promises';
+import {Terrain} from '../../public/src/engine.mjs';
+const artifacts='output/playwright';
+async function open(page,query='?mode=free&seed=42') {
+  await page.clock.install({time:new Date('2026-11-01T03:00:00Z')});
+  await page.goto('/'+query);
+  await page.clock.pauseAt(new Date('2026-11-01T03:00:01Z'));
+}
+async function start(page) { await page.locator('#action').click(); await page.clock.runFor(32); }
+test('16 browser hops with real FAST/SLOW keyboard events across islands',async({page})=>{
+  await open(page);await start(page);const terrain=new Terrain(42);terrain.extendTo(4000);
+  for(let hop=1;hop<=16;hop++) {
+    const hold=terrain.plan.get(hop)*1000;
+    if(hold>0) {
+      await page.keyboard.down('Space');await page.clock.runFor(Math.round(hold));
+      if(hop===10) await page.screenshot({path:artifacts+'/v02-fast.png'});
+      await page.keyboard.up('Space');
+    }
+    await page.clock.runFor(780-Math.round(hold));
+    await expect(page.locator('#overlay')).toBeHidden();
+    await expect(page.locator('#score')).toHaveText(String(hop));
+  }
+  await page.screenshot({path:artifacts+'/v02-islands.png'});
+});
+test('real-time start → 3+ landings → fall → immediate retry',async({page})=>{
+  const errors=[];page.on('pageerror',e=>errors.push(String(e)));
+  await page.goto('/?mode=free&seed=42');await page.locator('#action').click();
+  await expect.poll(async()=>Number(await page.locator('#score').textContent()),{timeout:4500}).toBeGreaterThanOrEqual(3);
+  await page.screenshot({path:artifacts+'/v02-playing.png'});
+  await expect(page.locator('#overlay')).toBeVisible({timeout:10000});
+  await expect(page.locator('#overlay-subtitle')).toContainText(/TOO (SHORT|FAR)/);
+  await page.screenshot({path:artifacts+'/v02-result.png'});
+  await page.locator('#action').click();await expect(page.locator('#score')).toHaveText('0');
+  await expect(page.locator('#hold-state')).toHaveText('SLOW');await expect(page.locator('#overlay')).toBeHidden();
+  expect(errors).toEqual([]);
+});
+test('pointer, cancellation, capture loss, blur, visibility, pagehide, retry clear input',async({page})=>{
+  await open(page);await start(page);
+  const box=await page.locator('#hold').boundingBox();
+  await page.mouse.move(box.x+30,box.y+20);await page.mouse.down();
+  await expect(page.locator('#hold-state')).toHaveText('FAST');
+  await page.evaluate(()=>window.dispatchEvent(new PointerEvent('pointercancel',{pointerId:1})));
+  await expect(page.locator('#hold-state')).toHaveText('SLOW');await page.mouse.up();
+  await page.keyboard.down('Space');await expect(page.locator('#hold-state')).toHaveText('FAST');
+  await page.evaluate(()=>window.dispatchEvent(new Event('blur')));
+  await expect(page.locator('#action')).toHaveText('RESUME');await expect(page.locator('#hold-state')).toHaveText('SLOW');
+  await page.keyboard.up('Space');await page.locator('#action').click();
+  await page.keyboard.down('Space');await page.keyboard.press('r');
+  await expect(page.locator('#hold-state')).toHaveText('SLOW');await expect(page.locator('#score')).toHaveText('0');
+  await page.keyboard.up('Space');
+  await page.evaluate(()=>window.dispatchEvent(new Event('pagehide')));await expect(page.locator('#action')).toHaveText('RESUME');
+  await page.locator('#action').click();
+  await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,value:true});document.dispatchEvent(new Event('visibilitychange'));});
+  await expect(page.locator('#action')).toHaveText('RESUME');
+  await page.locator('#free').click();await expect(page.locator('#hold-state')).toHaveText('SLOW');
+  await expect(page.locator('#overlay')).toHaveAttribute('data-screen','start');
+});
+test('captured pointer release outside control and keyboard START activation',async({page})=>{
+  await open(page);await page.locator('#action').focus();await page.keyboard.press('Space');await page.clock.runFor(32);
+  await expect(page.locator('#overlay')).toBeHidden();
+  const b=await page.locator('#hold').boundingBox();await page.mouse.move(b.x+20,b.y+20);await page.mouse.down();
+  await expect(page.locator('#hold-state')).toHaveText('FAST');
+  await page.mouse.move(1,1);await page.mouse.up();await expect(page.locator('#hold-state')).toHaveText('SLOW');
+  await page.keyboard.down('Space');await expect(page.locator('#hold-state')).toHaveText('FAST');
+  await page.locator('#daily').click();await page.keyboard.up('Space');await expect(page.locator('#hold-state')).toHaveText('SLOW');
+  expect(new URL(page.url()).searchParams.get('date')).toBe('2026-11-01');
+});
+test('blocked storage, reduced motion, and a long frame stall remain playable',async({page})=>{
+  await page.addInitScript(()=>{Object.defineProperty(window,'localStorage',{get(){throw new Error('Storage blocked');}});});
+  await page.emulateMedia({reducedMotion:'reduce'});await open(page);await start(page);
+  await page.clock.runFor(2400);await expect(page.locator('#score')).toHaveText('3');
+  await page.clock.fastForward(2000);await expect(page.locator('#action')).toHaveText('RESUME');
+  await page.locator('#action').click();await page.clock.runFor(6800);
+  await expect(page.locator('#share-actions')).toBeVisible();
+});
+test('PNG download has expected dimensions; X composer receives exact replay URL and best',async({page})=>{
+  await open(page);await start(page);await page.clock.runFor(6800);
+  await expect(page.locator('#share-actions')).toBeVisible();
+  const download=page.waitForEvent('download');await page.locator('#save').click();const d=await download;
+  await d.saveAs(artifacts+'/score.png');expect(d.suggestedFilename()).toMatch(/^HOPPOD-\d+-hops.png$/);
+  const size=await page.evaluate(async()=>{
+    const image=new Image();const a=document.createElement('a');
+    const native=a.click;let href;
+    HTMLAnchorElement.prototype.click=function(){href=this.href;};
+    document.getElementById('save').click();HTMLAnchorElement.prototype.click=native;
+    image.src=href;await image.decode();return [image.width,image.height];
+  });expect(size).toEqual([1080,1350]);
+  await page.evaluate(()=>{window.open=(url)=>{window.__share=url;};});
+  await page.locator('#share').click();const link=new URL(await page.evaluate(()=>window.__share));
+  expect(link.origin+link.pathname).toBe('https://twitter.com/intent/tweet');
+  expect(link.searchParams.get('url')).toBe(page.url());expect(link.searchParams.get('text')).toContain('BEST');
+  await page.reload();await expect(page.locator('#best')).not.toHaveText('0');
+});
+for(const [width,height] of [[320,568],[390,844],[1440,900],[844,390]]) test(`visual layout ${width}×${height}`,async({page})=>{
+  await page.setViewportSize({width,height});await open(page);await mkdir(artifacts,{recursive:true});
+  const errors=[];page.on('pageerror',e=>errors.push(String(e)));
+  await expect(page.locator('#action')).toBeInViewport();await page.screenshot({path:`${artifacts}/v02-start-${width}.png`,fullPage:true});
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await start(page);await page.clock.runFor(6800);
+  await expect(page.locator('#share')).toBeVisible();
+  // Children must remain inside the canvas overlay, including at 320px.
+  const bounds=await page.locator('#overlay').boundingBox();
+  for(const id of ['action','share','save','overlay-subtitle']) {
+    const box=await page.locator('#'+id).boundingBox();
+    expect(box.y+box.height).toBeLessThanOrEqual(bounds.y+bounds.height+1);
+    expect(box.x).toBeGreaterThanOrEqual(bounds.x);
+    expect(box.x+box.width).toBeLessThanOrEqual(bounds.x+bounds.width+1);
+  }
+  await page.screenshot({path:`${artifacts}/v02-result-${width}.png`,fullPage:true});expect(errors).toEqual([]);
+});

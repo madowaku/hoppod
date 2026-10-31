@@ -1,5 +1,7 @@
 # HOPPOD v0.1 / independent playable prototype
 
+Historical description of PR #1. The v0.2 branch supersedes temporary art, terrain motifs, the beacon HUD and old frame-delta cap; see [current design and acceptance](V02_ACCEPTANCE.md). The period and speeds remain unchanged.
+
 Status: Draft PR only, not deployed.
 
 ## Identity

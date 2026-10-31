@@ -1,7 +1,7 @@
 export const PERIOD = 0.78;
 export const SLOW_SPEED = 105;
 export const FAST_SPEED = 270;
-const INSET = 8;
+export const INSET = 8;
 const EPS = 1e-8;
 
 // World geometry is generated from an always-solvable reference sequence.
@@ -25,44 +25,43 @@ export class Terrain {
   constructor(seed = 1) {
     this.seed = seed >>> 0;
     this.random = randomGenerator(seed);
-    this.referenceX = 75;
-    this.referenceHop = 0;
-    this.platforms = [[0, 145]];
+    this.referenceHop = 7;
+    this.platforms = [[0, 735]];
     this.plan = new Map();
+    this.planPositions = new Map();
+    for (let hop = 1; hop <= 7; hop++) { this.plan.set(hop, 0); this.planPositions.set(hop, 75 + hop * PERIOD * SLOW_SPEED); }
+    this.referenceX = 75 + 7 * PERIOD * SLOW_SPEED;
     this.beacons = [];
     this.extendTo(1900);
   }
-  appendHop(fast) {
+  appendHop() {
     this.referenceHop += 1;
-    this.referenceX += PERIOD * (fast ? FAST_SPEED : SLOW_SPEED);
-    this.plan.set(this.referenceHop, fast);
-    if (fast) {
-      // Distinct leap islands, with a readable landing margin.
-      const halfWidth = 62 + this.random() % 9;
-      this.platforms.push([this.referenceX - halfWidth, this.referenceX + halfWidth]);
-    } else {
-      // A continuous runway gives the player a moment to breathe.
-      this.platforms[this.platforms.length - 1][1] = this.referenceX + 72;
-    }
+    const rest = this.referenceHop % 10 >= 8;
+    const difficulty = Math.min(1, this.referenceHop / 100);
+    const distance = 150 + this.random() % 31;
+    // At most 180px between centers, at least 106px wide: even the
+    // extreme supported edges have a next-hop solution (82..211px).
+    const halfWidth = rest ? 70 : Math.round(70 - 17 * difficulty) + this.random() % 4;
+    this.referenceX += distance;
+    // Seconds spent FAST, then SLOW, reproduces a centered reference route.
+    this.plan.set(this.referenceHop, (distance - PERIOD * SLOW_SPEED) / (FAST_SPEED - SLOW_SPEED));
+    this.planPositions.set(this.referenceHop, this.referenceX);
+    if (this.referenceHop % 10 === 9) this.platforms[this.platforms.length - 1][1] = this.referenceX + halfWidth;
+    else this.platforms.push([this.referenceX - halfWidth, this.referenceX + halfWidth]);
     if (this.referenceHop % 5 === 0) {
       this.beacons.push({ id: this.referenceHop, x: this.referenceX });
     }
   }
   extendTo(worldX) {
     while (this.referenceX < worldX) {
-      const slowBefore = 2 + this.random() % 2;
-      const fast = 2 + this.random() % 3;
-      const slowAfter = 2 + this.random() % 2;
-      for (let n = 0; n < slowBefore; n++) this.appendHop(false);
-      for (let n = 0; n < fast; n++) this.appendHop(true);
-      for (let n = 0; n < slowAfter; n++) this.appendHop(false);
+      this.appendHop();
     }
   }
-  trim(worldX, successfulHops) {
+  trim(worldX) {
     this.platforms = this.platforms.filter(([a, b]) => b >= worldX - 400);
     this.beacons = this.beacons.filter(b => b.x >= worldX - 100);
     for (const hop of this.plan.keys()) {
-      if (hop < successfulHops - 4) this.plan.delete(hop);
+      if (this.planPositions.get(hop) < worldX - 400) { this.plan.delete(hop); this.planPositions.delete(hop); }
     }
   }
 }
@@ -71,6 +70,14 @@ export function isSafe(terrain, x) {
 }
 export function predictLanding(state, fast) {
   return state.x + (fast ? FAST_SPEED : SLOW_SPEED) * Math.max(0, PERIOD - state.phase);
+}
+export function landingMiss(terrain, x) {
+  let nearest = Infinity, direction = 'short';
+  for (const [a, b] of terrain.platforms) {
+    const safeX = Math.max(a + INSET, Math.min(b - INSET, x));
+    if (Math.abs(safeX - x) < nearest) { nearest = Math.abs(safeX - x); direction = safeX < x ? 'far' : 'short'; }
+  }
+  return direction;
 }
 export function newRun() {
   return { x: 75, phase: 0, hops: 0, beacons: 0, status: 'playing', lastEvent: null };
@@ -102,7 +109,7 @@ export function advance(state, terrain, seconds, fast) {
           }
         }
         terrain.extendTo(state.x + 1600);
-        terrain.trim(state.x, state.hops);
+        terrain.trim(state.x);
       }
     }
   }

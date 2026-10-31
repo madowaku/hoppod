@@ -1,0 +1,14 @@
+{
+  "name": "hoppod",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "ONE MORE HOP! An endless one-button lunar score attack.",
+  "scripts": {
+    "dev": "python -m http.server 8000 --bind 127.0.0.1 --directory public",
+    "test": "node --test tests/*.test.mjs",
+    "test:browser": "playwright test",
+    "check": "node --check public/src/app.mjs && node --check public/src/engine.mjs && node --check public/src/links.mjs && node --check public/src/pod.mjs && node --check public/src/audio.mjs"
+  },
+  "devDependencies": { "@playwright/test": "1.64.1" }
+}
