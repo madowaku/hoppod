@@ -1,0 +1,19 @@
+name: HOPPOD CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  engine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test deterministic endless simulation
+        run: node --test tests/*.test.mjs
+      - name: Validate module syntax
+        run: |
+          node --check public/src/engine.mjs
+          node --check public/src/app.mjs

@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#101b32">
+<meta name="description" content="HOPPOD: one-button endless lunar hopping. Hold to speed up, release to slow down. How many hops can you survive?">
+<title>HOPPOD | ONE MORE HOP!</title>
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<main class="shell">
+  <header class="top"><div class="brand"><strong>HOPPOD</strong><span>ONE MORE HOP!</span></div>
+    <div class="hud"><div><small>HOPS</small><strong id="score">0</strong></div><div><small>BEST</small><strong id="best">0</strong></div><div><small>◈</small><strong id="beacons">0</strong></div></div>
+  </header>
+  <div class="mode"><span id="mode-name">DAILY MOON</span><div><button id="daily" class="selected" type="button">DAILY</button><button id="free" type="button">FREE RUN</button></div></div>
+  <section class="play-area">
+    <canvas id="play" width="360" height="510" aria-label="HOPPOD automatically jumps. Hold to scroll fast and release to scroll slowly. Land on the moon platforms."></canvas>
+    <div id="overlay" class="overlay">
+      <h1 id="overlay-title">HOPPOD</h1><p id="overlay-subtitle">HOLD TO SPEED UP · RELEASE TO SLOW DOWN</p>
+      <button id="action" class="action" type="button">START</button>
+      <div id="share-actions" class="share-actions" hidden><button id="share" type="button">POST TO X</button><button id="save" type="button">SAVE SCORE PNG</button></div>
+    </div>
+  </section>
+  <button id="hold" class="hold" type="button">HOLD = FAST</button>
+  <p class="hint">HOLD / SPACE = FAST · RELEASE = SLOW<br>Follow the landing ring. Miss a platform and the run ends.</p>
+  <footer>Retro lunar capsule · No login · Browser only</footer>
+</main>
+<script type="module" src="./src/app.mjs"></script>
+</body></html>
