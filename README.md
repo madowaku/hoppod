@@ -45,3 +45,7 @@ The independent review is stacked on #4 (full order #1 → #2 → #3 → #4 → 
 ### Terrain motif experiment (Draft)
 
 [v0.4 ground-only 20-motif experiment](docs/V04_MOTIF_EXPERIMENT.md) is an isolated branch stacked on Draft PR #5. It changes seeded terrain and uses course `v=4` with separate BEST keys. It does **not** change timing, landing audio, ring semantics or Earthrise. It is not merged or deployed; compare against v0.3 in human playtests before deciding whether to adopt it.
+
+### Landing marker A/B/C experiment (Draft)
+
+[v0.4-A marker comparison](docs/V04A_MARKER_COMPARISON.md) is stacked on the 20-motif experiment. A = original safe/danger ring (default), B = neutral landing-position ring, C = no marker. Use the three buttons above the canvas to compare, or visit the same seed with `&marker=neutral` / `&marker=off`. Switching resets to the same seed, with separate BEST records per visual mode. No physics, audio or scenery changes. Not merged or deployed.
