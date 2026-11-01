@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {PartLayout,PartRun,PART_CATCH} from '../public/src/parts.mjs';
 import {markerModeFromUrl} from '../public/src/marker.mjs';
+import {Terrain,footing,PERIOD,SLOW_SPEED,FAST_SPEED} from '../public/src/engine.mjs';
 
 test('official C policy: old marker-only links cannot restore a public prediction overlay',()=>{
   for(const mode of ['full','neutral']) {
@@ -48,4 +49,20 @@ test('audit fixes preserve pre-audit first 100 part slots and order exactly',()=
     assert.deepEqual(streaming.slot(1),slots[1],'a historical research query replays without changing the live stream');
     assert.deepEqual(streaming.slot(0),slots[0]);
   }
+});
+
+test('dense interior audit: every sampled footing position retains a positive next-hop corridor',t=>{
+  let points=0,least=Infinity,example;
+  for(let seed=0;seed<256;seed++){
+    const terrain=new Terrain(seed);terrain.extendTo(50000);
+    for(let i=1;i<terrain.platforms.length-1;i++){
+      const[a,b]=footing(terrain.platforms[i]),ground=terrain.platforms.slice(i,i+2).map(footing);
+      for(let x=a;x<=b;x+=1.7){
+        const width=Math.max(...ground.map(([l,r])=>Math.max(0,Math.min(r,x+PERIOD*FAST_SPEED)-Math.max(l,x+PERIOD*SLOW_SPEED))));points++;
+        if(width<=0)assert.fail(`no corridor at seed ${seed}, platform ${i}, x=${x}`);
+        if(width<least){least=width;example={seed,platform:i,x};}
+      }
+    }
+  }
+  t.diagnostic(JSON.stringify({points,minimumCorridor:least,example}));
 });

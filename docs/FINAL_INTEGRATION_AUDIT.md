@@ -2,7 +2,7 @@
 
 ## 1. 総合判定
 
-**FIX REQUIRED（#1〜#13だけを取り込む場合）。本監査の最小修正を含めた最終スナップショットは71 Node / 38 browserを通過し、main統合READY。公開は別判定。** 美術トラックA/B/Cの未着手や収益化の未実装を、main統合の阻害理由にはしない。
+**FIX REQUIRED（#1〜#13だけを取り込む場合）。本監査の最小修正を含めた最終スナップショットはmain統合READY。検証は72 Node / 38 browser。公開は別判定。** 美術トラックA/B/Cの未着手や収益化の未実装を、main統合の阻害理由にはしない。
 
 GitHubを照合した対象は `docs/concept-art-direction` / #13 の `e6645d4546f91592ffc5f489fc14d627d754e744`。mainは `f50befbd326cbc62c1b0d270e20f85fc5b94c6c9`、内容はREADME一枚だけだった。ローカルは#13と一致し、開始時に未コミット変更はなかった。`git fetch origin --prune` 後も一致した。作業は `codex/rapippo-final-audit` に分離した。
 
@@ -67,6 +67,7 @@ GitHubを照合した対象は `docs/concept-art-direction` / #13 の `e6645d454
 - ±20pxの部品取得両端、±20.001pxの外側、重複取得なし、3種未満で完成しないことを確認。既存400-seedの配置/到達可能性/収集検証も維持する。
 - 320×568、320×640、390×844、Pixel 5相当、PC、横画面を再確認。0/1/full crewの実保存PNG、2部品状態のプレイ画面、JAの高記録PNGを目視した。日本語の複数文字が同じ欠字箱へ潰れない簡易ピクセル検査も加えた。全Unicode字形や全端末のフォント保証という意味ではない。
 - 30/60/120/144Hz、512 seedsの描画/足場境界、非参照160,000着地、本体保持データ上限、日替わり再現性、BEST・言語・サウンドの保存、ぼかし/非表示/ポーズ/再開/リトライを再実行。
+- **端と中央だけを共有する前提への追加監査:** 256 seedsを50,000pxまで生成し、全足場内部を1.7px刻みで5,431,646点走査。正の次着地先がない点は0。既存の「端/中央の20px余裕」は全内点の20px保証ではなく、今回の最小連続区間は約10.4px（seed 254、約30,190pxの地点）だった。SLOW/FAST端の入力を継続できる区間も含み、即「31msで正確に切り替えなければ死ぬ」と解釈しない。到達不能の新バグではないため、地形/DAILY/BESTを変えて20pxへ合わせる修正はしなかった。
 
 1001までの保持数（最終ランの例）:
 
@@ -87,7 +88,7 @@ npm run check:assets
 npm run test:browser
 ```
 
-Node **71成功**、Chromium browser **38成功・skipなし（フル実行7.2分）**、構文とasset dry-run成功。証跡は `output/audit/`、従来分は `output/playwright/` / `output/review/`。CIは3フォルダをartifactに含める。ローカル/CIともブラウザコマンドを同時実行しない。
+Node **72成功・skipなし**（71件成功後、独立した内点走査1件を追加して全件を再実行）、Chromium browser **38成功・skipなし（フル実行7.2分）**、構文とasset dry-run成功。内点テスト・資料の追記後にゲームコードは変更していない。証跡は `output/audit/`、従来分は `output/playwright/` / `output/review/`。CIは3フォルダをartifactに含める。ローカル/CIともブラウザコマンドを同時実行しない。
 
 Cloudflareは既存Wrangler設定と固定CLIを使用したdry-run・ローカル配信のみ。`/dev/sfx.html` と `.assetsignore` は404、通常アセットは200を再確認する。ローカルだけ互換日10/30を指定する既存の制約は維持し、本番設定10/31やアカウントは変更していない。実アップロード・本番実動作は未確認。
 
@@ -141,7 +142,7 @@ Cloudflareは既存Wrangler設定と固定CLIを使用したdry-run・ローカ�
 1. #1〜#13と監査修正のSHAを固定し、元ブランチは更新・削除しない。
 2. 修正Draftを確認し、mainが監査時の `f50befb` のままか再取得する。進んでいれば統合候補に最新mainを取り込み、競合と最終ツリーを再監査する。
 3. 最終headから新しい統合ブランチを作り、base=mainのDraft統合PRを一つ作る。中間コミットを手動で再実装・cherry-pick・旧コードで上書きしない。
-4. そのPRで全71 Node / 38 browser、asset dry-run、正式方針/画像/PNGを再確認し、チェック済みheadをユーザーが承認する。
+4. そのPRで全72 Node / 38 browser、asset dry-run、正式方針/画像/PNGを再確認し、チェック済みheadをユーザーが承認する。
 5. 承認後に一回のsquash merge。元の#1〜#13と修正Draftは、統合PRに置換された旨を確認してから整理する。squashでは個別PRがGitHub上で自動的にmerged扱いになるとは限らないため、先に閉じない。
 6. mainで最終スモーク（起動→数回着地→部品→落下→retry、JA/EN、音、保存、seed）を再実行。本番公開は別途判断する。
 
@@ -157,7 +158,7 @@ Cloudflareは既存Wrangler設定と固定CLIを使用したdry-run・ローカ�
 
 ## 8. 提出物と文書差分
 
-提出ブランチは `codex/rapippo-final-audit`、baseは#13の `docs/concept-art-direction`。修正Draft PRには本報告・CI・スクリーンショットをリンクする。既存Draft、main、Cloudflareの本番状態には変更を加えていない。
+提出ブランチは `codex/rapippo-final-audit`、baseは#13の `docs/concept-art-direction`。[修正Draft PR #14](https://github.com/madowaku/hoppod/pull/14)に本報告・CI・スクリーンショットをリンクする。既存Draft、main、Cloudflareの本番状態には変更を加えていない。
 
 - **README**: Project directionのlanding preview、A/default、自動30加入、旧v3を現行説明と読める状態だった。#13の正式方針と最終コードに従い、現行v4/C/3部品/JA-ENの冒頭案内を追加し、既存の各実験文は「歴史・現行仕様ではない」とまとめて保存した。
 - **`docs/V04B_NO_MARKER_DEFAULT.md` の単独marker URL / 旧markerテスト**: #13を優先し、実装・テストを明示比較との組合せだけへ狭めた。歴史文書は当時の記録として残した。
