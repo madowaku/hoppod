@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {createAudio,milestoneTier,LAND_NOTES} from '../public/src/audio.mjs';
+import {createAudio,milestoneTier,LAND_NOTES,BELL_NOTES} from '../public/src/audio.mjs';
 
 // Minimal Web Audio stand-in that records the graph and gain automation.
 function fakeContext(state='running') {
@@ -99,4 +99,29 @@ test('ordinary landing nodes disconnect when ended, as well as accent nodes',()=
   const log=fakeContext(),audio=createAudio();audio.unlock();audio.play('land',100);
   for(const o of log.oscillators){o.onended();o.onended();assert.equal(o.disconnected,true);assert.equal(o.connections[0].disconnected,true);}
   audio.play('land',100);assert.equal(log.oscillators.length,12);
+});
+
+test('companion bell: high, quieter than landing, scheduled by its lag',()=>{
+  const log=fakeContext(),audio=createAudio();audio.unlock();
+  audio.bell(.39);audio.bell(.39);
+  assert.equal(log.oscillators.length,4);
+  const [first,,second]=log.oscillators;
+  assert.equal(first.frequency.events[0][1],BELL_NOTES[0]);assert.equal(second.frequency.events[0][1],BELL_NOTES[1]);
+  for(const o of log.oscillators) { assert.equal(o.startAt,10.39);assert.ok(peak(o)<=.022);assert.equal(target(o),'destination'); }
+  let loudest=0;
+  for(let t=10.39;t<11;t+=.002) loudest=Math.max(loudest,log.oscillators.slice(0,2).reduce((sum,o)=>sum+envelope(o,t),0));
+  assert.ok(loudest<.07/2,`bell ${loudest}`);
+});
+
+test('mute, retry and game over cancel a pending companion bell; muted bells never start',()=>{
+  for(const end of [audio=>audio.toggle(),audio=>audio.stop()]) {
+    const log=fakeContext(),audio=createAudio();audio.unlock();audio.bell(.39);
+    end(audio);
+    for(const o of log.oscillators) assert.ok(o.stopAt<=10.02,`bell still scheduled until ${o.stopAt}`);
+  }
+  const log=fakeContext(),audio=createAudio();audio.unlock();audio.toggle();audio.bell(.39);
+  assert.equal(log.oscillators.length,0);
+  // Switching off milestone accents leaves the companion alone.
+  const log2=fakeContext(),audio2=createAudio();audio2.unlock();audio2.bell(.39);audio2.accents=false;
+  for(const o of log2.oscillators) assert.ok(o.stopAt>10.4);
 });

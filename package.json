@@ -10,7 +10,7 @@
     "test:browser": "playwright test",
     "preview:assets": "wrangler dev --local --compatibility-date 2026-10-30 --ip 127.0.0.1 --port 8011 --inspector-port 9232 --show-interactive-dev-session=false",
     "check:assets": "wrangler deploy --dry-run --outdir output/review/worker",
-    "check": "node --check public/src/app.mjs && node --check public/src/engine.mjs && node --check public/src/links.mjs && node --check public/src/pod.mjs && node --check public/src/audio.mjs && node --check public/src/earth.mjs && node --check public/src/marker.mjs"
+    "check": "node --check public/src/app.mjs && node --check public/src/engine.mjs && node --check public/src/links.mjs && node --check public/src/pod.mjs && node --check public/src/audio.mjs && node --check public/src/earth.mjs && node --check public/src/marker.mjs && node --check public/src/companion.mjs"
   },
   "devDependencies": {
     "@playwright/test": "1.64.1",

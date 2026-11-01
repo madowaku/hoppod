@@ -13,8 +13,12 @@ const ACCENTS = {
   hundred: [[0, 523, 1.5, .016], [.03, 659, 1.5, .016], [.06, 784, 1.5, .016], [.09, 1175, 1.4, .012], [.32, 1319, .9, .018]],
 };
 const MAX_ACCENT_VOICES = 12;
+// v0.4-C companion bell: high E6/G6 above the land voice, with one faint
+// inharmonic partial for a struck-metal colour. Peak stays far under .07.
+export const BELL_NOTES = [1319, 1568];
+const BELL_PARTIALS = [[1, .022, .5], [2.76, .006, .16]];
 export function createAudio({ accents = true } = {}) {
-  let ctx, bus, muted = false, active = 0;
+  let ctx, bus, muted = false, active = 0, bells = 0;
   const voices = new Set();
   const track = (o, g, at, isAccent = false) => {
     const voice = { o, g, at, isAccent, stopping: false };
@@ -86,8 +90,21 @@ export function createAudio({ accents = true } = {}) {
     const tier = kind === 'land' && accents ? milestoneTier(hops) : null;
     if (tier) accent(tier, t);
   };
+  // Scheduled ahead by the companion's lag; stop() cancels it like any voice.
+  const bell = (delay = 0) => {
+    if (!ctx || ctx.state !== 'running' || muted) return;
+    const at = ctx.currentTime + delay, base = BELL_NOTES[bells++ % BELL_NOTES.length];
+    for (const [ratio, peak, decay] of BELL_PARTIALS) {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'sine'; o.frequency.setValueAtTime(base * ratio, at);
+      g.gain.setValueAtTime(.0001, at); g.gain.exponentialRampToValueAtTime(peak, at + .004);
+      g.gain.exponentialRampToValueAtTime(.0001, at + decay);
+      o.connect(g); g.connect(ctx.destination); o.start(at); o.stop(at + decay + .05);
+      track(o, g, at);
+    }
+  };
   return {
-    unlock, play, stop, toggle() { muted = !muted; if (muted) stop(); return muted; }, get muted() { return muted; },
+    unlock, play, bell, stop, toggle() { muted = !muted; if (muted) stop(); return muted; }, get muted() { return muted; },
     get accents() { return accents; }, set accents(value) { accents = Boolean(value); if (!accents) stop(true); },
   };
 }

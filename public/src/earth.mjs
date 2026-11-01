@@ -12,6 +12,11 @@ export function earthRise(x) {
   const signal = x < EARTH_PEEK ? 0 : rise < 1 / 3 ? 1 : rise < 2 / 3 ? 2 : rise < 1 ? 3 : 4;
   return { glow, rise, climb, signal };
 }
+// Short label for the result screen and score card.
+export function earthLabel(x) {
+  const { glow, signal } = earthRise(x);
+  return signal === 4 ? 'FULL EARTH' : signal ? 'EARTHRISE ' + signal + '/4' : glow > 0 ? 'EARTHGLOW' : 'FAR SIDE';
+}
 // Disc centre: top touches the horizon at rise 0, bottom clears it at 1,
 // then it climbs slowly toward the sky position the old moon used. Ease-out
 // so first light shows over low ridges as soon as the first signal bar does.

@@ -1,8 +1,9 @@
 import { PERIOD, INSET, COURSE_VERSION, Terrain, newRun, advance, isSafe, predictLanding, landingMiss, footing } from './engine.mjs';
 import { resolveRun, jstDate, shareUrl } from './links.mjs';
 import { drawPod } from './pod.mjs';
-import { EARTH_PEEK, earthRise, earthCenterY, drawEarth } from './earth.mjs';
-import { createAudio } from './audio.mjs';
+import { EARTH_PEEK, earthRise, earthCenterY, earthLabel, drawEarth } from './earth.mjs';
+import { createAudio, milestoneTier } from './audio.mjs';
+import { COMPANION_LAG, COMPANION_GAP, COMPANION_PALETTE, companionJoins, companionBell, companionPhase, companionLift, joinBlend } from './companion.mjs';
 import { MARKER_MODES, markerModeFromUrl, markerVisual } from './marker.mjs';
 
 const get = id => document.getElementById(id);
@@ -12,7 +13,7 @@ const EARTH_X = 292, EARTH_R = 28, EARTH_HORIZON = FLOOR - 94, EARTH_TOP = 84;
 const pointers = new Set(), keys = new Set(), audio = createAudio({ accents: accentsEnabled() });
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 let run, state, terrain, best = 0, running = false, paused = false, lastTime = null;
-let landAge = 10, deathAge = 0, particles = [], modeFast = false, worldTime = 0;
+let landAge = 10, deathAge = 0, particles = [], modeFast = false, worldTime = 0, companionAge = -1;
 let failure = '', failureX = 0, signal = 0, signalAge = 10, markerMode = markerModeFromUrl(location.href), comparisonEnabled = new URL(location.href).searchParams.get('compare') === '1';
 const fast = () => pointers.size + keys.size > 0;
 // Developer A/B only: ?sfx=classic plays v0.2 cues without milestone accents.
@@ -68,7 +69,7 @@ function loadCourse() {
     get(mode).setAttribute('aria-pressed', String(run.mode === mode));
   }
   state = newRun(); terrain = new Terrain(run.seed);
-  running = false; paused = false; deathAge = 0; particles = []; landAge = 10; signal = 0; signalAge = 10;
+  running = false; paused = false; deathAge = 0; particles = []; landAge = 10; signal = 0; signalAge = 10; companionAge = -1;
   get('share-actions').hidden = true; get('result-details').hidden = true;
   get('overlay').dataset.screen = 'start';
   overlay('ONE MORE HOP!', 'It hops. You set the pace.', 'LET’S HOP');
@@ -83,7 +84,7 @@ function reset() {
   get('action').blur();
   audio.unlock(); state = newRun(); terrain = new Terrain(run.seed);
   running = true; paused = false; lastTime = null;
-  deathAge = 0; landAge = 10; particles = []; failure = ''; signal = 0; signalAge = 10;
+  deathAge = 0; landAge = 10; particles = []; failure = ''; signal = 0; signalAge = 10; companionAge = -1;
   releaseInput(); get('overlay').hidden = true;
   get('share-actions').hidden = true; get('result-details').hidden = true;
 }
@@ -103,6 +104,7 @@ function endRun() {
   releaseInput(); get('overlay').dataset.screen = 'result';
   get('result-score').textContent = String(state.hops); get('result-best').textContent = String(best);
   get('result-course').textContent = run.mode === 'daily' ? 'DAILY MOON / ' + run.date : 'FREE RUN / ' + run.seed;
+  get('result-earth').textContent = earthLabel(state.x); get('result-crew').hidden = companionAge < 0;
   get('result-details').hidden = false; get('share-actions').hidden = false;
   overlay(record ? 'A NEW LITTLE RECORD.' : 'ONE MORE HOP?', failure, 'TRY AGAIN');
 }
@@ -169,9 +171,14 @@ get('save').addEventListener('click', () => {
   drawEarth(g, 820, earthCenterY(earthRise(state.x), 935, 84, 700), 84, 0); g.restore();
   g.fillStyle = '#0d1a24'; g.fillRect(47, 935, 986, 108);
   g.fillStyle = '#718e93'; g.fillRect(330, 970, 420, 8); g.fillStyle = '#25404a'; g.fillRect(330, 978, 420, 65);
-  drawPod(g, 540, 960, 8, { phase: .15 });
+  // With the companion aboard, the pair hops off together: blue half a beat behind.
+  const crew = companionAge >= 0;
+  if (crew) drawPod(g, 392, 870, 5, { phase: .5, palette: COMPANION_PALETTE });
+  drawPod(g, crew ? 590 : 540, 960, 8, { phase: .15 });
+  g.fillStyle = '#8fd0ff'; g.font = 'bold 30px monospace';
+  g.fillText(earthLabel(state.x) + (crew ? '  ·  WITH BLUE POD' : ''), 540, 1100);
   g.fillStyle = '#fff0d0'; g.font = '30px monospace';
-  g.fillText(run.mode === 'daily' ? 'DAILY MOON / ' + run.date : 'FREE RUN / ' + run.seed, 540, 1150);
+  g.fillText(run.mode === 'daily' ? 'DAILY MOON / ' + run.date : 'FREE RUN / ' + run.seed, 540, 1155);
   g.fillStyle = '#a2b9ba'; g.font = '22px monospace'; g.fillText('#HOPPOD  ·  COURSE v' + COURSE_VERSION, 540, 1212);
   const link = document.createElement('a'); link.href = c.toDataURL('image/png');
   link.download = 'HOPPOD-' + state.hops + '-hops.png'; link.click();
@@ -245,6 +252,13 @@ function draw(now) {
   if (!reducedMotion.matches && modeFast && running) {
     ctx.fillStyle = '#ffb17b'; for (let i = 0; i < 3; i++) ctx.fillRect(HERO_X - 28 - i * 10, heroY - 20 + i * 7, 5 + i * 2, 2);
   }
+  if (companionAge >= 0) {
+    // Hovers behind the hero; on the way in it drops from the upper sky.
+    const k = joinBlend(companionAge), x = HERO_X - COMPANION_GAP, y = FLOOR - 2 - companionLift(state.phase);
+    const bob = !running || paused ? Math.round(Math.sin(now * 3) * 2) : 0;
+    if (!reducedMotion.matches && k === 1 && running) { ctx.fillStyle = (now * 12 | 0) % 2 ? '#4f9dff' : '#a9d6ff'; ctx.fillRect(x - 2, y + 2, 4, 2); }
+    drawPod(ctx, Math.round(x - 30 * (1 - k)), Math.round(70 + (y - 70) * k) + bob, 1, { phase: companionPhase(state.phase), time: now, palette: COMPANION_PALETTE });
+  }
   drawPod(ctx, HERO_X, heroY, 2, { phase: state.phase / PERIOD, fast: modeFast, land: Math.max(0, 1 - landAge / .13), dead: dead ? deathAge : 0, time: now, idle: !running, signal: sky.signal });
   if (signalAge < .7 && !reducedMotion.matches && !dead) {
     ctx.lineWidth = 2;
@@ -275,11 +289,14 @@ function frame(now) {
       const events = advance(state, terrain, dt, fast()); landAge += dt;
       if (events.includes('land')) {
         landAge = 0; audio.play('land', state.hops);
+        if (companionJoins(state.hops, companionAge >= 0)) companionAge = 0;
+        else if (companionBell(state.hops, companionAge >= 0, milestoneTier(state.hops))) audio.bell(COMPANION_LAG);
         if (!reducedMotion.matches) for (let i = 0; i < 8; i++) particles.push({x: state.x, vx: (i - 3.5) * 17, vy: -20 - i % 3 * 10, age: 0, color: i % 2 ? '#efdaad' : '#8ee6c4'});
       }
       const level = earthRise(state.x).signal;
       if (level > signal) signalAge = 0;
       signal = level; signalAge += dt;
+      if (companionAge >= 0) companionAge += dt;
       if (state.status === 'dead') endRun();
     }
   }

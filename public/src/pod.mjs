@@ -20,8 +20,9 @@ const body = [
   '   oosssaaasssoo    ',
   '     oooooooo       ',
 ];
-const colors = { o: '#172638', c: '#fff0d0', w: '#fffbea', s: '#cfba9a', a: '#ff9161', d: '#172638' };
-export function drawPod(g, x, y, scale = 2, { phase = 0, fast = false, land = 0, dead = 0, time = 0, idle = false, signal = 0 } = {}) {
+const baseColors = { o: '#172638', c: '#fff0d0', w: '#fffbea', s: '#cfba9a', a: '#ff9161', d: '#172638' };
+export function drawPod(g, x, y, scale = 2, { phase = 0, fast = false, land = 0, dead = 0, time = 0, idle = false, signal = 0, palette = null } = {}) {
+  const colors = palette ? { ...baseColors, ...palette } : baseColors;
   g.save();
   g.translate(Math.round(x), Math.round(y));
   g.rotate(dead ? Math.min(2.4, dead * 4) : 0);

@@ -53,3 +53,7 @@ The independent review is stacked on #4 (full order #1 → #2 → #3 → #4 → 
 ### Human-selected no-marker default (Draft)
 
 [Decision and novice test gate](docs/V04B_NO_MARKER_DEFAULT.md): C/NONE is the default after the owner's A/B/C playtest. The comparison row is no longer on the ordinary game screen. Developers can open the same seed with `&marker=full&compare=1` or `&marker=neutral&compare=1` to restore the A/B/C picker. C-mode BEST scores remain separate, and the 0.78s gameplay/audio are identical. This is still an unmerged experimental branch, not deployed.
+
+### Companion POD experiment (Draft)
+
+[v0.4-C companion POD](docs/V04C_COMPANION_POD.md) is stacked on the no-marker default. A small blue pod joins automatically at 30 HOPS, hovers behind the hero half a hop out of step, rings a quiet bell every second landing, and appears on the result screen and saved PNG with the Earth state. No collision, physics, timing or marker changes. Not merged or deployed.
