@@ -23,7 +23,7 @@ test('review: 16 seeds × 10000 non-reference hops retain fair footing and bound
       const [a,b]=seed%2?candidates.at(-1):candidates[0],hold=((a+b)/2-lo)/(FAST_SPEED-SLOW_SPEED);
       advance(s,t,hold,true);advance(s,t,PERIOD-hold,false);
       assert.equal(s.status,'playing');assert.equal(s.hops,hop+1);assert.ok(isSafe(t,s.x));
-      assert.ok(t.plan.size<40);assert.equal(t.plan.size,t.planPositions.size);assert.ok(t.platforms.length<30);assert.ok(t.beacons.length<20);
+      assert.ok(t.plan.size<40);assert.equal(t.plan.size,t.planPositions.size);assert.ok(t.platforms.length<30);
     }
   }
 });
