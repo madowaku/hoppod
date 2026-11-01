@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>HOPPOD SFX Bench</title>
+<style>
+  :root { color-scheme: dark; --bg: #101f2c; --ink: #fff0d0; --mute: #a2b9ba; --mint: #8ee6c4; --coral: #ffad73; }
+  body { margin: 0; padding: 24px 16px; background: var(--bg); color: var(--ink); font: 14px/1.5 monospace; }
+  main { max-width: 560px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  p { color: var(--mute); margin: 0 0 16px; }
+  fieldset { border: 1px solid #2e4850; border-radius: 8px; margin: 0 0 16px; padding: 12px; }
+  button { font: inherit; margin: 4px 4px 4px 0; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--mint); background: transparent; color: var(--ink); cursor: pointer; }
+  button[aria-pressed="true"] { background: var(--mint); color: var(--bg); }
+  #now { color: var(--coral); min-height: 1.5em; }
+</style>
+</head>
+<body>
+<main>
+  <h1>HOPPOD SFX bench</h1>
+  <p>Developer only, not deployed (public/.assetsignore). Plays landings at the real 0.78s rhythm. In-game A/B: <code>/?sfx=classic</code> or <code>/?sfx=layered</code>.</p>
+  <fieldset>
+    <legend>Cue set</legend>
+    <button data-mode="layered" aria-pressed="true">LAYERED (v0.3)</button>
+    <button data-mode="classic" aria-pressed="false">CLASSIC (v0.2)</button>
+  </fieldset>
+  <fieldset>
+    <legend>Play landings at 0.78s</legend>
+    <button data-run="7,13">HOPS 7 → 13</button>
+    <button data-run="47,53">HOPS 47 → 53</button>
+    <button data-run="97,103">HOPS 97 → 103</button>
+    <button data-run="1,30">HOPS 1 → 30</button>
+    <button data-stop>STOP</button>
+  </fieldset>
+  <div id="now" aria-live="polite"></div>
+</main>
+<script type="module">
+  import { PERIOD } from '../src/engine.mjs';
+  import { createAudio, milestoneTier } from '../src/audio.mjs';
+  const audio = createAudio(), now = document.getElementById('now');
+  let timer = null;
+  for (const button of document.querySelectorAll('[data-mode]')) button.addEventListener('click', () => {
+    audio.accents = button.dataset.mode === 'layered';
+    for (const other of document.querySelectorAll('[data-mode]')) other.setAttribute('aria-pressed', String(other === button));
+  });
+  const stop = () => { clearInterval(timer); timer = null; };
+  document.querySelector('[data-stop]').addEventListener('click', stop);
+  for (const button of document.querySelectorAll('[data-run]')) button.addEventListener('click', () => {
+    audio.unlock(); stop();
+    let [hops, last] = button.dataset.run.split(',').map(Number);
+    const step = () => {
+      audio.play('land', hops);
+      now.textContent = 'HOPS ' + hops + (milestoneTier(hops) && audio.accents ? '  ♪ ' + milestoneTier(hops).toUpperCase() : '');
+      if (++hops > last) stop();
+    };
+    step(); timer = setInterval(step, PERIOD * 1000);
+  });
+</script>
+</body>
+</html>

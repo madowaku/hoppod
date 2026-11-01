@@ -6,12 +6,21 @@ import { createAudio } from './audio.mjs';
 const get = id => document.getElementById(id);
 const canvas = get('play'), ctx = canvas.getContext('2d');
 const W = 360, H = 510, FLOOR = 382, HERO_X = 80;
-const pointers = new Set(), keys = new Set(), audio = createAudio();
+const pointers = new Set(), keys = new Set(), audio = createAudio({ accents: accentsEnabled() });
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 let run, state, terrain, best = 0, running = false, paused = false, lastTime = null;
 let landAge = 10, deathAge = 0, particles = [], modeFast = false, worldTime = 0;
 let failure = '', failureX = 0;
 const fast = () => pointers.size + keys.size > 0;
+// Developer A/B only: ?sfx=classic plays v0.2 cues without milestone accents.
+// The course URL is normalized on load, so the choice is kept for this tab.
+function accentsEnabled() {
+  try {
+    const value = new URL(location.href).searchParams.get('sfx');
+    if (value) sessionStorage.setItem('hoppod.dev.sfx', value);
+    return (value || sessionStorage.getItem('hoppod.dev.sfx')) !== 'classic';
+  } catch { return true; }
+}
 function releaseInput() { pointers.clear(); keys.clear(); modeFast = false; updateHud(); }
 function bestKey() { return 'hoppod.best.v' + COURSE_VERSION + '.' + (run.mode === 'daily' ? run.date : 'free'); }
 function loadCourse() {

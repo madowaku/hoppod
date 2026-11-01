@@ -37,6 +37,28 @@ test('P0: SLOW-only falls into a visible first pit, never on drawn ground',async
   expect(Math.max(...pit.slice(0,3))).toBeLessThan(20);
   expect(Math.max(...ground.slice(0,3))).toBeGreaterThan(40);
 });
+for(const [query,compressors] of [['',1],['&sfx=classic',0]]) test(`P1: 10 HOPS milestone accent on real Web Audio${query||' (layered)'}`,async({page})=>{
+  await page.addInitScript(()=>{
+    window.__audio={oscillators:0,compressors:0,state:''};
+    const P=AudioContext.prototype,osc=P.createOscillator,comp=P.createDynamicsCompressor;
+    P.createOscillator=function(){window.__audio.oscillators++;window.__audio.state=this.state;return osc.call(this);};
+    P.createDynamicsCompressor=function(){window.__audio.compressors++;return comp.call(this);};
+  });
+  const errors=[];page.on('pageerror',e=>errors.push(String(e)));
+  await open(page,'?mode=free&seed=42'+query);await start(page);
+  const terrain=new Terrain(42);terrain.extendTo(4000);
+  for(let hop=1;hop<=10;hop++) {
+    const hold=Math.round(terrain.plan.get(hop)*1000);
+    if(hold>0){await page.keyboard.down('Space');await page.clock.runFor(hold);await page.keyboard.up('Space');}
+    await page.clock.runFor(780-hold);
+  }
+  await expect(page.locator('#score')).toHaveText('10');
+  const audio=await page.evaluate(()=>window.__audio);
+  test.skip(audio.state!=='running','AudioContext not running in this browser');
+  expect(audio.compressors).toBe(compressors);
+  expect(new URL(page.url()).searchParams.get('sfx')).toBeNull();
+  expect(errors).toEqual([]);
+});
 test('real-time start → 3+ landings → fall → immediate retry',async({page})=>{
   const errors=[];page.on('pageerror',e=>errors.push(String(e)));
   await page.goto('/?mode=free&seed=42');await page.locator('#action').click();
