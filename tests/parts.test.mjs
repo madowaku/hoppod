@@ -58,7 +58,7 @@ test('part layout never consumes or alters the terrain generator',()=>{
     const layout=new PartLayout(seed);for(let i=0;i<6;i++) layout.slot(i);
     const after=new Terrain(seed);after.extendTo(25000);
     assert.deepEqual(after.platforms,plain.platforms);assert.deepEqual([...after.plan],[...plain.plan]);
-    assert.deepEqual(after.beacons,plain.beacons);assert.deepEqual(after.motifs,plain.motifs);
+    assert.deepEqual(after.motifs,plain.motifs);
     // The shadow terrain is the same world the player sees (the last platform
     // of either may still widen as generation continues).
     const n=Math.min(layout.terrain.platforms.length,plain.platforms.length)-1;
@@ -66,7 +66,7 @@ test('part layout never consumes or alters the terrain generator',()=>{
   }
 });
 
-test(`${SEEDS} seeds: every slot is fair, on lit footing, off beacon hops, in the 20–40 HOPS opening`,()=>{
+test(`${SEEDS} seeds: every slot is fair, on lit footing, with stable reserved fifth hops, in the 20–40 HOPS opening`,()=>{
   const firsts=[];
   for(let seed=0;seed<SEEDS;seed++) {
     const layout=new PartLayout(seed),t=layout.terrain;
@@ -74,7 +74,7 @@ test(`${SEEDS} seeds: every slot is fair, on lit footing, off beacon hops, in th
       const {hop,x}=layout.slot(i);
       if(i===0) { firsts.push(hop);assert.ok(hop>=PART_FIRST[0]&&hop<=PART_FIRST[1]+1,`first ${seed}: ${hop}`); }
       else assert.ok(hop-layout.slot(i-1).hop>=22,`gap ${seed}/${i}`);
-      assert.notEqual(hop%5,0,`beacon hop ${seed}/${i}`);
+      assert.notEqual(hop%5,0,`reserved fifth hop ${seed}/${i}`);
       const ground=t.platforms.map(footing).find(([l,r])=>x>=l&&x<=r);
       assert.ok(ground,`not on footing ${seed}/${i}`);
       assert.ok(x-ground[0]>=PART_EDGE&&ground[1]-x>=PART_EDGE,`edge ${seed}/${i}`);
