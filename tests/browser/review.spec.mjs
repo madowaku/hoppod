@@ -94,7 +94,7 @@ test('review: classic query works with blocked sessionStorage and survives norma
   expect(await page.evaluate(()=>window.__review.audio.accents)).toBe(false);
 });
 
-test('review: 193 keyboard hops; each milestone once; high-score scene, PNG and v3 persistence',async({page})=>{
+test('review: 193 keyboard hops; each milestone once; high-score scene, PNG and v4 persistence',async({page})=>{
   test.setTimeout(120000);
   await page.addInitScript(()=>{
     window.__milestones=[];const create=AudioContext.prototype.createDynamicsCompressor;
@@ -129,7 +129,7 @@ test('review: 193 keyboard hops; each milestone once; high-score scene, PNG and 
   await page.evaluate(()=>{window.open=url=>window.__shared=url;});await page.locator('#share').click();
   const share=new URL(await page.evaluate(()=>window.__shared));expect(new URL(share.searchParams.get('url')).searchParams.get('v')).toBe('3');
   expect(share.searchParams.get('text')).toContain('193 HOPS');
-  expect(await page.evaluate(()=>localStorage.getItem('hoppod.best.v3.free'))).toBe('193');
+  expect(await page.evaluate(()=>localStorage.getItem('hoppod.best.v4.free'))).toBe('193');
   await page.reload();await expect(page.locator('#best')).toHaveText('193');
 });
 
