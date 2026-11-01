@@ -21,6 +21,7 @@ jobs:
           node --check public/src/pod.mjs
           node --check public/src/audio.mjs
           node --check public/src/earth.mjs
+          node --check public/src/marker.mjs
   browser:
     runs-on: ubuntu-latest
     steps:
