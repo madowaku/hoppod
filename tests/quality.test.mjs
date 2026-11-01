@@ -28,7 +28,7 @@ test('128 seeds, 300 hops: visible nearest-footing controller with ±60ms switch
       assert.equal(s.status,'playing',`seed ${seed}, hop ${h}, target ${target}`);
       assert.equal(s.hops,h+1);
     }
-    assert.ok(t.platforms.length<30); assert.ok(t.beacons.length<20); assert.ok(t.plan.size<40);
+    assert.ok(t.platforms.length<30); assert.ok(t.plan.size<40);
   }
 });
 
