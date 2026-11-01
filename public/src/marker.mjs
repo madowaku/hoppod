@@ -2,7 +2,7 @@
 export const MARKER_MODES = Object.freeze(['full', 'neutral', 'off']);
 export function markerModeFromUrl(href) {
   const value = new URL(href).searchParams.get('marker');
-  return MARKER_MODES.includes(value) ? value : 'full';
+  return MARKER_MODES.includes(value) ? value : 'off';
 }
 export function markerVisual(mode, safe) {
   if (mode === 'off') return { visible: false, color: null, hint: false };
