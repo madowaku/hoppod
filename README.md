@@ -41,3 +41,7 @@ Browser tests start their own local server if port 8000 is free. Screenshots, th
 v0.3 (course `v=3`) is unpublished and stacked on Draft PRs #1 → #2. See [v0.3 fair ground and milestone sound](docs/V03_FAIR_GROUND.md) for the first-pit fix, milestone accents, developer sound A/B (`?sfx=classic`, `/dev/sfx.html`) and open human checks. [v0.2 design and acceptance](docs/V02_ACCEPTANCE.md) and [v0.1 notes](docs/PROTOTYPE.md) are historical. No automatic merge or production deploy.
 
 The independent review is stacked on #4 (full order #1 → #2 → #3 → #4 → review fixes). See [v0.3 independent review](docs/V03_INDEPENDENT_REVIEW.md) for the audio cancellation fix, 193-HOPS evidence, Earth timing comparison and remaining release checks. `npm run check:assets` is a dry run only; `npm run preview:assets` starts a local Workers asset preview on port 8011 and excludes the developer bench. Its compatibility-date override is local only; details are in the review.
+
+### Terrain motif experiment (Draft)
+
+[v0.4 ground-only 20-motif experiment](docs/V04_MOTIF_EXPERIMENT.md) is an isolated branch stacked on Draft PR #5. It changes seeded terrain and uses course `v=4` with separate BEST keys. It does **not** change timing, landing audio, ring semantics or Earthrise. It is not merged or deployed; compare against v0.3 in human playtests before deciding whether to adopt it.
