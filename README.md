@@ -1,4 +1,6 @@
-# HOPPOD 🚀🐰
+# RAPIPPO 🚀🐰
+
+> Formerly **HOPPOD**. The repository, Worker name, storage keys and daily-course salt keep the old identifier so links, records and dated courses carry over.
 
 **ONE MORE HOP!** An endless, one-button lunar score attack for browsers.
 
@@ -20,7 +22,7 @@ Requires Python 3. From this folder:
 python -m http.server 8000 --bind 127.0.0.1 --directory public
 ```
 
-Open [HOPPOD locally](http://127.0.0.1:8000/?mode=daily). No build, account, API key, or runtime downloads. Hold the canvas or the lower control for FAST; release for SLOW. Desktop: Space to hold, R to retry, Escape to pause. The pod hops every 0.78 seconds. By default, there is **no landing marker**: judge the moon terrain and jump rhythm directly. The lit flat top of each platform is exactly where you can land; its stepped rim and the black pits are not.
+Open [RAPIPPO locally](http://127.0.0.1:8000/?mode=daily). No build, account, API key, or runtime downloads. Hold the canvas or the lower control for FAST; release for SLOW. Desktop: Space to hold, R to retry, Escape to pause. The pod hops every 0.78 seconds. By default, there is **no landing marker**: judge the moon terrain and jump rhythm directly. The lit flat top of each platform is exactly where you can land; its stepped rim and the black pits are not.
 
 DAILY uses the date in Japan; its URL replays that day even tomorrow. FREE RUN chooses a fresh seed; retry keeps the same seed. POST TO X opens a composer; SAVE PNG downloads a score card to attach manually.
 

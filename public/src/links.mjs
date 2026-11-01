@@ -13,6 +13,7 @@ export function resolveRun(href, today = jstDate(), random = () => crypto.getRan
   const mode = url.searchParams.get('mode') === 'free' ? 'free' : 'daily';
   const date = validDate(url.searchParams.get('date')) ? url.searchParams.get('date') : today;
   const raw = url.searchParams.get('seed');
+  // The daily salt predates the RAPIPPO name; keep it so dated courses replay.
   const seed = mode === 'daily' ? hashSeed('HOPPOD-' + date) :
     (raw !== null && /^\d{1,10}$/.test(raw) && Number(raw) <= 0xffffffff ? Number(raw) >>> 0 : random() >>> 0);
   url.search = '';
@@ -25,7 +26,7 @@ export function resolveRun(href, today = jstDate(), random = () => crypto.getRan
 }
 export function shareUrl(run, hops, best) {
   const url = new URL('https://twitter.com/intent/tweet');
-  url.searchParams.set('text', `HOPPOD 🚀 ${hops} HOPS · BEST ${best}\nONE MORE HOP! #HOPPOD`);
+  url.searchParams.set('text', `RAPIPPO 🚀 ${hops} HOPS · BEST ${best}\nONE MORE HOP! #RAPIPPO`);
   url.searchParams.set('url', run.url);
   return url.href;
 }

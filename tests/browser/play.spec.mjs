@@ -134,7 +134,7 @@ test('PNG download has expected dimensions; X composer receives exact replay URL
   await open(page);await start(page);await page.clock.runFor(6800);
   await expect(page.locator('#share-actions')).toBeVisible();
   const download=page.waitForEvent('download');await page.locator('#save').click();const d=await download;
-  await d.saveAs(artifacts+'/score.png');expect(d.suggestedFilename()).toMatch(/^HOPPOD-\d+-hops.png$/);
+  await d.saveAs(artifacts+'/score.png');expect(d.suggestedFilename()).toMatch(/^RAPIPPO-\d+-hops.png$/);
   const size=await page.evaluate(async()=>{
     const image=new Image();const a=document.createElement('a');
     const native=a.click;let href;

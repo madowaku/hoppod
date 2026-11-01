@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {PERIOD,SLOW_SPEED,FAST_SPEED,INSET,INTRO_END,Terrain,newRun,advance,isSafe,predictLanding,landingMiss} from '../public/src/engine.mjs';
+import {PERIOD,SLOW_SPEED,FAST_SPEED,INSET,INTRO_END,Terrain,newRun,advance,isSafe,predictLanding,landingMiss,hashSeed} from '../public/src/engine.mjs';
 import {jstDate,validDate,resolveRun,shareUrl} from '../public/src/links.mjs';
 
 test('first three hops accept every whole-hop FAST/SLOW combination',()=>{
@@ -121,4 +121,11 @@ test('FREE RUN absence is random, zero is valid, invalid seeds normalize, share 
     assert.equal(link.searchParams.get('url'),r.url);assert.match(link.searchParams.get('text'),/17 HOPS · BEST 28/);
     assert.equal(new URL(r.url).searchParams.get('v'),'4');
   }
+});
+
+test('RAPIPPO name: share text uses the new title; daily courses keep the HOPPOD salt',()=>{
+  const r=resolveRun('https://example.test/?mode=daily&date=2026-11-01','2026-11-01');
+  const text=new URL(shareUrl(r,5,9)).searchParams.get('text');
+  assert.match(text,/^RAPIPPO /);assert.match(text,/#RAPIPPO$/);assert.doesNotMatch(text,/HOPPOD/);
+  assert.equal(r.seed,hashSeed('HOPPOD-2026-11-01'));
 });

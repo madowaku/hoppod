@@ -162,7 +162,7 @@ get('save').addEventListener('click', () => {
   g.fillStyle = '#101f2c'; g.fillRect(0, 0, 1080, 1350);
   g.strokeStyle = '#f0d49a'; g.lineWidth = 3; g.strokeRect(45, 45, 990, 1260);
   for (let i = 0; i < 75; i++) { g.fillStyle = i % 3 ? '#526875' : '#e9c996'; g.fillRect(75 + i * 97 % 930, 80 + i * 137 % 1150, 3, 3); }
-  g.textAlign = 'center'; g.fillStyle = '#fff0d0'; g.font = 'bold 90px monospace'; g.fillText('HOPPOD', 540, 200);
+  g.textAlign = 'center'; g.fillStyle = '#fff0d0'; g.font = 'bold 90px monospace'; g.fillText('RAPIPPO', 540, 200);
   g.fillStyle = '#ffad73'; g.font = '24px monospace'; g.fillText('O N E  M O R E  H O P !', 540, 252);
   g.fillStyle = '#fff0d0'; g.font = 'bold 190px monospace'; g.fillText(String(state.hops), 540, 510);
   g.font = '32px monospace'; g.fillText('HOPS  /  BEST ' + best, 540, 582);
@@ -179,9 +179,9 @@ get('save').addEventListener('click', () => {
   g.fillText(earthLabel(state.x) + (crew ? '  ·  WITH BLUE POD' : ''), 540, 1100);
   g.fillStyle = '#fff0d0'; g.font = '30px monospace';
   g.fillText(run.mode === 'daily' ? 'DAILY MOON / ' + run.date : 'FREE RUN / ' + run.seed, 540, 1155);
-  g.fillStyle = '#a2b9ba'; g.font = '22px monospace'; g.fillText('#HOPPOD  ·  COURSE v' + COURSE_VERSION, 540, 1212);
+  g.fillStyle = '#a2b9ba'; g.font = '22px monospace'; g.fillText('#RAPIPPO  ·  COURSE v' + COURSE_VERSION, 540, 1212);
   const link = document.createElement('a'); link.href = c.toDataURL('image/png');
-  link.download = 'HOPPOD-' + state.hops + '-hops.png'; link.click();
+  link.download = 'RAPIPPO-' + state.hops + '-hops.png'; link.click();
 });
 
 function draw(now) {
