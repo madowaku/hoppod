@@ -109,10 +109,9 @@ test('review: 193 keyboard hops; each milestone once; high-score scene, PNG and 
     t.extendTo(hop*220+4000);const hold=Math.round(t.plan.get(hop)*1000);
     if(hold>0){await page.keyboard.down('Space');await page.clock.runFor(hold);await page.keyboard.up('Space');}
     await page.clock.runFor(780-hold);
-    if(captures.includes(hop)) {
-      await expect(page.locator('#score')).toHaveText(String(hop));
-      await page.screenshot({path:`${dir}/earth-${hop}.png`});
-    }
+    // Preserve timing during the long v4 course: taking full-page screenshots
+    // mid-run may advance real browsers' animation clocks between clock ticks.
+    if(captures.includes(hop)) await expect(page.locator('#score')).toHaveText(String(hop));
   }
   expect(await page.evaluate(()=>window.__milestones)).toEqual(Array.from({length:19},(_,i)=>(i+1)*10));
   expect(await page.evaluate(()=>window.__buses)).toBe(1);
@@ -127,7 +126,7 @@ test('review: 193 keyboard hops; each milestone once; high-score scene, PNG and 
   for(const width of [390,320]){await page.setViewportSize({width,height:844});await page.screenshot({path:`${dir}/result-193-${width}.png`,fullPage:true});}
   const download=page.waitForEvent('download');await page.locator('#save').click();await(await download).saveAs(dir+'/score-193.png');
   await page.evaluate(()=>{window.open=url=>window.__shared=url;});await page.locator('#share').click();
-  const share=new URL(await page.evaluate(()=>window.__shared));expect(new URL(share.searchParams.get('url')).searchParams.get('v')).toBe('3');
+  const share=new URL(await page.evaluate(()=>window.__shared));expect(new URL(share.searchParams.get('url')).searchParams.get('v')).toBe('4');
   expect(share.searchParams.get('text')).toContain('193 HOPS');
   expect(await page.evaluate(()=>localStorage.getItem('hoppod.best.v4.free'))).toBe('193');
   await page.reload();await expect(page.locator('#best')).toHaveText('193');
