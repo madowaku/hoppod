@@ -6,6 +6,7 @@ import { createAudio, milestoneTier } from './audio.mjs';
 import { COMPANION_LAG, COMPANION_GAP, ASSEMBLE_GATHER, ASSEMBLE_FLASH, ASSEMBLE_BOOT, companionBell, companionPhase, companionLift, gatherBlend } from './companion.mjs';
 import { PartLayout, PartRun, PART_LABELS, drawPart } from './parts.mjs';
 import { MARKER_MODES, markerModeFromUrl, markerVisual } from './marker.mjs';
+import { chooseLanguage, copy, earthText, partsText, milestoneText } from './ui-copy.mjs';
 
 const get = id => document.getElementById(id);
 const canvas = get('play'), ctx = canvas.getContext('2d');
@@ -18,7 +19,13 @@ let landAge = 10, deathAge = 0, particles = [], modeFast = false, worldTime = 0;
 // Parts: layout is fixed per seed; progress, flights and assembly age per run.
 let layout, parts, flights = [], crewAge = -1;
 const FLIGHT = .35, trayX = i => 21 + i * 14, TRAY_Y = 41;
-let failure = '', failureX = 0, signal = 0, signalAge = 10, markerMode = markerModeFromUrl(location.href), comparisonEnabled = new URL(location.href).searchParams.get('compare') === '1';
+let failure = '', failureKind = 'short', failureX = 0, signal = 0, signalAge = 10, markerMode = markerModeFromUrl(location.href), comparisonEnabled = new URL(location.href).searchParams.get('compare') === '1';
+function readPreference(key) { try { return localStorage.getItem(key); } catch { return null; } }
+function savePreference(key,value) { try { localStorage.setItem(key,value); } catch { /* settings work for this session */ } }
+let language = chooseLanguage(location.href, readPreference('hoppod.pref.lang'), navigator.language);
+const tr = key => copy(language,key);
+let notice = null, noticeUntil = 0, recordNotified = false, lastRecord = false;
+if (readPreference('hoppod.pref.muted') === '1') audio.toggle();
 const fast = () => pointers.size + keys.size > 0;
 // Developer A/B only: ?sfx=classic plays v0.2 cues without milestone accents.
 // The course URL is normalized on load, so the choice is kept for this tab.
@@ -30,6 +37,36 @@ function accentsEnabled() {
   } catch { return value !== 'classic'; }
 }
 function releaseInput() { pointers.clear(); keys.clear(); modeFast = false; updateHud(); }
+function showNotice(kind,hops) { notice = {kind,hops}; noticeUntil = worldTime + 1.35; }
+function refreshOverlay() {
+  const screen = get('overlay').dataset.screen;
+  if (screen === 'start') overlay(tr('startTitle'),tr('startText'),tr('startButton'));
+  else if (screen === 'pause') overlay(tr('pauseTitle'),tr('pauseText'),tr('pauseButton'));
+  else if (screen === 'result') overlay(tr(lastRecord?'recordTitle':'resultTitle'),tr(failureKind),tr('retryButton'));
+}
+function refreshResult() {
+  get('result-course').textContent = run.mode === 'daily' ? tr('scoreDaily')(run.date) : tr('scoreFree')(run.seed);
+  get('result-earth').textContent = earthText(language,earthLabel(state.x));
+  get('result-crew').hidden = !parts.collected.length;
+  get('result-crew-text').textContent = partsText(language,parts.collected,layout.crew.parts.length);
+}
+function refreshCopy() {
+  document.documentElement.lang = language;
+  get('language').textContent = language === 'ja' ? 'EN' : '日本語';
+  get('language').setAttribute('aria-label',tr('switchLanguage'));
+  get('daily').textContent = tr('daily'); get('free').textContent = tr('free');
+  get('hops-label').textContent = tr('hops');get('best-label').textContent = tr('best');
+  get('intro-mark').textContent = tr('introMark');
+  get('intro-hold').textContent = tr('hold');get('intro-release').textContent = tr('release');
+  get('share').textContent = tr('share');get('save').textContent = tr('save');
+  get('attach-hint').textContent = tr('attach');
+  get('footer-tag').textContent = tr('footer');get('footer-keys').textContent = tr('keys');
+  get('mode-name').textContent = run.mode === 'daily' ? tr('modeDaily')(run.date) : tr('modeFree')(run.seed);
+  get('sound').textContent = tr(audio.muted ? 'soundOff' : 'soundOn');
+  get('sound').setAttribute('aria-pressed', String(!audio.muted));
+  if (state.status === 'dead') refreshResult();
+  refreshOverlay(); updateHud();
+}
 function bestKey() {
   return 'hoppod.best.v' + COURSE_VERSION + '.' + (run.mode === 'daily' ? run.date : 'free') +
     (markerMode === 'full' ? '' : '.marker.' + markerMode);
@@ -67,18 +104,17 @@ function loadCourse() {
   history.replaceState(null, '', markerUrl(run.url));
   syncMarkerUI();
   try { best = Math.max(0, Math.floor(Number(localStorage.getItem(bestKey())) || 0)); if (!Number.isFinite(best)) best = 0; } catch { best = 0; }
-  get('mode-name').textContent = run.mode === 'daily' ? 'MOON / ' + run.date : 'FREE / ' + run.seed;
+  // Both modes use the exact same date/seed and storage keys across languages.
   for (const mode of ['daily', 'free']) {
     get(mode).classList.toggle('selected', run.mode === mode);
     get(mode).setAttribute('aria-pressed', String(run.mode === mode));
   }
   state = newRun(); terrain = new Terrain(run.seed);
-  running = false; paused = false; deathAge = 0; particles = []; landAge = 10; signal = 0; signalAge = 10;
+  running = false; paused = false; deathAge = 0; particles = []; landAge = 10; signal = 0; signalAge = 10; notice = null; recordNotified = false; lastRecord = false;
   layout = new PartLayout(run.seed); parts = new PartRun(layout); flights = []; crewAge = -1;
   get('share-actions').hidden = true; get('result-details').hidden = true;
   get('overlay').dataset.screen = 'start';
-  overlay('ONE MORE HOP!', 'It hops. You set the pace.', 'LET’S HOP');
-  releaseInput();
+  refreshOverlay(); refreshCopy(); releaseInput();
 }
 function overlay(title, subtitle, button) {
   get('overlay-title').textContent = title; get('overlay-subtitle').textContent = subtitle;
@@ -89,38 +125,40 @@ function reset() {
   get('action').blur();
   audio.unlock(); state = newRun(); terrain = new Terrain(run.seed);
   running = true; paused = false; lastTime = null;
-  deathAge = 0; landAge = 10; particles = []; failure = ''; signal = 0; signalAge = 10;
+  deathAge = 0; landAge = 10; particles = []; failure = ''; signal = 0; signalAge = 10; notice = null; recordNotified = false;
   parts = new PartRun(layout); flights = []; crewAge = -1;
   releaseInput(); get('overlay').hidden = true;
   get('share-actions').hidden = true; get('result-details').hidden = true;
 }
 function updateHud() {
   if (!state) return;
-  get('score').textContent = String(state.hops); get('best').textContent = String(best);
+  get('score').textContent = String(state.hops);
+  // Live record indication; BEST is not persisted until the run ends.
+  get('best').textContent = String(Math.max(best,state.hops));
   get('hold').classList.toggle('active', fast()); get('hold').setAttribute('aria-pressed', String(fast()));
   get('hold-state').textContent = fast() ? 'FAST' : 'SLOW';
-  get('hold-instruction').textContent = fast() ? 'RELEASE TO SLOW' : 'HOLD TO GO FAST';
+  get('hold-instruction').textContent = tr(fast() ? 'toSlow' : 'toFast');
+  const chip = get('milestone-notice'), visible = running && !paused && notice && worldTime < noticeUntil;
+  chip.hidden = !visible;
+  if (visible) chip.textContent = notice.kind === 'record' ? tr('record') : milestoneText(language,notice.hops);
 }
 function endRun() {
   audio.stop();
-  failure = landingMiss(terrain, state.x, state.hopStartX) === 'short' ? 'TOO SHORT · HOLD A LITTLE LONGER' : 'TOO FAR · RELEASE A LITTLE EARLIER';
+  failureKind = landingMiss(terrain, state.x, state.hopStartX) === 'short' ? 'short' : 'far';
   failureX = state.x; running = false; deathAge = .001; audio.play('fall');
-  const record = state.hops > best;
-  if (record) { best = state.hops; try { localStorage.setItem(bestKey(), String(best)); } catch {} }
+  const record = state.hops > best; lastRecord = record;
+  if (record) { best = state.hops; savePreference(bestKey(),String(best)); }
   releaseInput(); get('overlay').dataset.screen = 'result';
   get('result-score').textContent = String(state.hops); get('result-best').textContent = String(best);
-  get('result-course').textContent = run.mode === 'daily' ? 'DAILY MOON / ' + run.date : 'FREE RUN / ' + run.seed;
-  get('result-earth').textContent = earthLabel(state.x); get('result-crew').hidden = !parts.collected.length;
-  get('result-crew-text').textContent = parts.complete ? 'WITH ' + layout.crew.label
-    : layout.crew.label + ' PARTS ' + parts.collected.length + '/' + layout.crew.parts.length + ' · ' + parts.collected.map(part => PART_LABELS[part]).join(' + ');
+  refreshResult();
   get('result-details').hidden = false; get('share-actions').hidden = false;
-  overlay(record ? 'A NEW LITTLE RECORD.' : 'ONE MORE HOP?', failure, 'TRY AGAIN');
+  refreshOverlay();
 }
 function pause() {
   audio.stop();
   releaseInput(); if (!running || paused) return;
   paused = true; lastTime = null; get('overlay').dataset.screen = 'pause';
-  overlay('TAKE A BREATHER.', 'Resume at SLOW.', 'RESUME');
+  refreshOverlay();
 }
 get('action').addEventListener('click', () => {
   audio.unlock();
@@ -139,8 +177,12 @@ for (const mode of MARKER_MODES) get('marker-' + mode).addEventListener('click',
 });
 window.addEventListener('popstate', loadCourse);
 get('sound').addEventListener('click', () => {
-  audio.unlock(); const muted = audio.toggle(); get('sound').textContent = muted ? 'SOUND OFF' : 'SOUND ON';
-  get('sound').setAttribute('aria-pressed', String(!muted));
+  audio.unlock(); const muted = audio.toggle(); savePreference('hoppod.pref.muted',muted?'1':'0');
+  refreshCopy();
+});
+get('language').addEventListener('click', () => {
+  language = language === 'ja' ? 'en' : 'ja';
+  savePreference('hoppod.pref.lang',language); refreshCopy();
 });
 for (const target of [canvas, get('hold')]) {
   target.addEventListener('pointerdown', e => {
@@ -163,7 +205,7 @@ window.addEventListener('keyup', e => { if (e.code === 'Space') { keys.delete('S
 window.addEventListener('blur', pause);
 document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
 window.addEventListener('pagehide', pause);
-get('share').addEventListener('click', () => window.open(shareUrl(run, state.hops, best), '_blank', 'noopener,noreferrer'));
+get('share').addEventListener('click', () => window.open(shareUrl(run, state.hops, best, language), '_blank', 'noopener,noreferrer'));
 get('save').addEventListener('click', () => {
   const c = document.createElement('canvas'); c.width = 1080; c.height = 1350;
   const g = c.getContext('2d'); g.imageSmoothingEnabled = false;
@@ -173,7 +215,7 @@ get('save').addEventListener('click', () => {
   g.textAlign = 'center'; g.fillStyle = '#fff0d0'; g.font = 'bold 90px monospace'; g.fillText('RAPIPPO', 540, 200);
   g.fillStyle = '#ffad73'; g.font = '24px monospace'; g.fillText('O N E  M O R E  H O P !', 540, 252);
   g.fillStyle = '#fff0d0'; g.font = 'bold 190px monospace'; g.fillText(String(state.hops), 540, 510);
-  g.font = '32px monospace'; g.fillText('HOPS  /  BEST ' + best, 540, 582);
+  g.font = '32px monospace'; g.fillText(tr('hops') + '  /  ' + tr('best') + ' ' + best, 540, 582);
   // The card shows how far Earth had risen when the run ended.
   g.save(); g.beginPath(); g.rect(45, 45, 990, 890); g.clip();
   drawEarth(g, 820, earthCenterY(earthRise(state.x), 935, 84, 700), 84, 0); g.restore();
@@ -190,9 +232,9 @@ get('save').addEventListener('click', () => {
   });
   drawPod(g, crew || got.length ? 590 : 540, 960, 8, { phase: .15 });
   g.fillStyle = '#8fd0ff'; g.font = 'bold 30px monospace';
-  g.fillText(earthLabel(state.x) + (crew ? '  ·  WITH ' + layout.crew.label : got.length ? '  ·  ' + layout.crew.label + ' ' + got.length + '/' + total : ''), 540, 1100);
+  g.fillText(earthText(language,earthLabel(state.x)) + (crew ? '  ·  ' + tr('crew') : got.length ? '  ·  ' + tr('parts') + ' ' + got.length + '/' + total : ''), 540, 1100);
   g.fillStyle = '#fff0d0'; g.font = '30px monospace';
-  g.fillText(run.mode === 'daily' ? 'DAILY MOON / ' + run.date : 'FREE RUN / ' + run.seed, 540, 1155);
+  g.fillText(run.mode === 'daily' ? tr('scoreDaily')(run.date) : tr('scoreFree')(run.seed), 540, 1155);
   g.fillStyle = '#a2b9ba'; g.font = '22px monospace'; g.fillText('#RAPIPPO  ·  COURSE v' + COURSE_VERSION, 540, 1212);
   const link = document.createElement('a'); link.href = c.toDataURL('image/png');
   link.download = 'RAPIPPO-' + state.hops + '-hops.png'; link.click();
@@ -241,10 +283,6 @@ function draw(now) {
     ctx.fillStyle = '#42616a';
     for (let tx = left + 5; tx < right - 6; tx += 24) ctx.fillRect(screen(tx), FLOOR + 27 + Math.round(tx) % 19, 6, 3);
     ctx.fillStyle = '#edcf98'; ctx.fillRect(l, FLOOR, 2, 5); ctx.fillRect(r - 2, FLOOR, 2, 5);
-  }
-  for (const b of terrain.beacons) {
-    const x = screen(b.x); if (b.taken || x < -10 || x > W + 10) continue;
-    ctx.fillStyle = '#ffcb78'; ctx.fillRect(x - 3, FLOOR - 29, 6, 6); ctx.fillStyle = '#fff1bb'; ctx.fillRect(x - 1, FLOOR - 31, 2, 10);
   }
   // The active part rests on the footing with a soft blue glow.
   const slot = parts.active, sx = slot && screen(slot.x);
@@ -326,7 +364,7 @@ function draw(now) {
   ctx.textAlign = 'left'; ctx.font = 'bold 10px monospace'; ctx.fillStyle = modeFast ? '#ffb17b' : '#8ee6c4'; ctx.fillText(modeFast ? '» FAST' : '· SLOW', 16, 26);
   if (running && state.hops < 3) {
     ctx.textAlign = 'center'; ctx.fillStyle = '#c3d1c7'; ctx.font = '11px monospace';
-    ctx.fillText(['AUTO HOP. YOUR PACE.', 'HOLD → FAST', 'RELEASE → SLOW'][state.hops], W / 2, 190);
+    ctx.fillText(language==='ja' ? ['自動でジャンプ','押す → FAST','離す → SLOW'][state.hops] : ['AUTO HOP. YOUR PACE.', 'HOLD → FAST', 'RELEASE → SLOW'][state.hops], W / 2, 190);
   }
 }
 function frame(now) {
@@ -339,6 +377,10 @@ function frame(now) {
       const events = advance(state, terrain, dt, fast()); landAge += dt;
       if (events.includes('land')) {
         landAge = 0; audio.play('land', state.hops);
+        if (milestoneTier(state.hops)) showNotice('milestone',state.hops);
+        if (best > 0 && state.hops > best && !recordNotified) {
+          recordNotified = true; showNotice('record',state.hops);
+        }
         const got = parts.land(state.x, state.hops);
         if (got?.type === 'collect') {
           audio.pickup(.03); flights.push({ part: got.part, x: Math.round(got.x - state.x + HERO_X), y: FLOOR - 9, age: 0 });
