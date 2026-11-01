@@ -16,6 +16,7 @@
     <div class="hud"><div><small>HOPS</small><strong id="score">0</strong></div><div><small>BEST</small><strong id="best">0</strong></div></div>
   </header>
   <nav class="mode" aria-label="Course"><span id="mode-name">DAILY MOON</span><div><button id="daily" type="button">DAILY</button><button id="free" type="button">FREE RUN</button></div></nav>
+  <nav class="marker-compare" aria-label="Marker experiment modes"><span>LANDING GUIDE TEST</span><div><button id="marker-full" type="button" aria-pressed="true">A · FULL</button><button id="marker-neutral" type="button" aria-pressed="false">B · POSITION</button><button id="marker-off" type="button" aria-pressed="false">C · NONE</button></div></nav>
   <section class="play-area" aria-label="Moon course">
     <canvas id="play" width="360" height="510" aria-label="Automatic hopping. Hold this canvas or the control below for FAST; release for SLOW. Mint ring means a safe landing if you keep this speed."></canvas>
     <div id="overlay" class="overlay" data-screen="start">
@@ -29,7 +30,7 @@
     </div>
   </section>
   <button id="hold" class="hold" type="button" aria-pressed="false"><span class="control-icon" aria-hidden="true">»</span><strong id="hold-state">SLOW</strong><span id="hold-instruction">HOLD TO GO FAST</span></button>
-  <div class="below"><span>MINT RING = SAFE AT THIS SPEED</span><button id="sound" type="button" aria-pressed="true">SOUND ON</button></div>
+  <div class="below"><span id="marker-guide">MINT RING = SAFE AT THIS SPEED</span><button id="sound" type="button" aria-pressed="true">SOUND ON</button></div>
   <footer><span>A tiny capsule. An endless moon.</span><span>SPACE = HOLD · R = RETRY</span></footer>
 </main>
 <script type="module" src="./src/app.mjs"></script>
