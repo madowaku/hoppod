@@ -1,0 +1,126 @@
+// Tiny original oscillator cues; initialized only by a user gesture.
+// Landing notes are the v0.2 pentatonic set. Milestone accents (v0.3) are
+// layered on their own quieter, compressed bus so the land voice is unchanged.
+export const LAND_NOTES = [330, 392, 440, 523, 587];
+export function milestoneTier(hops) {
+  return hops <= 0 ? null : hops % 100 === 0 ? 'hundred' : hops % 50 === 0 ? 'fifty' : hops % 10 === 0 ? 'ten' : null;
+}
+// [delay s, frequency Hz, decay s, peak gain]. Multiples of 5 land on E4, so
+// every accent stays in the same C-major pentatonic colour above it.
+const ACCENTS = {
+  ten: [[.05, 784, .2, .03], [.12, 1047, .26, .03]],
+  fifty: [[.04, 659, .24, .024], [.095, 784, .24, .024], [.15, 880, .24, .024], [.205, 1047, .26, .024], [.26, 1319, .34, .022]],
+  hundred: [[0, 523, 1.5, .016], [.03, 659, 1.5, .016], [.06, 784, 1.5, .016], [.09, 1175, 1.4, .012], [.32, 1319, .9, .018]],
+};
+const MAX_ACCENT_VOICES = 12;
+// v0.4-C companion bell: high E6/G6 above the land voice, with one faint
+// inharmonic partial for a struck-metal colour. Peak stays far under .07.
+export const BELL_NOTES = [1319, 1568];
+// Part pickup blip and the assembled pod's two-note "pi-po" boot chime:
+// [delay s, frequency Hz, decay s, peak gain], all well under the land voice.
+export const PICKUP = [[0, 1047, .09, .03], [.06, 1568, .14, .028]];
+export const BOOT = [[0, 1319, .07, .032], [.09, 1760, .2, .03]];
+const BELL_PARTIALS = [[1, .022, .5], [2.76, .006, .16]];
+export function createAudio({ accents = true } = {}) {
+  let ctx, bus, muted = false, active = 0, bells = 0;
+  const voices = new Set();
+  const track = (o, g, at, isAccent = false) => {
+    const voice = { o, g, at, isAccent, stopping: false };
+    voices.add(voice);
+    if (isAccent) active += 1;
+    o.onended = () => {
+      if (!voices.delete(voice)) return;
+      if (isAccent) active -= 1;
+      o.disconnect(); g.disconnect();
+    };
+  };
+  // Cancel future notes as well as sounding ones. A short fade prevents a
+  // discontinuity when muting a sustained chord; the v0.2 play path is intact.
+  const stop = (accentsOnly = false) => {
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    for (const v of voices) {
+      if (v.stopping || (accentsOnly && !v.isAccent)) continue;
+      v.stopping = true;
+      if (v.at > t) {
+        v.g.gain.cancelScheduledValues?.(t); v.g.gain.setValueAtTime(0, t); v.o.stop(t);
+      } else {
+        if (v.g.gain.cancelAndHoldAtTime) v.g.gain.cancelAndHoldAtTime(t);
+        else { v.g.gain.cancelScheduledValues?.(t); v.g.gain.setValueAtTime(Math.max(.0001, v.g.gain.value), t); }
+        if (v.g.gain.linearRampToValueAtTime) v.g.gain.linearRampToValueAtTime(0, t + .008);
+        else v.g.gain.exponentialRampToValueAtTime(.0001, t + .008);
+        v.o.stop(t + .01);
+      }
+    }
+  };
+  const unlock = () => {
+    try {
+      ctx ||= new (globalThis.AudioContext || globalThis.webkitAudioContext)();
+      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+    } catch { /* Silent play is always supported. */ }
+  };
+  const accentBus = () => {
+    if (bus) return bus;
+    const compressor = ctx.createDynamicsCompressor();
+    compressor.threshold.value = -20; compressor.knee.value = 12; compressor.ratio.value = 4;
+    compressor.attack.value = .003; compressor.release.value = .2;
+    compressor.connect(ctx.destination);
+    return bus = compressor;
+  };
+  const accent = (tier, t) => {
+    for (const [delay, frequency, decay, peak] of ACCENTS[tier]) {
+      if (active >= MAX_ACCENT_VOICES) return;
+      const o = ctx.createOscillator(), g = ctx.createGain(), at = t + delay;
+      o.type = tier === 'hundred' ? 'sine' : 'triangle';
+      o.frequency.setValueAtTime(frequency, at);
+      g.gain.setValueAtTime(.0001, at); g.gain.exponentialRampToValueAtTime(peak, at + (tier === 'hundred' ? .04 : .006));
+      g.gain.exponentialRampToValueAtTime(.0001, at + decay);
+      o.connect(g); g.connect(accentBus()); o.start(at); o.stop(at + decay + .05);
+      track(o, g, at, true);
+    }
+  };
+  const play = (kind, hops = 0) => {
+    if (!ctx || ctx.state !== 'running' || muted) return;
+    const o = ctx.createOscillator(), g = ctx.createGain(), t = ctx.currentTime;
+    const notes = LAND_NOTES;
+    const frequency = kind === 'fall' ? 170 : kind === 'fast' ? 220 : kind === 'slow' ? 300 : notes[hops % notes.length];
+    o.type = kind === 'land' ? 'sine' : 'triangle';
+    o.frequency.setValueAtTime(frequency, t);
+    o.frequency.exponentialRampToValueAtTime(kind === 'fall' ? 45 : frequency * (kind === 'fast' ? 1.8 : 1.15), t + .1);
+    g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(.07, t + .008);
+    g.gain.exponentialRampToValueAtTime(.0001, t + (kind === 'fall' ? .22 : .12));
+    o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t + .25);
+    track(o, g, t);
+    const tier = kind === 'land' && accents ? milestoneTier(hops) : null;
+    if (tier) accent(tier, t);
+  };
+  // Scheduled ahead by the companion's lag; stop() cancels it like any voice.
+  const bell = (delay = 0) => {
+    if (!ctx || ctx.state !== 'running' || muted) return;
+    const at = ctx.currentTime + delay, base = BELL_NOTES[bells++ % BELL_NOTES.length];
+    for (const [ratio, peak, decay] of BELL_PARTIALS) {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'sine'; o.frequency.setValueAtTime(base * ratio, at);
+      g.gain.setValueAtTime(.0001, at); g.gain.exponentialRampToValueAtTime(peak, at + .004);
+      g.gain.exponentialRampToValueAtTime(.0001, at + decay);
+      o.connect(g); g.connect(ctx.destination); o.start(at); o.stop(at + decay + .05);
+      track(o, g, at);
+    }
+  };
+  const chime = (notes, delay = 0) => {
+    if (!ctx || ctx.state !== 'running' || muted) return;
+    const start = ctx.currentTime + delay;
+    for (const [offset, frequency, decay, peak] of notes) {
+      const o = ctx.createOscillator(), g = ctx.createGain(), at = start + offset;
+      o.type = 'triangle'; o.frequency.setValueAtTime(frequency, at);
+      g.gain.setValueAtTime(.0001, at); g.gain.exponentialRampToValueAtTime(peak, at + .005);
+      g.gain.exponentialRampToValueAtTime(.0001, at + decay);
+      o.connect(g); g.connect(ctx.destination); o.start(at); o.stop(at + decay + .05);
+      track(o, g, at);
+    }
+  };
+  return {
+    unlock, play, bell, stop, pickup: delay => chime(PICKUP, delay), boot: delay => chime(BOOT, delay), toggle() { muted = !muted; if (muted) stop(); return muted; }, get muted() { return muted; },
+    get accents() { return accents; }, set accents(value) { accents = Boolean(value); if (!accents) stop(true); },
+  };
+}

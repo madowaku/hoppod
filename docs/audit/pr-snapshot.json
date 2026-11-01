@@ -1,0 +1,241 @@
+{
+  "date": "2026-11-01 JST",
+  "main": "f50befbd326cbc62c1b0d270e20f85fc5b94c6c9",
+  "reviewedTip": "e6645d4546f91592ffc5f489fc14d627d754e744",
+  "prs": [
+    {
+      "number": 1,
+      "title": "feat: HOPPOD first playable endless Canvas prototype",
+      "base": "main",
+      "base_sha": "f50befbd326cbc62c1b0d270e20f85fc5b94c6c9",
+      "head": "feat/endless-prototype",
+      "head_sha": "01d190e3a1710370d5b3aceb16133e0996ac7b38",
+      "draft": true,
+      "state": "open",
+      "ci": [
+        {
+          "id": 41211959059,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/madowaku/hoppod/actions/runs/41211959059"
+        }
+      ]
+    },
+    {
+      "number": 2,
+      "title": "feat: HOPPOD v0.2 — ONE MORE HOP! playable polish",
+      "base": "feat/endless-prototype",
+      "base_sha": "01d190e3a1710370d5b3aceb16133e0996ac7b38",
+      "head": "codex/v02-playable-polish",
+      "head_sha": "3cca8ab7c41654a1b1501456fa4de02ea947b74b",
+      "draft": true,
+      "state": "open",
+      "ci": [
+        {
+          "id": 41252929245,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/madowaku/hoppod/actions/runs/41252929245"
+        }
+      ]
+    },
+    {
+      "number": 3,
+      "title": "fix: v0.3 fair ground (no hidden pits) + 10/50/100 HOPS milestone sound",
+      "base": "codex/v02-playable-polish",
+      "base_sha": "3cca8ab7c41654a1b1501456fa4de02ea947b74b",
+      "head": "claude/v03-fair-ground",
+      "head_sha": "9d95ea402787217355bc1be3e9e753a4b66342ce",
+      "draft": true,
+      "state": "open",
+      "ci": [
+        {
+          "id": 41265710359,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/madowaku/hoppod/actions/runs/41265710359"
+        }
+      ]
+    },
+    {
+      "number": 4,
+      "title": "feat: v0.3 Earthrise — Earth rises as the pod hops toward the near side",
+      "base": "claude/v03-fair-ground",
+      "base_sha": "9d95ea402787217355bc1be3e9e753a4b66342ce",
+      "head": "claude/v03-earthrise",
+      "head_sha": "6f208ad95cefee3619cd4c5e65df39fe44b6b11d",
+      "draft": true,
+      "state": "open",
+      "ci": [
+        {
+          "id": 41265709986,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/madowaku/hoppod/actions/runs/41265709986"
+        }
+      ]
+    },
+    {
+      "number": 5,
+      "title": "fix: v0.3 independent review — cancel milestone audio and verify release assets",
+      "base": "claude/v03-earthrise",
+      "base_sha": "6f208ad95cefee3619cd4c5e65df39fe44b6b11d",
+      "head": "codex/v03-independent-review",
+      "head_sha": "566df40a3542c7057a0249496cc996a39a2c5438",
+      "draft": true,
+      "state": "open",
+      "ci": [
+        {
+          "id": 41272635243,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/madowaku/hoppod/actions/runs/41272635243"
+        }
+      ]
+    },
+    {
+      "number": 6,
+      "title": "experiment: 20 four-hop terrain motifs without new gameplay rules",
+      "base": "codex/v03-independent-review",
+      "base_sha": "566df40a3542c7057a0249496cc996a39a2c5438",
+      "head": "experiment/v04-20-terrain-motifs",
+      "head_sha": "c7233a8a4c150c5951cce50da4dea6bae9aa376f",
+      "draft": true,
+      "state": "open",
+      "ci": [
+        {
+          "id": 41283158289,
+          "status": "completed",
+          "conclusion": "failure",
+          "url": "https://github.com/madowaku/hoppod/actions/runs/41283158289"
+        }
+      ]
+    },
+    {
+      "number": 7,
+      "title": "experiment: v0.4-A landing marker A/B/C comparison",
+      "base": "experiment/v04-20-terrain-motifs",
+      "base_sha": "c7233a8a4c150c5951cce50da4dea6bae9aa376f",
+      "head": "experiment/v04a-landing-marker-comparison",
+      "head_sha": "d3fbaa97cae7746ac37004d2fb77a12be3a505cc",
+      "draft": true,
+      "state": "open",
+      "ci": [
+        {
+          "id": 41288972980,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/madowaku/hoppod/actions/runs/41288972980"
+        }
+      ]
+    },
+    {
+      "number": 8,
+      "title": "experiment: promote C / no landing marker to default after human A/B/C test",
+      "base": "experiment/v04a-landing-marker-comparison",
+      "base_sha": "d3fbaa97cae7746ac37004d2fb77a12be3a505cc",
+      "head": "experiment/v04b-no-marker-default",
+      "head_sha": "ff65b6e29d01df34659518b5e206674d8a8b624e",
+      "draft": true,
+      "state": "open",
+      "ci": [
+        {
+          "id": 41289715425,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/madowaku/hoppod/actions/runs/41289715425"
+        }
+      ]
+    },
+    {
+      "number": 9,
+      "title": "experiment: v0.4-C blue companion POD joins at 30 HOPS",
+      "base": "experiment/v04b-no-marker-default",
+      "base_sha": "ff65b6e29d01df34659518b5e206674d8a8b624e",
+      "head": "experiment/v04c-companion-pod",
+      "head_sha": "80f9124d12b25cb00116bee16517dc793a1eb573",
+      "draft": true,
+      "state": "open",
+      "ci": [
+        {
+          "id": 41291790481,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/madowaku/hoppod/actions/runs/41291790481"
+        }
+      ]
+    },
+    {
+      "number": 10,
+      "title": "rename: show the game as RAPIPPO",
+      "base": "experiment/v04c-companion-pod",
+      "base_sha": "80f9124d12b25cb00116bee16517dc793a1eb573",
+      "head": "experiment/v04d-rapippo-name",
+      "head_sha": "6e880a94754b4713a8773fedc3c078bbaf9db5c4",
+      "draft": true,
+      "state": "open",
+      "ci": [
+        {
+          "id": 41292269211,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/madowaku/hoppod/actions/runs/41292269211"
+        }
+      ]
+    },
+    {
+      "number": 11,
+      "title": "experiment: v0.4-C2 build the blue POD from three collected parts",
+      "base": "experiment/v04d-rapippo-name",
+      "base_sha": "6e880a94754b4713a8773fedc3c078bbaf9db5c4",
+      "head": "experiment/v04c2-blue-pod-parts",
+      "head_sha": "638cf38f5fd1a2c5e5b3fc5ebc3eeb609805e484",
+      "draft": true,
+      "state": "open",
+      "ci": [
+        {
+          "id": 41295016711,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/madowaku/hoppod/actions/runs/41295016711"
+        }
+      ]
+    },
+    {
+      "number": 12,
+      "title": "experiment: RAPIPPO UI clarity, JA/EN, meaningful milestones and no gold beacons",
+      "base": "experiment/v04c2-blue-pod-parts",
+      "base_sha": "638cf38f5fd1a2c5e5b3fc5ebc3eeb609805e484",
+      "head": "experiment/v04e-ux-clarity-i18n",
+      "head_sha": "aa79fe63bcb8c475409e8be30c205946a46edd25",
+      "draft": true,
+      "state": "open",
+      "ci": [
+        {
+          "id": 41297144505,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/madowaku/hoppod/actions/runs/41297144505"
+        }
+      ]
+    },
+    {
+      "number": 13,
+      "title": "docs: RAPIPPO art and UX direction (mood references, staged visual plan)",
+      "base": "experiment/v04e-ux-clarity-i18n",
+      "base_sha": "aa79fe63bcb8c475409e8be30c205946a46edd25",
+      "head": "docs/concept-art-direction",
+      "head_sha": "e6645d4546f91592ffc5f489fc14d627d754e744",
+      "draft": true,
+      "state": "open",
+      "ci": [
+        {
+          "id": 41298494657,
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/madowaku/hoppod/actions/runs/41298494657"
+        }
+      ]
+    }
+  ]
+}

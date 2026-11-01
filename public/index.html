@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#101f2c">
+<meta name="description" content="ONE MORE HOP! A tiny capsule, an endless moon. It hops. You set the pace. Play RAPIPPO and share your best.">
+<title>RAPIPPO | ONE MORE HOP!</title>
+<link rel="icon" href="./icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<main class="shell">
+  <header class="top">
+    <div class="brand"><strong>RAPIPPO<span class="brand-star">✦</span></strong><span>ONE MORE HOP!</span></div>
+    <div class="hud"><div><small id="hops-label">HOPS</small><strong id="score">0</strong></div><div><small id="best-label">BEST</small><strong id="best">0</strong></div></div>
+  </header>
+  <nav class="mode" aria-label="Course"><span id="mode-name">DAILY MOON</span><div><button id="daily" type="button">DAILY</button><button id="free" type="button">FREE RUN</button></div></nav>
+  <nav id="marker-compare" class="marker-compare" aria-label="Marker experiment modes" hidden><span>LANDING GUIDE TEST</span><div><button id="marker-full" type="button" aria-pressed="true">A · FULL</button><button id="marker-neutral" type="button" aria-pressed="false">B · POSITION</button><button id="marker-off" type="button" aria-pressed="false">C · NONE</button></div></nav>
+  <section class="play-area" aria-label="Moon course"><div id="milestone-notice" class="milestone-notice" role="status" aria-live="polite" hidden></div>
+    <canvas id="play" width="360" height="510" aria-label="Automatic hopping. Hold this canvas or the control below for FAST; release for SLOW. Judge the terrain and your rhythm without a landing preview."></canvas>
+    <div id="overlay" class="overlay" data-screen="start">
+      <div id="intro-mark" class="intro-mark" aria-hidden="true">✦ LUNAR DELIVERY SERVICE ✦</div>
+      <h1 id="overlay-title">ONE MORE HOP!</h1>
+      <div id="result-details" class="result-details" hidden><strong id="result-score">0</strong><span>HOPS <i> / </i> BEST <b id="result-best">0</b></span><small id="result-course"></small><span class="result-journey"><em id="result-earth">FAR SIDE</em><em id="result-crew" hidden><i aria-hidden="true"></i><span id="result-crew-text">WITH BLUE POD</span></em></span></div>
+      <p id="overlay-subtitle">It hops. You set the pace.</p>
+      <div class="intro-controls"><span><span id="intro-hold">HOLD</span><b>» FAST</b></span><span><span id="intro-release">LET GO</span><b>· SLOW</b></span></div>
+      <div id="milestone-help" class="milestone-help">Every 10 HOPS: a little celebration ♪</div>
+      <button id="action" class="action" type="button">LET’S HOP</button>
+      <div id="share-actions" class="share-actions" hidden><button id="share" type="button">POST TO X ↗</button><button id="save" type="button">SAVE PNG ↓</button><span id="attach-hint">Attach your PNG to X yourself.</span></div>
+    </div>
+  </section>
+  <button id="hold" class="hold" type="button" aria-pressed="false"><span class="control-icon" aria-hidden="true">»</span><strong id="hold-state">SLOW</strong><span id="hold-instruction">HOLD TO GO FAST</span></button>
+  <div class="below"><span id="marker-guide" hidden></span><div class="prefs"><button id="language" type="button" aria-label="Switch to Japanese">日本語</button><button id="sound" type="button" aria-pressed="true">SOUND ON</button></div></div>
+  <footer><span id="footer-tag">A tiny capsule. An endless moon.</span><span id="footer-keys">SPACE = HOLD · R = RETRY</span></footer>
+</main>
+<script type="module" src="./src/app.mjs"></script>
+</body></html>
