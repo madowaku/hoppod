@@ -8,3 +8,10 @@
 @media(max-width:340px){.shell{padding-left:10px;padding-right:10px}.mode{font-size:8px}.hold{padding-left:10px;padding-right:10px;grid-template-columns:22px 1fr auto}.hold>span:last-child{font-size:8px}.overlay{padding-left:10px;padding-right:10px}.overlay[data-screen=result]{gap:9px;padding-top:24px}}
 @media(prefers-reduced-motion:reduce){.action:active{transform:none}}
 @media(max-height:500px){.shell{max-width:420px}}
+
+/* Experimental, small A/B/C selector; not part of v0.3 release. */
+.marker-compare{display:flex;justify-content:space-between;align-items:center;gap:4px;flex-wrap:wrap;color:#95b5b2;font-size:8px;letter-spacing:.3px}
+.marker-compare>div{display:flex;gap:4px;flex:1;justify-content:flex-end}
+.marker-compare button{min-height:32px;padding:7px 6px;border-radius:5px;border:1px solid #405e66;background:#162a34;color:#bed0ca;font-size:9px}
+.marker-compare button.selected{background:#d2d2bc;color:#172638;border-color:#d2d2bc}
+@media(max-width:375px){.marker-compare{gap:3px}.marker-compare button{font-size:8px;padding:7px 4px}}
