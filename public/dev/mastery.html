@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>RAPIPPO Mastery Lab</title>
+<style>
+  :root { color-scheme: dark; --bg: #101f2c; --ink: #fff0d0; --mute: #a2b9ba; --mint: #8ee6c4; --coral: #ffad73; --line: #2e4850; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 16px; background: var(--bg); color: var(--ink); font: 14px/1.5 monospace; }
+  main { max-width: 420px; margin: 0 auto; }
+  h1 { font-size: 18px; margin: 0; }
+  p { color: var(--mute); margin: 4px 0 12px; }
+  button { font: inherit; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--mint); background: transparent; color: var(--ink); cursor: pointer; touch-action: manipulation; }
+  button[aria-pressed="true"] { background: var(--mint); color: var(--bg); }
+  .row { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0; }
+  .row button { flex: 1; }
+  .stage { position: relative; }
+  canvas { display: block; width: 100%; height: auto; image-rendering: pixelated; touch-action: none; border-radius: 8px; user-select: none; -webkit-user-select: none; }
+  #overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; background: rgba(8, 16, 24, .78); border-radius: 8px; padding: 16px; text-align: center; }
+  #overlay[hidden] { display: none; }
+  #overlay h2 { margin: 0; font-size: 22px; }
+  #overlay p { margin: 0; color: var(--ink); white-space: pre-line; }
+  #hold { width: 100%; margin-top: 8px; padding: 16px; font-size: 16px; user-select: none; -webkit-user-select: none; touch-action: none; }
+  #hold.active { background: var(--coral); border-color: var(--coral); color: var(--bg); }
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 12px; }
+  th, td { border-bottom: 1px solid var(--line); padding: 4px; text-align: right; }
+  th:first-child, td:first-child { text-align: left; }
+  small { color: var(--mute); }
+</style>
+</head>
+<body>
+<main>
+  <h1>RAPIPPO 熟達ラボ v0.5</h1>
+  <p>開発者専用（デプロイしない）。同じシードで3案を切り替えて遊び比べる。押す=FAST、離す=SLOW。Space / R=もう一度 / P=関所を練習。</p>
+  <div class="row" id="variants">
+    <button data-exp="base">A 現行</button>
+    <button data-exp="plain">B 関所</button>
+    <button data-exp="rules">C 関所+着地ルール</button>
+  </div>
+  <div class="stage">
+    <canvas id="play" width="360" height="510" aria-label="RAPIPPO mastery lab"></canvas>
+    <div id="overlay">
+      <h2 id="overlay-title"></h2>
+      <p id="overlay-text"></p>
+      <div class="row">
+        <button id="primary"></button>
+        <button id="practice" hidden></button>
+      </div>
+    </div>
+  </div>
+  <button id="hold" aria-pressed="false">HOLD → FAST</button>
+  <div class="row"><button id="leave" hidden>練習をやめて本番へ</button></div>
+  <table id="stats"></table>
+  <div class="row">
+    <button id="copy">記録をコピー（JSON）</button>
+    <button id="clear">この案の記録を消す</button>
+  </div>
+  <small id="seed"></small>
+</main>
+<script type="module" src="./mastery/lab-app.mjs"></script>
+</body>
+</html>
