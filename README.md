@@ -63,3 +63,7 @@ The independent review is stacked on #4 (full order #1 → #2 → #3 → #4 → 
 ### Blue POD parts experiment (Draft)
 
 [v0.4-C2 blue POD parts](docs/V04C2_BLUE_POD_PARTS.md) replaces the automatic 30-HOPS join: land within ±20px of glowing ANTENNA / BODY / ENGINE parts to fill a quiet three-frame tray; the pod assembles during play and then follows with its bell. Placement uses its own deterministic generator and is verified reachable over 400 seeds; terrain, physics, timing, BEST keys and DAILY seeds are unchanged. Not merged or deployed.
+
+### UI and sound clarity experiment (Draft)
+
+[UX clarity and JA/EN acceptance plan](docs/V04E_UX_CLARITY.md) is stacked on the blue-POD parts PR. The obsolete gold beacons have been retired, so blue components are the only collectible. Every 10 HOPS plays the original musical reward with a brief 1.35-second achievement label, and the start screen explains that cue. HOPS/BEST stay visible and the live BEST number increases while a new record is being set. Below the game are compact language (Japanese/English) and sound toggles that persist without modifying course seeds, BEST keys or play physics. No marker is introduced. This is a Draft experiment, not merged or deployed.
