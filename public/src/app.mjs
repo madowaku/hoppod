@@ -13,7 +13,7 @@ const pointers = new Set(), keys = new Set(), audio = createAudio({ accents: acc
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 let run, state, terrain, best = 0, running = false, paused = false, lastTime = null;
 let landAge = 10, deathAge = 0, particles = [], modeFast = false, worldTime = 0;
-let failure = '', failureX = 0, signal = 0, signalAge = 10, markerMode = markerModeFromUrl(location.href);
+let failure = '', failureX = 0, signal = 0, signalAge = 10, markerMode = markerModeFromUrl(location.href), comparisonEnabled = new URL(location.href).searchParams.get('compare') === '1';
 const fast = () => pointers.size + keys.size > 0;
 // Developer A/B only: ?sfx=classic plays v0.2 cues without milestone accents.
 // The course URL is normalized on load, so the choice is kept for this tab.
@@ -31,11 +31,14 @@ function bestKey() {
 }
 function markerUrl(url, mode = markerMode) {
   const copy = new URL(url);
-  if (mode === 'full') copy.searchParams.delete('marker');
+  if (mode === 'off') copy.searchParams.delete('marker');
   else copy.searchParams.set('marker', mode);
+  if (comparisonEnabled) copy.searchParams.set('compare', '1');
   return copy.href;
 }
 function syncMarkerUI() {
+  get('marker-compare').hidden = !comparisonEnabled;
+  get('marker-guide').hidden = !comparisonEnabled;
   for (const mode of MARKER_MODES) {
     const button = get('marker-' + mode);
     const selected = markerMode === mode;
@@ -54,6 +57,7 @@ function syncMarkerUI() {
 function loadCourse() {
   audio.stop();
   markerMode = markerModeFromUrl(location.href);
+  comparisonEnabled = new URL(location.href).searchParams.get('compare') === '1';
   run = resolveRun(location.href);
   history.replaceState(null, '', markerUrl(run.url));
   syncMarkerUI();
