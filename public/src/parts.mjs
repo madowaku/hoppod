@@ -50,7 +50,7 @@ export class PartLayout {
   }
   place() {
     for (let hop = this.nextHop; ; hop++) {
-      // Every fifth reference hop carries a gold beacon; keep them apart.
+      // Preserve the existing seeded part layout: fifth hops remain reserved for rhythm milestones.
       if (hop % 5 === 0) continue;
       const x = this.spot(hop);
       if (x === null) continue;
