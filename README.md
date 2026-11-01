@@ -20,7 +20,7 @@ Requires Python 3. From this folder:
 python -m http.server 8000 --bind 127.0.0.1 --directory public
 ```
 
-Open [HOPPOD locally](http://127.0.0.1:8000/?mode=daily). No build, account, API key, or runtime downloads. Hold the canvas or the lower control for FAST; release for SLOW. Desktop: Space to hold, R to retry, Escape to pause. The pod hops every 0.78 seconds. Mint landing ring = safe **if the current speed is maintained**; coral = change your pace.
+Open [HOPPOD locally](http://127.0.0.1:8000/?mode=daily). No build, account, API key, or runtime downloads. Hold the canvas or the lower control for FAST; release for SLOW. Desktop: Space to hold, R to retry, Escape to pause. The pod hops every 0.78 seconds. Mint landing ring = safe **if the current speed is maintained**; coral = change your pace. The lit flat top of each platform is exactly where you can land; its stepped rim and the black pits are not.
 
 DAILY uses the date in Japan; its URL replays that day even tomorrow. FREE RUN chooses a fresh seed; retry keeps the same seed. POST TO X opens a composer; SAVE PNG downloads a score card to attach manually.
 
@@ -38,4 +38,4 @@ npm run test:browser
 
 Browser tests start their own local server if port 8000 is free. Screenshots, the downloaded PNG, test JSON and failure traces go to `output/playwright/`. CI uploads browser evidence.
 
-v0.2 remains unpublished and depends on Draft PR #1. See [v0.2 design and acceptance](docs/V02_ACCEPTANCE.md) for changes, evidence and human/device checks. [v0.1 notes](docs/PROTOTYPE.md) are historical. No automatic merge or production deploy.
+v0.3 (course `v=3`) is unpublished and stacked on Draft PRs #1 → #2. See [v0.3 fair ground and milestone sound](docs/V03_FAIR_GROUND.md) for the first-pit fix, milestone accents, developer sound A/B (`?sfx=classic`, `/dev/sfx.html`) and open human checks. [v0.2 design and acceptance](docs/V02_ACCEPTANCE.md) and [v0.1 notes](docs/PROTOTYPE.md) are historical. No automatic merge or production deploy.
