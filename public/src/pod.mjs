@@ -21,7 +21,7 @@ const body = [
   '     oooooooo       ',
 ];
 const baseColors = { o: '#172638', c: '#fff0d0', w: '#fffbea', s: '#cfba9a', a: '#ff9161', d: '#172638' };
-export function drawPod(g, x, y, scale = 2, { phase = 0, fast = false, land = 0, dead = 0, time = 0, idle = false, signal = 0, palette = null } = {}) {
+export function drawPod(g, x, y, scale = 2, { phase = 0, fast = false, land = 0, dead = 0, time = 0, idle = false, signal = 0, palette = null, eyes = true } = {}) {
   const colors = palette ? { ...baseColors, ...palette } : baseColors;
   g.save();
   g.translate(Math.round(x), Math.round(y));
@@ -47,7 +47,8 @@ export function drawPod(g, x, y, scale = 2, { phase = 0, fast = false, land = 0,
     }
   } else {
     const blink = idle && Math.sin(time * 1.7) > .99;
-    for (const eye of [-4, 3]) rect('#ffe38e', eye, eyeY, 2, blink ? 1 : 4);
+    // A freshly assembled pod boots with its eyes dark.
+    for (const eye of [-4, 3]) rect(eyes ? '#ffe38e' : '#2c4656', eye, eyeY, 2, blink ? 1 : 4);
     if (fast) rect('#fff5bb', -3, eyeY, 1, 1);
   }
   for (let k = 0; k < spring; k++) rect(k % 2 ? '#f9d49c' : '#6e8795', k % 2 ? -3 : -5, -spring + k, 8, 1);

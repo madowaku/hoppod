@@ -16,6 +16,10 @@ const MAX_ACCENT_VOICES = 12;
 // v0.4-C companion bell: high E6/G6 above the land voice, with one faint
 // inharmonic partial for a struck-metal colour. Peak stays far under .07.
 export const BELL_NOTES = [1319, 1568];
+// Part pickup blip and the assembled pod's two-note "pi-po" boot chime:
+// [delay s, frequency Hz, decay s, peak gain], all well under the land voice.
+export const PICKUP = [[0, 1047, .09, .03], [.06, 1568, .14, .028]];
+export const BOOT = [[0, 1319, .07, .032], [.09, 1760, .2, .03]];
 const BELL_PARTIALS = [[1, .022, .5], [2.76, .006, .16]];
 export function createAudio({ accents = true } = {}) {
   let ctx, bus, muted = false, active = 0, bells = 0;
@@ -103,8 +107,20 @@ export function createAudio({ accents = true } = {}) {
       track(o, g, at);
     }
   };
+  const chime = (notes, delay = 0) => {
+    if (!ctx || ctx.state !== 'running' || muted) return;
+    const start = ctx.currentTime + delay;
+    for (const [offset, frequency, decay, peak] of notes) {
+      const o = ctx.createOscillator(), g = ctx.createGain(), at = start + offset;
+      o.type = 'triangle'; o.frequency.setValueAtTime(frequency, at);
+      g.gain.setValueAtTime(.0001, at); g.gain.exponentialRampToValueAtTime(peak, at + .005);
+      g.gain.exponentialRampToValueAtTime(.0001, at + decay);
+      o.connect(g); g.connect(ctx.destination); o.start(at); o.stop(at + decay + .05);
+      track(o, g, at);
+    }
+  };
   return {
-    unlock, play, bell, stop, toggle() { muted = !muted; if (muted) stop(); return muted; }, get muted() { return muted; },
+    unlock, play, bell, stop, pickup: delay => chime(PICKUP, delay), boot: delay => chime(BOOT, delay), toggle() { muted = !muted; if (muted) stop(); return muted; }, get muted() { return muted; },
     get accents() { return accents; }, set accents(value) { accents = Boolean(value); if (!accents) stop(true); },
   };
 }

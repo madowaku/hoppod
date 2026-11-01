@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {createAudio,milestoneTier,LAND_NOTES,BELL_NOTES} from '../public/src/audio.mjs';
+import {createAudio,milestoneTier,LAND_NOTES,BELL_NOTES,PICKUP,BOOT} from '../public/src/audio.mjs';
 
 // Minimal Web Audio stand-in that records the graph and gain automation.
 function fakeContext(state='running') {
@@ -124,4 +124,19 @@ test('mute, retry and game over cancel a pending companion bell; muted bells nev
   // Switching off milestone accents leaves the companion alone.
   const log2=fakeContext(),audio2=createAudio();audio2.unlock();audio2.bell(.39);audio2.accents=false;
   for(const o of log2.oscillators) assert.ok(o.stopAt>10.4);
+});
+
+test('part pickup and boot chime: quiet, scheduled, cancelled by mute and retry',()=>{
+  let log=fakeContext(),audio=createAudio();audio.unlock();
+  audio.pickup(.03);audio.boot(.75);
+  assert.equal(log.oscillators.length,PICKUP.length+BOOT.length);
+  for(const o of log.oscillators) { assert.ok(peak(o)<=.035);assert.equal(target(o),'destination'); }
+  assert.equal(log.oscillators[0].startAt,10.03);assert.equal(log.oscillators[2].startAt,10.75);
+  assert.ok(log.oscillators[3].frequency.events[0][1]>log.oscillators[2].frequency.events[0][1],'pi-po rises');
+  for(const end of [a=>a.toggle(),a=>a.stop()]) {
+    log=fakeContext();audio=createAudio();audio.unlock();audio.boot(.75);end(audio);
+    for(const o of log.oscillators) assert.ok(o.stopAt<=10.02,`boot still scheduled until ${o.stopAt}`);
+  }
+  log=fakeContext();audio=createAudio();audio.unlock();audio.toggle();audio.pickup();audio.boot(.75);
+  assert.equal(log.oscillators.length,0);
 });

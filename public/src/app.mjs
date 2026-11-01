@@ -3,7 +3,8 @@ import { resolveRun, jstDate, shareUrl } from './links.mjs';
 import { drawPod } from './pod.mjs';
 import { EARTH_PEEK, earthRise, earthCenterY, earthLabel, drawEarth } from './earth.mjs';
 import { createAudio, milestoneTier } from './audio.mjs';
-import { COMPANION_LAG, COMPANION_GAP, COMPANION_PALETTE, companionJoins, companionBell, companionPhase, companionLift, joinBlend } from './companion.mjs';
+import { COMPANION_LAG, COMPANION_GAP, ASSEMBLE_GATHER, ASSEMBLE_FLASH, ASSEMBLE_BOOT, companionBell, companionPhase, companionLift, gatherBlend } from './companion.mjs';
+import { PartLayout, PartRun, PART_LABELS, drawPart } from './parts.mjs';
 import { MARKER_MODES, markerModeFromUrl, markerVisual } from './marker.mjs';
 
 const get = id => document.getElementById(id);
@@ -13,7 +14,10 @@ const EARTH_X = 292, EARTH_R = 28, EARTH_HORIZON = FLOOR - 94, EARTH_TOP = 84;
 const pointers = new Set(), keys = new Set(), audio = createAudio({ accents: accentsEnabled() });
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 let run, state, terrain, best = 0, running = false, paused = false, lastTime = null;
-let landAge = 10, deathAge = 0, particles = [], modeFast = false, worldTime = 0, companionAge = -1;
+let landAge = 10, deathAge = 0, particles = [], modeFast = false, worldTime = 0;
+// Parts: layout is fixed per seed; progress, flights and assembly age per run.
+let layout, parts, flights = [], crewAge = -1;
+const FLIGHT = .35, trayX = i => 21 + i * 14, TRAY_Y = 41;
 let failure = '', failureX = 0, signal = 0, signalAge = 10, markerMode = markerModeFromUrl(location.href), comparisonEnabled = new URL(location.href).searchParams.get('compare') === '1';
 const fast = () => pointers.size + keys.size > 0;
 // Developer A/B only: ?sfx=classic plays v0.2 cues without milestone accents.
@@ -69,7 +73,8 @@ function loadCourse() {
     get(mode).setAttribute('aria-pressed', String(run.mode === mode));
   }
   state = newRun(); terrain = new Terrain(run.seed);
-  running = false; paused = false; deathAge = 0; particles = []; landAge = 10; signal = 0; signalAge = 10; companionAge = -1;
+  running = false; paused = false; deathAge = 0; particles = []; landAge = 10; signal = 0; signalAge = 10;
+  layout = new PartLayout(run.seed); parts = new PartRun(layout); flights = []; crewAge = -1;
   get('share-actions').hidden = true; get('result-details').hidden = true;
   get('overlay').dataset.screen = 'start';
   overlay('ONE MORE HOP!', 'It hops. You set the pace.', 'LET’S HOP');
@@ -84,7 +89,8 @@ function reset() {
   get('action').blur();
   audio.unlock(); state = newRun(); terrain = new Terrain(run.seed);
   running = true; paused = false; lastTime = null;
-  deathAge = 0; landAge = 10; particles = []; failure = ''; signal = 0; signalAge = 10; companionAge = -1;
+  deathAge = 0; landAge = 10; particles = []; failure = ''; signal = 0; signalAge = 10;
+  parts = new PartRun(layout); flights = []; crewAge = -1;
   releaseInput(); get('overlay').hidden = true;
   get('share-actions').hidden = true; get('result-details').hidden = true;
 }
@@ -104,7 +110,9 @@ function endRun() {
   releaseInput(); get('overlay').dataset.screen = 'result';
   get('result-score').textContent = String(state.hops); get('result-best').textContent = String(best);
   get('result-course').textContent = run.mode === 'daily' ? 'DAILY MOON / ' + run.date : 'FREE RUN / ' + run.seed;
-  get('result-earth').textContent = earthLabel(state.x); get('result-crew').hidden = companionAge < 0;
+  get('result-earth').textContent = earthLabel(state.x); get('result-crew').hidden = !parts.collected.length;
+  get('result-crew-text').textContent = parts.complete ? 'WITH ' + layout.crew.label
+    : layout.crew.label + ' PARTS ' + parts.collected.length + '/' + layout.crew.parts.length + ' · ' + parts.collected.map(part => PART_LABELS[part]).join(' + ');
   get('result-details').hidden = false; get('share-actions').hidden = false;
   overlay(record ? 'A NEW LITTLE RECORD.' : 'ONE MORE HOP?', failure, 'TRY AGAIN');
 }
@@ -171,12 +179,18 @@ get('save').addEventListener('click', () => {
   drawEarth(g, 820, earthCenterY(earthRise(state.x), 935, 84, 700), 84, 0); g.restore();
   g.fillStyle = '#0d1a24'; g.fillRect(47, 935, 986, 108);
   g.fillStyle = '#718e93'; g.fillRect(330, 970, 420, 8); g.fillStyle = '#25404a'; g.fillRect(330, 978, 420, 65);
-  // With the companion aboard, the pair hops off together: blue half a beat behind.
-  const crew = companionAge >= 0;
-  if (crew) drawPod(g, 392, 870, 5, { phase: .5, palette: COMPANION_PALETTE });
-  drawPod(g, crew ? 590 : 540, 960, 8, { phase: .15 });
+  // The run's journey: a built crew hops along half a beat behind; partial
+  // progress shows as an exploded pod with the missing parts as ghosts.
+  const crew = parts.complete, got = parts.collected, total = layout.crew.parts.length;
+  if (crew) drawPod(g, 392, 870, 5, { phase: .5, palette: layout.crew.palette });
+  else if (got.length) layout.crew.parts.forEach((part, i) => {
+    const have = got.includes(part);
+    if (have) { g.fillStyle = 'rgba(79, 157, 255, .18)'; g.beginPath(); g.arc(400, 772 + i * 66, 40, 0, Math.PI * 2); g.fill(); }
+    drawPart(g, part, 400, 800 + i * 66, 7, layout.crew.palette, have ? 1 : .28);
+  });
+  drawPod(g, crew || got.length ? 590 : 540, 960, 8, { phase: .15 });
   g.fillStyle = '#8fd0ff'; g.font = 'bold 30px monospace';
-  g.fillText(earthLabel(state.x) + (crew ? '  ·  WITH BLUE POD' : ''), 540, 1100);
+  g.fillText(earthLabel(state.x) + (crew ? '  ·  WITH ' + layout.crew.label : got.length ? '  ·  ' + layout.crew.label + ' ' + got.length + '/' + total : ''), 540, 1100);
   g.fillStyle = '#fff0d0'; g.font = '30px monospace';
   g.fillText(run.mode === 'daily' ? 'DAILY MOON / ' + run.date : 'FREE RUN / ' + run.seed, 540, 1155);
   g.fillStyle = '#a2b9ba'; g.font = '22px monospace'; g.fillText('#RAPIPPO  ·  COURSE v' + COURSE_VERSION, 540, 1212);
@@ -232,6 +246,13 @@ function draw(now) {
     const x = screen(b.x); if (b.taken || x < -10 || x > W + 10) continue;
     ctx.fillStyle = '#ffcb78'; ctx.fillRect(x - 3, FLOOR - 29, 6, 6); ctx.fillStyle = '#fff1bb'; ctx.fillRect(x - 1, FLOOR - 31, 2, 10);
   }
+  // The active part rests on the footing with a soft blue glow.
+  const slot = parts.active, sx = slot && screen(slot.x);
+  if (slot && sx > -20 && sx < W + 20) {
+    const pulse = reducedMotion.matches ? .5 : .5 + .5 * Math.sin(now * 4);
+    ctx.fillStyle = `rgba(79, 157, 255, ${.14 + .12 * pulse})`; ctx.beginPath(); ctx.arc(sx, FLOOR - 9, 12, 0, Math.PI * 2); ctx.fill();
+    drawPart(ctx, slot.part, sx, FLOOR - 1 - (reducedMotion.matches ? 0 : Math.round(pulse)), 2, layout.crew.palette);
+  }
   const height = running || paused ? Math.sin(state.phase / PERIOD * Math.PI) * 96 : 0;
   const heroY = FLOOR - 2 - height + (dead ? Math.min(110, deathAge * deathAge * 160) : 0);
   if (!dead && get('overlay').hidden && markerMode !== 'off') {
@@ -252,12 +273,27 @@ function draw(now) {
   if (!reducedMotion.matches && modeFast && running) {
     ctx.fillStyle = '#ffb17b'; for (let i = 0; i < 3; i++) ctx.fillRect(HERO_X - 28 - i * 10, heroY - 20 + i * 7, 5 + i * 2, 2);
   }
-  if (companionAge >= 0) {
-    // Hovers behind the hero; on the way in it drops from the upper sky.
-    const k = joinBlend(companionAge), x = HERO_X - COMPANION_GAP, y = FLOOR - 2 - companionLift(state.phase);
+  if (crewAge >= 0) {
+    // Assembly runs during play: parts leave the tray and meet behind the
+    // hero, a small flash, the pod appears dark-eyed, then boots and follows.
+    const x = HERO_X - COMPANION_GAP, y = FLOOR - 2 - companionLift(state.phase);
     const bob = !running || paused ? Math.round(Math.sin(now * 3) * 2) : 0;
-    if (!reducedMotion.matches && k === 1 && running) { ctx.fillStyle = (now * 12 | 0) % 2 ? '#4f9dff' : '#a9d6ff'; ctx.fillRect(x - 2, y + 2, 4, 2); }
-    drawPod(ctx, Math.round(x - 30 * (1 - k)), Math.round(70 + (y - 70) * k) + bob, 1, { phase: companionPhase(state.phase), time: now, palette: COMPANION_PALETTE });
+    if (crewAge < ASSEMBLE_GATHER) {
+      const k = gatherBlend(crewAge);
+      // Stacked as the pod they become: antenna on top, engine underneath.
+      layout.crew.parts.forEach((part, i) => {
+        const ty = y - 8 + (i - 1) * 7;
+        drawPart(ctx, part, trayX(i) + (x - trayX(i)) * k, TRAY_Y + 4 + (ty - TRAY_Y - 4) * k, 1, layout.crew.palette);
+      });
+    } else {
+      if (!reducedMotion.matches && crewAge >= ASSEMBLE_BOOT && running) { ctx.fillStyle = (now * 12 | 0) % 2 ? '#4f9dff' : '#a9d6ff'; ctx.fillRect(x - 2, y + 2, 4, 2); }
+      drawPod(ctx, x, y + bob, 1, { phase: companionPhase(state.phase), time: now, palette: layout.crew.palette, eyes: crewAge >= ASSEMBLE_BOOT });
+    }
+    if (crewAge > ASSEMBLE_GATHER - .05 && crewAge < ASSEMBLE_FLASH && !reducedMotion.matches) {
+      const k = (crewAge - ASSEMBLE_GATHER + .05) / (ASSEMBLE_FLASH - ASSEMBLE_GATHER + .05);
+      ctx.strokeStyle = `rgba(214, 238, 255, ${1 - k})`; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x, y - 12, 5 + k * 14, 0, Math.PI * 2); ctx.stroke();
+    }
   }
   drawPod(ctx, HERO_X, heroY, 2, { phase: state.phase / PERIOD, fast: modeFast, land: Math.max(0, 1 - landAge / .13), dead: dead ? deathAge : 0, time: now, idle: !running, signal: sky.signal });
   if (signalAge < .7 && !reducedMotion.matches && !dead) {
@@ -267,6 +303,20 @@ function draw(now) {
       ctx.strokeStyle = `rgba(143, 208, 255, ${Math.max(0, 1 - age / .5)})`;
       ctx.beginPath(); ctx.arc(HERO_X, heroY - 60, 8 + age * 46, -Math.PI * .8, -Math.PI * .2); ctx.stroke();
     }
+  }
+  // Parts tray: three faint frames in the corner, only while a crew is being
+  // built. A collected part lands in its frame when its little flight ends.
+  const trayOn = !parts.complete && (parts.collected.length > 0 || state.hops >= layout.slot(0).hop - 3);
+  if (trayOn || (crewAge >= 0 && crewAge < ASSEMBLE_GATHER)) {
+    ctx.lineWidth = 1; ctx.strokeStyle = '#2c4656';
+    layout.crew.parts.forEach((part, i) => {
+      ctx.strokeRect(trayX(i) - 5.5, TRAY_Y - 5.5, 11, 11);
+      if (trayOn && parts.collected.includes(part) && !flights.some(f => f.part === part)) drawPart(ctx, part, trayX(i), TRAY_Y + 4, 1, layout.crew.palette);
+    });
+  }
+  for (const f of flights) {
+    const i = layout.crew.parts.indexOf(f.part), k = 1 - (1 - Math.min(1, f.age / FLIGHT)) ** 2;
+    drawPart(ctx, f.part, f.x + (trayX(i) - f.x) * k, f.y + (TRAY_Y + 4 - f.y) * k - Math.sin(k * Math.PI) * 24, k < .5 ? 2 : 1, layout.crew.palette);
   }
   // Signal bars: the only HUD trace of the worldview. No text.
   for (let i = 0; i < 4; i++) {
@@ -289,19 +339,26 @@ function frame(now) {
       const events = advance(state, terrain, dt, fast()); landAge += dt;
       if (events.includes('land')) {
         landAge = 0; audio.play('land', state.hops);
-        if (companionJoins(state.hops, companionAge >= 0)) companionAge = 0;
-        else if (companionBell(state.hops, companionAge >= 0, milestoneTier(state.hops))) audio.bell(COMPANION_LAG);
+        const got = parts.land(state.x, state.hops);
+        if (got?.type === 'collect') {
+          audio.pickup(.03); flights.push({ part: got.part, x: Math.round(got.x - state.x + HERO_X), y: FLOOR - 9, age: 0 });
+          if (!reducedMotion.matches) for (let i = 0; i < 8; i++) particles.push({x: got.x, vx: (i - 3.5) * 22, vy: -50 - i % 3 * 18, age: 0, color: i % 2 ? '#a9d6ff' : '#4f9dff'});
+          if (got.complete) { crewAge = 0; audio.boot(ASSEMBLE_BOOT); }
+        } else if (companionBell(state.hops, parts.completedAt, milestoneTier(state.hops))) audio.bell(COMPANION_LAG);
         if (!reducedMotion.matches) for (let i = 0; i < 8; i++) particles.push({x: state.x, vx: (i - 3.5) * 17, vy: -20 - i % 3 * 10, age: 0, color: i % 2 ? '#efdaad' : '#8ee6c4'});
       }
       const level = earthRise(state.x).signal;
       if (level > signal) signalAge = 0;
       signal = level; signalAge += dt;
-      if (companionAge >= 0) companionAge += dt;
       if (state.status === 'dead') endRun();
     }
   }
   if (deathAge > 0) deathAge += Math.min(dt, .05);
+  if (crewAge >= 0) crewAge += Math.min(dt, .05);
+  flights.forEach(f => f.age += Math.min(dt, .05)); flights = flights.filter(f => f.age < FLIGHT);
   particles.forEach(p => p.age += Math.min(dt, .05)); particles = particles.filter(p => p.age < .35);
   updateHud(); draw(worldTime); requestAnimationFrame(frame);
 }
 loadCourse(); requestAnimationFrame(frame);
+// Browser tests may inject a probe before load to read (never write) the run.
+if (globalThis.__rapippoProbe) globalThis.__rapippoProbe.read = () => ({ x: state.x, phase: state.phase, hops: state.hops, parts: [...parts.collected] });

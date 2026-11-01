@@ -59,3 +59,7 @@ The independent review is stacked on #4 (full order #1 → #2 → #3 → #4 → 
 ### Companion POD experiment (Draft)
 
 [v0.4-C companion POD](docs/V04C_COMPANION_POD.md) is stacked on the no-marker default. A small blue pod joins automatically at 30 HOPS, hovers behind the hero half a hop out of step, rings a quiet bell every second landing, and appears on the result screen and saved PNG with the Earth state. No collision, physics, timing or marker changes. Not merged or deployed.
+
+### Blue POD parts experiment (Draft)
+
+[v0.4-C2 blue POD parts](docs/V04C2_BLUE_POD_PARTS.md) replaces the automatic 30-HOPS join: land within ±20px of glowing ANTENNA / BODY / ENGINE parts to fill a quiet three-frame tray; the pod assembles during play and then follows with its bell. Placement uses its own deterministic generator and is verified reachable over 400 seeds; terrain, physics, timing, BEST keys and DAILY seeds are unchanged. Not merged or deployed.
