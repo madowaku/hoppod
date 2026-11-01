@@ -3,11 +3,11 @@ import assert from 'node:assert/strict';
 import {MARKER_MODES,markerModeFromUrl,markerVisual} from '../public/src/marker.mjs';
 import {Terrain,newRun,advance,PERIOD,SLOW_SPEED,FAST_SPEED} from '../public/src/engine.mjs';
 
-test('A/B/C URL selection: invalid/default values fall back to original full mode',()=>{
+test('A/B/C URL selection: invalid/default values default to no landing marker',()=>{
   assert.deepEqual(MARKER_MODES,['full','neutral','off']);
   for(const [query,expected] of [
-    ['', 'full'],['?marker=full','full'],['?marker=neutral','neutral'],
-    ['?marker=off','off'],['?marker=missing','full'],['?marker=OFF','full']
+    ['', 'off'],['?marker=full','full'],['?marker=neutral','neutral'],
+    ['?marker=off','off'],['?marker=missing','off'],['?marker=OFF','off']
   ]) assert.equal(markerModeFromUrl('http://localhost/'+query),expected);
 });
 
