@@ -39,6 +39,8 @@ function accentsEnabled() {
 function releaseInput() { pointers.clear(); keys.clear(); modeFast = false; updateHud(); }
 function showNotice(kind,hops) { notice = {kind,hops}; noticeUntil = worldTime + 1.35; }
 function refreshOverlay() {
+  // A settings toggle during play must never reopen the start screen.
+  if (get('overlay').hidden && state.status !== 'dead' && !paused) return;
   const screen = get('overlay').dataset.screen;
   if (screen === 'start') overlay(tr('startTitle'),tr('startText'),tr('startButton'));
   else if (screen === 'pause') overlay(tr('pauseTitle'),tr('pauseText'),tr('pauseButton'));
@@ -56,7 +58,7 @@ function refreshCopy() {
   get('language').setAttribute('aria-label',tr('switchLanguage'));
   get('daily').textContent = tr('daily'); get('free').textContent = tr('free');
   get('hops-label').textContent = tr('hops');get('best-label').textContent = tr('best');
-  get('intro-mark').textContent = tr('introMark');
+  get('intro-mark').textContent = tr('introMark'); get('milestone-help').textContent = tr('milestoneHelp');
   get('intro-hold').textContent = tr('hold');get('intro-release').textContent = tr('release');
   get('share').textContent = tr('share');get('save').textContent = tr('save');
   get('attach-hint').textContent = tr('attach');
@@ -98,6 +100,10 @@ function syncMarkerUI() {
 }
 function loadCourse() {
   audio.stop();
+  const requestedLanguage = new URL(location.href).searchParams.get('lang');
+  if (requestedLanguage === 'en' || requestedLanguage === 'ja') {
+    language = requestedLanguage; savePreference('hoppod.pref.lang', language);
+  }
   markerMode = markerModeFromUrl(location.href);
   comparisonEnabled = new URL(location.href).searchParams.get('compare') === '1';
   run = resolveRun(location.href);
@@ -113,7 +119,7 @@ function loadCourse() {
   running = false; paused = false; deathAge = 0; particles = []; landAge = 10; signal = 0; signalAge = 10; notice = null; recordNotified = false; lastRecord = false;
   layout = new PartLayout(run.seed); parts = new PartRun(layout); flights = []; crewAge = -1;
   get('share-actions').hidden = true; get('result-details').hidden = true;
-  get('overlay').dataset.screen = 'start';
+  get('overlay').dataset.screen = 'start'; get('overlay').hidden = false;
   refreshOverlay(); refreshCopy(); releaseInput();
 }
 function overlay(title, subtitle, button) {
