@@ -4,7 +4,7 @@ import { drawPod } from './pod.mjs';
 import { EARTH_PEEK, earthRise, earthCenterY, earthLabel, drawEarth } from './earth.mjs';
 import { createAudio, milestoneTier } from './audio.mjs';
 import { COMPANION_LAG, COMPANION_GAP, ASSEMBLE_GATHER, ASSEMBLE_FLASH, ASSEMBLE_BOOT, companionBell, companionPhase, companionLift, gatherBlend } from './companion.mjs';
-import { PartLayout, PartRun, PART_LABELS, drawPart } from './parts.mjs';
+import { PartLayout, PartRun, drawPart } from './parts.mjs';
 import { MARKER_MODES, markerModeFromUrl, markerVisual } from './marker.mjs';
 import { chooseLanguage, copy, earthText, partsText, milestoneText } from './ui-copy.mjs';
 

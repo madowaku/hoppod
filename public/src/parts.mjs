@@ -50,7 +50,8 @@ export class PartLayout {
   }
   place() {
     for (let hop = this.nextHop; ; hop++) {
-      // Preserve the existing seeded part layout: fifth hops remain reserved for rhythm milestones.
+      // Skip every fifth hop. This once kept parts off the retired gold-beacon hops;
+      // it stays so every seed keeps the same part layout.
       if (hop % 5 === 0) continue;
       const x = this.spot(hop);
       if (x === null) continue;
