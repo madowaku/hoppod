@@ -29,11 +29,11 @@ test('review: 16 seeds × 10000 non-reference hops retain fair footing and bound
 });
 
 test('review: a JST daily course round-trips independently of URL version and clock on another day',()=>{
-  assert.equal(COURSE_VERSION,3);
+  assert.equal(COURSE_VERSION,4);
   for(const date of ['2026-10-31','2026-11-01','2028-02-29']) {
     const a=resolveRun(`https://example.com/?mode=daily&date=${date}&v=2`,'2026-11-01');
     const b=resolveRun(a.url,'2026-11-03');
-    assert.equal(a.seed,b.seed);assert.equal(a.date,date);assert.equal(new URL(a.url).searchParams.get('v'),'3');
+    assert.equal(a.seed,b.seed);assert.equal(a.date,date);assert.equal(new URL(a.url).searchParams.get('v'),'4');
     assert.deepEqual(new Terrain(a.seed).platforms,new Terrain(b.seed).platforms);
   }
 });
