@@ -1,6 +1,6 @@
 import {test,expect} from '@playwright/test';
 import {mkdir,writeFile} from 'node:fs/promises';
-import {Terrain,isSafe} from '../../public/src/engine.mjs';
+import {Terrain,isSafe,PERIOD,SLOW_SPEED,FAST_SPEED,footing} from '../../public/src/engine.mjs';
 const dir='output/review';
 // These hooks are appended to the response by the test, never shipped.
 async function hooks(page) {
@@ -106,12 +106,28 @@ test('review: 193 keyboard hops; each milestone once; high-score scene, PNG and 
   await expect(page.locator('#best')).toHaveText('0');await start(page);
   const t=new Terrain(42),captures=[50,100,150,193];
   for(let hop=1;hop<=193;hop++) {
-    t.extendTo(hop*220+4000);const hold=Math.round(t.plan.get(hop)*1000);
+    t.extendTo(hop*220+4000);
+    // Do not blindly replay the ideal reference hold time: small browser event
+    // timing differences accumulate across 193 hops, especially on narrow v4
+    // terrain. Steer from the ACTUAL browser state to a reachable safe interval.
+    const current=await page.evaluate(()=>window.__review.snapshot());
+    expect(current.status).toBe('playing');
+    expect(current.hops).toBe(hop-1);
+    const remaining=PERIOD-current.phase,low=current.x+SLOW_SPEED*remaining,high=current.x+FAST_SPEED*remaining;
+    const windows=t.platforms.map(footing).map(([a,b])=>[
+      Math.max(a+12,low),Math.min(b-12,high)
+    ]).filter(([a,b])=>a<=b);
+    expect(windows.length).toBeGreaterThan(0);
+    const reference=t.planPositions.get(hop);
+    const targets=windows.map(([a,b])=>Math.max(a,Math.min(b,reference)));
+    const target=targets.reduce((best,x)=>Math.abs(x-reference)<Math.abs(best-reference)?x:best);
+    const duration=Math.max(0,Math.min(remaining,(target-low)/(FAST_SPEED-SLOW_SPEED)));
+    const hold=Math.round(duration*1000);
     if(hold>0){await page.keyboard.down('Space');await page.clock.runFor(hold);await page.keyboard.up('Space');}
-    await page.clock.runFor(780-hold);
-    // Preserve timing during the long v4 course: taking full-page screenshots
-    // mid-run may advance real browsers' animation clocks between clock ticks.
-    if(captures.includes(hop)) await expect(page.locator('#score')).toHaveText(String(hop));
+    await page.clock.runFor(Math.max(0,Math.ceil(remaining*1000)-hold)+16);
+    // The extra frame guarantees a hop-end rAF and is accounted for using
+    // current.phase on the next iteration. Score must never skip a landing.
+    await expect(page.locator('#score')).toHaveText(String(hop));
   }
   expect(await page.evaluate(()=>window.__milestones)).toEqual(Array.from({length:19},(_,i)=>(i+1)*10));
   expect(await page.evaluate(()=>window.__buses)).toBe(1);
