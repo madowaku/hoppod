@@ -20,6 +20,7 @@ jobs:
           node --check public/src/links.mjs
           node --check public/src/pod.mjs
           node --check public/src/audio.mjs
+          node --check public/src/earth.mjs
   browser:
     runs-on: ubuntu-latest
     steps:

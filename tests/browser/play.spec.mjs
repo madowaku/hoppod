@@ -59,6 +59,26 @@ for(const [query,compressors] of [['',1],['&sfx=classic',0]]) test(`P1: 10 HOPS 
   expect(new URL(page.url()).searchParams.get('sfx')).toBeNull();
   expect(errors).toEqual([]);
 });
+test('P2: far side is dark; Earth and signal bars appear as the pod travels',async({page})=>{
+  const errors=[];page.on('pageerror',e=>errors.push(String(e)));
+  await open(page);await start(page);
+  // Earth-blue pixels in the sky region, and lit signal bars in the HUD corner.
+  const sample=()=>page.evaluate(()=>{const g=document.getElementById('play').getContext('2d');
+    const blue=d=>{let n=0;for(let i=0;i<d.length;i+=4) if(d[i+2]>150&&d[i+2]>d[i]+60) n++;return n;};
+    return {earth:blue(g.getImageData(230,120,120,190).data),bars:blue(g.getImageData(320,14,26,16).data)};});
+  expect(await sample()).toEqual({earth:0,bars:0});
+  const terrain=new Terrain(42);
+  for(let hop=1;hop<=60;hop++) {
+    terrain.extendTo(hop*200+4000);const hold=Math.round(terrain.plan.get(hop)*1000);
+    if(hold>0){await page.keyboard.down('Space');await page.clock.runFor(hold);await page.keyboard.up('Space');}
+    await page.clock.runFor(780-hold);
+  }
+  await expect(page.locator('#score')).toHaveText('60');
+  const later=await sample();
+  expect(later.earth).toBeGreaterThan(200);expect(later.bars).toBeGreaterThan(0);
+  await page.locator('#play').screenshot({path:artifacts+'/v03-earth-60.png'});
+  expect(errors).toEqual([]);
+});
 test('real-time start → 3+ landings → fall → immediate retry',async({page})=>{
   const errors=[];page.on('pageerror',e=>errors.push(String(e)));
   await page.goto('/?mode=free&seed=42');await page.locator('#action').click();

@@ -21,7 +21,7 @@ const body = [
   '     oooooooo       ',
 ];
 const colors = { o: '#172638', c: '#fff0d0', w: '#fffbea', s: '#cfba9a', a: '#ff9161', d: '#172638' };
-export function drawPod(g, x, y, scale = 2, { phase = 0, fast = false, land = 0, dead = 0, time = 0, idle = false } = {}) {
+export function drawPod(g, x, y, scale = 2, { phase = 0, fast = false, land = 0, dead = 0, time = 0, idle = false, signal = 0 } = {}) {
   g.save();
   g.translate(Math.round(x), Math.round(y));
   g.rotate(dead ? Math.min(2.4, dead * 4) : 0);
@@ -33,7 +33,8 @@ export function drawPod(g, x, y, scale = 2, { phase = 0, fast = false, land = 0,
   for (const ear of [-6, 5]) {
     rect(colors.o, ear - 1 + bend, top - 10, 5, 8);
     rect(colors.c, ear + bend, top - 9, 3, 6);
-    rect(colors.a, ear + 1 + bend, top - 8, 1, 4);
+    // Once Earth is in view, the antenna tips flash on every landing.
+    rect(signal && land > 0 ? '#bfe6ff' : colors.a, ear + 1 + bend, top - 8, 1, 4);
     rect(colors.o, ear - 1, top - 4, 5, 5);
     rect(colors.c, ear, top - 4, 3, 4);
   }
