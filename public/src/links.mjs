@@ -1,4 +1,4 @@
-import { hashSeed } from './engine.mjs';
+import { hashSeed, COURSE_VERSION } from './engine.mjs';
 
 export function jstDate(now = new Date()) {
   return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
@@ -19,8 +19,8 @@ export function resolveRun(href, today = jstDate(), random = () => crypto.getRan
   url.hash = '';
   url.searchParams.set('mode', mode);
   url.searchParams.set(mode === 'daily' ? 'date' : 'seed', mode === 'daily' ? date : String(seed));
-  // Terrain versions are explicit: shared v0.2 courses keep their identity.
-  url.searchParams.set('v', '2');
+  // Terrain versions are explicit; v3 merged invisible seams (see docs/V03_FAIR_GROUND.md).
+  url.searchParams.set('v', String(COURSE_VERSION));
   return { mode, date, seed, url: url.href };
 }
 export function shareUrl(run, hops, best) {

@@ -2,6 +2,13 @@ export const PERIOD = 0.78;
 export const SLOW_SPEED = 105;
 export const FAST_SPEED = 270;
 export const INSET = 8;
+// Course geometry identity; bump whenever seeded platform layout changes.
+export const COURSE_VERSION = 3;
+// Openings narrower than this are merged into continuous ground, so a pit
+// is never a seam the player cannot see. The intro ends at a clear first pit.
+export const MIN_GAP = 16;
+export const INTRO_END = 720;
+export const FIRST_GAP = 40;
 const EPS = 1e-8;
 
 // World geometry is generated from an always-solvable reference sequence.
@@ -26,7 +33,7 @@ export class Terrain {
     this.seed = seed >>> 0;
     this.random = randomGenerator(seed);
     this.referenceHop = 7;
-    this.platforms = [[0, 735]];
+    this.platforms = [[0, INTRO_END]];
     this.plan = new Map();
     this.planPositions = new Map();
     for (let hop = 1; hop <= 7; hop++) { this.plan.set(hop, 0); this.planPositions.set(hop, 75 + hop * PERIOD * SLOW_SPEED); }
@@ -46,8 +53,12 @@ export class Terrain {
     // Seconds spent FAST, then SLOW, reproduces a centered reference route.
     this.plan.set(this.referenceHop, (distance - PERIOD * SLOW_SPEED) / (FAST_SPEED - SLOW_SPEED));
     this.planPositions.set(this.referenceHop, this.referenceX);
-    if (this.referenceHop % 10 === 9) this.platforms[this.platforms.length - 1][1] = this.referenceX + halfWidth;
-    else this.platforms.push([this.referenceX - halfWidth, this.referenceX + halfWidth]);
+    const last = this.platforms[this.platforms.length - 1];
+    if (this.referenceHop % 10 === 9) last[1] = Math.max(last[1], this.referenceX + halfWidth);
+    else {
+      const left = this.referenceHop === 8 ? Math.max(this.referenceX - halfWidth, INTRO_END + FIRST_GAP) : this.referenceX - halfWidth;
+      addPlatform(this.platforms, [left, this.referenceX + halfWidth]);
+    }
     if (this.referenceHop % 5 === 0) {
       this.beacons.push({ id: this.referenceHop, x: this.referenceX });
     }
@@ -65,8 +76,22 @@ export class Terrain {
     }
   }
 }
+// Platforms stay sorted and separated by at least MIN_GAP of visible pit.
+export function addPlatform(platforms, [a, b]) {
+  const last = platforms[platforms.length - 1];
+  if (last && a - last[1] < MIN_GAP) last[1] = Math.max(last[1], b);
+  else platforms.push([a, b]);
+}
+// The flat, lit top of a platform. Collision, the landing ring and the
+// renderer all use this one interval; the outer INSET is drawn as a rim.
+export function footing([a, b]) {
+  return [a + INSET, b - INSET];
+}
 export function isSafe(terrain, x) {
-  return terrain.platforms.some(([a, b]) => x >= a + INSET - EPS && x <= b - INSET + EPS);
+  return terrain.platforms.some(platform => {
+    const [left, right] = footing(platform);
+    return x >= left - EPS && x <= right + EPS;
+  });
 }
 export function predictLanding(state, fast) {
   return state.x + (fast ? FAST_SPEED : SLOW_SPEED) * Math.max(0, PERIOD - state.phase);

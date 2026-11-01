@@ -1,4 +1,4 @@
-import { PERIOD, Terrain, newRun, advance, isSafe, predictLanding, landingMiss } from './engine.mjs';
+import { PERIOD, COURSE_VERSION, Terrain, newRun, advance, isSafe, predictLanding, landingMiss } from './engine.mjs';
 import { resolveRun, jstDate, shareUrl } from './links.mjs';
 import { drawPod } from './pod.mjs';
 import { createAudio } from './audio.mjs';
@@ -13,7 +13,7 @@ let landAge = 10, deathAge = 0, particles = [], modeFast = false, worldTime = 0;
 let failure = '', failureX = 0;
 const fast = () => pointers.size + keys.size > 0;
 function releaseInput() { pointers.clear(); keys.clear(); modeFast = false; updateHud(); }
-function bestKey() { return 'hoppod.best.v2.' + (run.mode === 'daily' ? run.date : 'free'); }
+function bestKey() { return 'hoppod.best.v' + COURSE_VERSION + '.' + (run.mode === 'daily' ? run.date : 'free'); }
 function loadCourse() {
   run = resolveRun(location.href);
   history.replaceState(null, '', run.url);
@@ -116,7 +116,7 @@ get('save').addEventListener('click', () => {
   drawPod(g, 540, 960, 8, { phase: .15 });
   g.fillStyle = '#fff0d0'; g.font = '30px monospace';
   g.fillText(run.mode === 'daily' ? 'DAILY MOON / ' + run.date : 'FREE RUN / ' + run.seed, 540, 1150);
-  g.fillStyle = '#a2b9ba'; g.font = '22px monospace'; g.fillText('#HOPPOD  ·  COURSE v0.2', 540, 1212);
+  g.fillStyle = '#a2b9ba'; g.font = '22px monospace'; g.fillText('#HOPPOD  ·  COURSE v' + COURSE_VERSION, 540, 1212);
   const link = document.createElement('a'); link.href = c.toDataURL('image/png');
   link.download = 'HOPPOD-' + state.hops + '-hops.png'; link.click();
 });

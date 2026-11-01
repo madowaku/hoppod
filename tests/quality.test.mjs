@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {PERIOD,SLOW_SPEED,FAST_SPEED,INSET,Terrain,newRun,advance,isSafe,predictLanding,landingMiss} from '../public/src/engine.mjs';
+import {PERIOD,SLOW_SPEED,FAST_SPEED,INSET,INTRO_END,Terrain,newRun,advance,isSafe,predictLanding,landingMiss} from '../public/src/engine.mjs';
 import {jstDate,validDate,resolveRun,shareUrl} from '../public/src/links.mjs';
 
 test('first three hops accept every whole-hop FAST/SLOW combination',()=>{
@@ -72,7 +72,7 @@ test('exact landing boundary does not award duplicate points; prediction uses co
   advance(s,t,1e-7,false);assert.equal(s.hops,1);
   advance(s,t,0,false);assert.equal(s.hops,1);
   assert.equal(isSafe(t,INSET),true); assert.equal(isSafe(t,INSET-.01),false);
-  assert.equal(isSafe(t,735-INSET),true);assert.equal(isSafe(t,735-INSET+.01),false);
+  assert.equal(isSafe(t,INTRO_END-INSET),true);assert.equal(isSafe(t,INTRO_END-INSET+.01),false);
 });
 
 test('failure advice uses the nearest supported edge, including the invisible inset',()=>{
@@ -119,6 +119,6 @@ test('FREE RUN absence is random, zero is valid, invalid seeds normalize, share 
     assert.equal(r.seed,seed);assert.equal(resolveRun(r.url).seed,seed);
     const link=new URL(shareUrl(r,17,28));
     assert.equal(link.searchParams.get('url'),r.url);assert.match(link.searchParams.get('text'),/17 HOPS · BEST 28/);
-    assert.equal(new URL(r.url).searchParams.get('v'),'2');
+    assert.equal(new URL(r.url).searchParams.get('v'),'3');
   }
 });
