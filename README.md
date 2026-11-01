@@ -67,3 +67,7 @@ The independent review is stacked on #4 (full order #1 → #2 → #3 → #4 → 
 ### UI and sound clarity experiment (Draft)
 
 [UX clarity and JA/EN acceptance plan](docs/V04E_UX_CLARITY.md) is stacked on the blue-POD parts PR. The obsolete gold beacons have been retired, so blue components are the only collectible. Every 10 HOPS plays the original musical reward with a brief 1.35-second achievement label, and the start screen explains that cue. HOPS/BEST stay visible and the live BEST number increases while a new record is being set. Below the game are compact language (Japanese/English) and sound toggles that persist without modifying course seeds, BEST keys or play physics. No marker is introduced. This is a Draft experiment, not merged or deployed.
+
+### Art and UX direction
+
+[Art and UX direction](docs/concept/ART_UX_DIRECTION.md) records the agreed mood references and principles (no landing marker, one family of machines, results show only earned companions, rare distant outpost, readability first) and the staged, comparable plan for character, background and result-card work. Docs only.
