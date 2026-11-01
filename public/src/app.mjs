@@ -1,4 +1,4 @@
-import { PERIOD, COURSE_VERSION, Terrain, newRun, advance, isSafe, predictLanding, landingMiss } from './engine.mjs';
+import { PERIOD, INSET, COURSE_VERSION, Terrain, newRun, advance, isSafe, predictLanding, landingMiss, footing } from './engine.mjs';
 import { resolveRun, jstDate, shareUrl } from './links.mjs';
 import { drawPod } from './pod.mjs';
 import { createAudio } from './audio.mjs';
@@ -130,21 +130,31 @@ function draw(now) {
     const x = ((i * 97 - offset * .09) % 390 + 390) % 390;
     ctx.fillStyle = i % 7 ? '#526976' : '#ead6a4'; ctx.fillRect(x | 0, 22 + i * 37 % 220, 2, i % 7 ? 2 : 3);
   }
+  // Distant ridges end at the floor line. Below it is the pit void, so only
+  // real platforms are ever drawn at ground level.
   for (let layer = 0; layer < 2; layer++) {
-    ctx.fillStyle = layer ? '#1c343e' : '#162b36';
+    ctx.fillStyle = layer ? '#172d38' : '#132532';
     for (let x = -28; x < W + 28; x += 28) {
       const height = 20 + (Math.sin((x + offset * (.04 + layer * .03)) * .025) + 1) * (24 + layer * 10);
-      ctx.fillRect(x, FLOOR - height, 29, H);
+      ctx.fillRect(x, FLOOR - height, 29, height);
     }
   }
-  for (const [a, b] of terrain.platforms) {
-    const x = screen(a), end = screen(b); if (end < 0 || x > W) continue;
-    ctx.fillStyle = '#2e4850'; ctx.fillRect(x, FLOOR, end - x, H - FLOOR);
-    ctx.fillStyle = '#a8b7a5'; ctx.fillRect(x, FLOOR, end - x, 6);
-    ctx.fillStyle = '#65858a'; ctx.fillRect(x, FLOOR + 6, end - x, 8);
+  ctx.fillStyle = '#04080c'; ctx.fillRect(0, FLOOR, W, H - FLOOR);
+  for (const platform of terrain.platforms) {
+    const [a, b] = platform, [left, right] = footing(platform);
+    const x = screen(a), end = screen(b), l = screen(left), r = screen(right); if (end < 0 || x > W) continue;
+    // Lit flat top = collision footing. The INSET rims step down into the pit.
+    ctx.fillStyle = '#2e4850'; ctx.fillRect(l, FLOOR, r - l, H - FLOOR);
+    for (let k = 0; k < INSET / 2; k++) {
+      const drop = 3 + k * 3;
+      ctx.fillStyle = '#26404a'; ctx.fillRect(l - 2 - k * 2, FLOOR + drop, 2, H); ctx.fillRect(r + k * 2, FLOOR + drop, 2, H);
+      ctx.fillStyle = '#56737a'; ctx.fillRect(l - 2 - k * 2, FLOOR + drop, 2, 2); ctx.fillRect(r + k * 2, FLOOR + drop, 2, 2);
+    }
+    ctx.fillStyle = '#a8b7a5'; ctx.fillRect(l, FLOOR, r - l, 6);
+    ctx.fillStyle = '#65858a'; ctx.fillRect(l, FLOOR + 6, r - l, 8);
     ctx.fillStyle = '#42616a';
-    for (let tx = a + 13; tx < b - 6; tx += 24) ctx.fillRect(screen(tx), FLOOR + 27 + Math.round(tx) % 19, 6, 3);
-    ctx.fillStyle = '#edcf98'; ctx.fillRect(x + 8, FLOOR, 2, 5); ctx.fillRect(end - 10, FLOOR, 2, 5);
+    for (let tx = left + 5; tx < right - 6; tx += 24) ctx.fillRect(screen(tx), FLOOR + 27 + Math.round(tx) % 19, 6, 3);
+    ctx.fillStyle = '#edcf98'; ctx.fillRect(l, FLOOR, 2, 5); ctx.fillRect(r - 2, FLOOR, 2, 5);
   }
   for (const b of terrain.beacons) {
     const x = screen(b.x); if (b.taken || x < -10 || x > W + 10) continue;

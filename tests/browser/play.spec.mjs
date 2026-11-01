@@ -23,6 +23,20 @@ test('16 browser hops with real FAST/SLOW keyboard events across islands',async(
   }
   await page.screenshot({path:artifacts+'/v02-islands.png'});
 });
+test('P0: SLOW-only falls into a visible first pit, never on drawn ground',async({page})=>{
+  // Seed 7 overlapped its first two platforms in v2: the pod fell at x≈730 on solid-looking ground.
+  await open(page,'?mode=free&seed=7');await start(page);
+  await page.clock.runFor(Math.round(780*7.55));
+  await page.locator('#play').screenshot({path:artifacts+'/v03-first-pit.png'});
+  await page.clock.runFor(Math.round(780*.5));
+  await expect(page.locator('#overlay-subtitle')).toHaveText('TOO SHORT · HOLD A LITTLE LONGER');
+  await expect(page.locator('#result-score')).toHaveText('7');
+  // Canvas pixels below the floor where the pod fell: void, flanked by real ground.
+  const [pit,ground]=await page.evaluate(()=>{const g=document.getElementById('play').getContext('2d');
+    return [[...g.getImageData(100,495,1,1).data],[...g.getImageData(30,440,1,1).data]];});
+  expect(Math.max(...pit.slice(0,3))).toBeLessThan(20);
+  expect(Math.max(...ground.slice(0,3))).toBeGreaterThan(40);
+});
 test('real-time start → 3+ landings → fall → immediate retry',async({page})=>{
   const errors=[];page.on('pageerror',e=>errors.push(String(e)));
   await page.goto('/?mode=free&seed=42');await page.locator('#action').click();
