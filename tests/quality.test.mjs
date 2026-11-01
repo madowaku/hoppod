@@ -119,6 +119,6 @@ test('FREE RUN absence is random, zero is valid, invalid seeds normalize, share 
     assert.equal(r.seed,seed);assert.equal(resolveRun(r.url).seed,seed);
     const link=new URL(shareUrl(r,17,28));
     assert.equal(link.searchParams.get('url'),r.url);assert.match(link.searchParams.get('text'),/17 HOPS · BEST 28/);
-    assert.equal(new URL(r.url).searchParams.get('v'),'3');
+    assert.equal(new URL(r.url).searchParams.get('v'),'4');
   }
 });
