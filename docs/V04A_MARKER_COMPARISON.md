@@ -42,7 +42,7 @@ BESTs are separated *within v4*: original A keeps `hoppod.best.v4.free`, while B
 - Node tests verify the three policies and engine equivalence across seeds.
 - Playwright uses the original seed-7 opening pit to check A coral+HOLD, B neutral with no HOLD, and C no marker, plus mode persistence and separate BEST keys.
 - Existing Node/browser regressions, 20-motif safety tests and Wrangler asset checks remain in CI.
-- Existing v0.4 terrain Draft #6 had a **preexisting browser CI failure** in the 193-HOPS test (score advanced unexpectedly to 154 by the 150 checkpoint). This branch removes optional mid-run screenshots from that test and fixes an obsolete v3 URL expectation, pending CI verification. Treat the experiment as HOLD while any CI checks are red.
+- Existing v0.4 terrain Draft #6 had a **preexisting browser CI failure** in the 193-HOPS test (score advanced unexpectedly to 154 by the 150 checkpoint). Removing optional screenshots alone did **not** resolve this: the score stopped at 154. The reference-route keyboard timer was not compensating for actual browser position/phase, so small accumulated switch-timing deviations could move a narrow v4 landing out of range. The long browser test now recomputes a reachable landing target from the current page state on each hop; this changes the test controller, **not the game physics**. An obsolete v3 sharing expectation was also updated. CI must still verify the fix. Treat the experiment as HOLD while any CI checks are red.
 
 ## Out of scope
 
