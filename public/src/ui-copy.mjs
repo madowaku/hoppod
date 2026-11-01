@@ -10,7 +10,7 @@ export function chooseLanguage(url, stored, browser = 'en') {
 const TEXT = Object.freeze({
   en: Object.freeze({
     tagline:'ONE MORE HOP!', hops:'HOPS', best:'BEST', daily:'DAILY', free:'FREE RUN',
-    introMark:'✦ LUNAR DELIVERY SERVICE ✦',
+    introMark:'✦ LUNAR DELIVERY SERVICE ✦', milestoneHelp:'Every 10 HOPS: a little celebration ♪',
     startTitle:'ONE MORE HOP!', startText:'It hops. You set the pace.', startButton:'LET’S HOP',
     pauseTitle:'TAKE A BREATHER.', pauseText:'Resume at SLOW.', pauseButton:'RESUME',
     recordTitle:'A NEW LITTLE RECORD.', resultTitle:'ONE MORE HOP?', retryButton:'TRY AGAIN',
@@ -29,7 +29,7 @@ const TEXT = Object.freeze({
   }),
   ja: Object.freeze({
     tagline:'あと1回、跳ぼう！', hops:'HOPS', best:'BEST', daily:'デイリー', free:'フリー',
-    introMark:'✦ 月面通信局 ✦',
+    introMark:'✦ 月面通信局 ✦', milestoneHelp:'10 HOPSごとに小さなお祝いの音 ♪',
     startTitle:'さあ、跳ぼう！', startText:'自動でジャンプ。速さはあなた次第。', startButton:'スタート',
     pauseTitle:'ひと休み。', pauseText:'ゆっくりの速さで再開します。', pauseButton:'再開',
     recordTitle:'自己ベスト更新！', resultTitle:'もう1回跳ぶ？', retryButton:'もう一度',
