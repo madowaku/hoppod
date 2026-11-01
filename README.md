@@ -20,7 +20,7 @@ Requires Python 3. From this folder:
 python -m http.server 8000 --bind 127.0.0.1 --directory public
 ```
 
-Open [HOPPOD locally](http://127.0.0.1:8000/?mode=daily). No build, account, API key, or runtime downloads. Hold the canvas or the lower control for FAST; release for SLOW. Desktop: Space to hold, R to retry, Escape to pause. The pod hops every 0.78 seconds. Mint landing ring = safe **if the current speed is maintained**; coral = change your pace. The lit flat top of each platform is exactly where you can land; its stepped rim and the black pits are not.
+Open [HOPPOD locally](http://127.0.0.1:8000/?mode=daily). No build, account, API key, or runtime downloads. Hold the canvas or the lower control for FAST; release for SLOW. Desktop: Space to hold, R to retry, Escape to pause. The pod hops every 0.78 seconds. By default, there is **no landing marker**: judge the moon terrain and jump rhythm directly. The lit flat top of each platform is exactly where you can land; its stepped rim and the black pits are not.
 
 DAILY uses the date in Japan; its URL replays that day even tomorrow. FREE RUN chooses a fresh seed; retry keeps the same seed. POST TO X opens a composer; SAVE PNG downloads a score card to attach manually.
 
@@ -49,3 +49,7 @@ The independent review is stacked on #4 (full order #1 → #2 → #3 → #4 → 
 ### Landing marker A/B/C experiment (Draft)
 
 [v0.4-A marker comparison](docs/V04A_MARKER_COMPARISON.md) is stacked on the 20-motif experiment. A = original safe/danger ring (default), B = neutral landing-position ring, C = no marker. Use the three buttons above the canvas to compare, or visit the same seed with `&marker=neutral` / `&marker=off`. Switching resets to the same seed, with separate BEST records per visual mode. No physics, audio or scenery changes. Not merged or deployed.
+
+### Human-selected no-marker default (Draft)
+
+[Decision and novice test gate](docs/V04B_NO_MARKER_DEFAULT.md): C/NONE is the default after the owner's A/B/C playtest. The comparison row is no longer on the ordinary game screen. Developers can open the same seed with `&marker=full&compare=1` or `&marker=neutral&compare=1` to restore the A/B/C picker. C-mode BEST scores remain separate, and the 0.78s gameplay/audio are identical. This is still an unmerged experimental branch, not deployed.
