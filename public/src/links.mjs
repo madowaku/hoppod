@@ -24,9 +24,9 @@ export function resolveRun(href, today = jstDate(), random = () => crypto.getRan
   url.searchParams.set('v', String(COURSE_VERSION));
   return { mode, date, seed, url: url.href };
 }
-export function shareUrl(run, hops, best) {
+export function shareUrl(run, hops, best, language = 'en') {
   const url = new URL('https://twitter.com/intent/tweet');
-  url.searchParams.set('text', `RAPIPPO 🚀 ${hops} HOPS · BEST ${best}\nONE MORE HOP! #RAPIPPO`);
+  url.searchParams.set('text', `RAPIPPO 🚀 ${hops} HOPS · BEST ${best}\n${language === 'ja' ? 'あと1回、跳ぼう！' : 'ONE MORE HOP!'} #RAPIPPO`);
   url.searchParams.set('url', run.url);
   return url.href;
 }
