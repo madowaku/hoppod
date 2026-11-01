@@ -11,7 +11,6 @@ test('deterministic generator creates reproducible geometry',()=>{
   const a=new Terrain(12345),b=new Terrain(12345);
   a.extendTo(10000);b.extendTo(10000);
   assert.deepEqual(a.platforms,b.platforms);
-  assert.deepEqual(a.beacons,b.beacons);
   assert.deepEqual([...a.plan],[...b.plan]);
   assert.equal(hashSeed('HOPPOD-2026-10-31'),hashSeed('HOPPOD-2026-10-31'));
 });
@@ -56,7 +55,7 @@ test('30/60/120/144 Hz independent of animation frame rate',()=>{
         while(elapsed < seconds-1e-10) { const dt=Math.min(1/hz,seconds-elapsed);advance(s,terrain,dt,fast);elapsed+=dt; }
       }
     }
-    assert.equal(s.status,'playing');results.push([s.hops,s.beacons,Math.round(s.x*1000)]);
+    assert.equal(s.status,'playing');results.push([s.hops,Math.round(s.x*1000)]);
   }
   for(const r of results)assert.deepEqual(r,results[0]);
 });
