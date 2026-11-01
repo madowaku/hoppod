@@ -14,14 +14,7 @@ jobs:
       - name: Test deterministic endless simulation
         run: node --test tests/*.test.mjs
       - name: Validate module syntax
-        run: |
-          node --check public/src/engine.mjs
-          node --check public/src/app.mjs
-          node --check public/src/links.mjs
-          node --check public/src/pod.mjs
-          node --check public/src/audio.mjs
-          node --check public/src/earth.mjs
-          node --check public/src/marker.mjs
+        run: npm run check
   browser:
     runs-on: ubuntu-latest
     steps:
@@ -40,4 +33,7 @@ jobs:
         if: always()
         with:
           name: browser-evidence
-          path: output/playwright/
+          path: |
+            output/playwright/
+            output/audit/
+            output/review/

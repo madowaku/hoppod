@@ -1,0 +1,94 @@
+{
+  "readings": [
+    {
+      "x": 15715.799999999846,
+      "phase": 0.032,
+      "hops": 100,
+      "status": "playing",
+      "collected": [
+        "antenna"
+      ],
+      "complete": false,
+      "crewAge": -1,
+      "retained": {
+        "ground": 9,
+        "plan": 13,
+        "motifs": 3,
+        "shadow": 23,
+        "shadowPlan": 33,
+        "slots": 4,
+        "particles": 8,
+        "flights": 0
+      }
+    },
+    {
+      "x": 47946.35999999884,
+      "phase": 0.032,
+      "hops": 300,
+      "status": "playing",
+      "collected": [
+        "antenna",
+        "body",
+        "engine"
+      ],
+      "complete": true,
+      "crewAge": 106.1280000000088,
+      "retained": {
+        "ground": 12,
+        "plan": 13,
+        "motifs": 3,
+        "shadow": 4,
+        "shadowPlan": 4,
+        "slots": 3,
+        "particles": 8,
+        "flights": 0
+      }
+    },
+    {
+      "x": 160836.60000004715,
+      "phase": 0.020000000000000545,
+      "hops": 1001,
+      "status": "playing",
+      "collected": [
+        "antenna",
+        "body",
+        "engine"
+      ],
+      "complete": true,
+      "crewAge": 652.8959999999296,
+      "retained": {
+        "ground": 10,
+        "plan": 13,
+        "motifs": 3,
+        "shadow": 4,
+        "shadowPlan": 4,
+        "slots": 3,
+        "particles": 8,
+        "flights": 0
+      }
+    }
+  ],
+  "ended": {
+    "x": 160945.44000004698,
+    "phase": 0,
+    "hops": 1001,
+    "status": "dead",
+    "collected": [
+      "antenna",
+      "body",
+      "engine"
+    ],
+    "complete": true,
+    "crewAge": 653.6799999999278,
+    "retained": {
+      "ground": 10,
+      "plan": 13,
+      "motifs": 3,
+      "shadow": 4,
+      "shadowPlan": 4,
+      "slots": 3,
+      "particles": 0,
+      "flights": 0
+    }
+  }
+}

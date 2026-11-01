@@ -91,9 +91,9 @@ test('C is the clean public default, while A/B remain available by explicit deve
   await expect(page.locator('#score')).toHaveText('7');
   const ordinary=page.url();
   await page.goto('/?mode=free&seed=7&marker=full');
-  await expect(page.locator('#marker-full')).toHaveAttribute('aria-pressed','true');
+  await expect(page.locator('#marker-off')).toHaveAttribute('aria-pressed','true');
   await expect(page.locator('#marker-compare')).toBeHidden();
-  expect(new URL(page.url()).searchParams.get('marker')).toBe('full');
+  expect(new URL(page.url()).searchParams.get('marker')).toBeNull();
   // Explicit comparison mode is an internal switch, never added to shared URLs.
   await page.goto('/?mode=free&seed=7&marker=neutral&compare=1');
   await expect(page.locator('#marker-compare')).toBeVisible();

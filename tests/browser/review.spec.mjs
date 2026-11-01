@@ -149,7 +149,7 @@ test('review: 193 keyboard hops; each milestone once; high-score scene, PNG and 
 });
 
 test('review: rendered 16px pit and merged seam match collision; Earth does not recolor explicit A ring',async({page})=>{
-  await open(page,'?mode=free&seed=42&marker=full');await start(page);
+  await open(page,'?mode=free&seed=42&marker=full&compare=1');await start(page);
   await page.evaluate(()=>window.__review.scene(75,0,[[0,200],[216,450]]));
   const pixels=await page.evaluate(()=>{const g=document.getElementById('play').getContext('2d');return [197,205,213,221,229].map(x=>[...g.getImageData(x,383,1,1).data].slice(0,3));});
   expect(pixels[0]).toEqual([4,8,12]);expect(pixels[2]).toEqual([4,8,12]);expect(pixels[4]).not.toEqual([4,8,12]);

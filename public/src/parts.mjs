@@ -34,19 +34,30 @@ function generator(seed) {
 // holds depends on what the run still lacks.
 export class PartLayout {
   constructor(seed, crew = CREWS[0]) {
+    this.seed = seed >>> 0;
     this.random = generator(hashSeed('parts:' + (seed >>> 0)));
     this.terrain = new Terrain(seed);
     this.crew = crew;
     const order = [...crew.parts];
     for (let i = order.length - 1; i > 0; i--) { const j = this.random() % (i + 1); [order[i], order[j]] = [order[j], order[i]]; }
     this.order = Object.freeze(order);
-    this.slots = [];
+    this.slots = new Map(); this.nextIndex = 0;
     this.nextHop = this.range(PART_FIRST);
   }
   range([low, high]) { return low + this.random() % (high - low + 1); }
   slot(index) {
-    while (this.slots.length <= index) this.slots.push(this.place());
-    return this.slots[index];
+    if (this.slots.has(index)) return this.slots.get(index);
+    // Research callers may ask for an old slot. Replay it in a temporary
+    // layout without changing the live generator or retaining all history.
+    if (index < this.nextIndex) return new PartLayout(this.seed, this.crew).slot(index);
+    while (this.nextIndex <= index) this.slots.set(this.nextIndex++, this.place());
+    return this.slots.get(index);
+  }
+  releaseBefore(index, worldX) {
+    // Keep the first tray cue plus the recent slots. The shadow terrain only
+    // needs the current neighbourhood and future reference points.
+    for (const key of this.slots.keys()) if (key !== 0 && key < index - 2) this.slots.delete(key);
+    this.terrain.trim(worldX);
   }
   place() {
     for (let hop = this.nextHop; ; hop++) {
@@ -94,8 +105,10 @@ export class PartRun {
     if (slot && Math.abs(x - slot.x) <= PART_CATCH) {
       this.collected.push(slot.part); this.index += 1;
       if (!this.missing.length) this.completedAt = hops;
+      this.layout.releaseBefore(this.index, x);
       return { type: 'collect', part: slot.part, x: slot.x, complete: this.complete };
     }
+    if (missed) this.layout.releaseBefore(this.index, x);
     return missed ? { type: 'miss', part: missed } : null;
   }
 }

@@ -9,7 +9,7 @@ Small bouncing space capsule with rabbit-ear antennas, a face-display, and a spr
 ## Project direction
 
 - **Game:** Endless HOPS score attack, deterministic terrain and daily challenge; one-tap retry.
-- **Visuals:** Original retro-style capsule mascot (concept C), dark moon landscape, clear landing preview. Not a living rabbit.
+- **Visuals:** Original retro-style lunar work machine, dark moon landscape, blue parts and earned companion; no landing marker (C is the adopted policy).
 - **Stack:** Vanilla JavaScript + Canvas 2D; no game engine or login.
 - **Distribution target:** Cloudflare Workers Static Assets (deploy only after device and sharing tests).
 - **Source:** Gameplay mechanics inspired by the user's earlier [HOPSCROLL](https://github.com/madowaku/hopscroll). Independent project and release lifecycle; carry over attribution and validated mechanics.
@@ -39,6 +39,16 @@ npm run test:browser
 ```
 
 Browser tests start their own local server if port 8000 is free. Screenshots, the downloaded PNG, test JSON and failure traces go to `output/playwright/`. CI uploads browser evidence.
+
+## Current integration candidate
+
+The latest #1–#13 stack uses **course v4**, 20 terrain motifs, no landing marker, three collected blue components to assemble the companion, and JA/EN plus saved sound settings. The RAPIPPO display name retains the existing HOPPOD DAILY salt and BEST namespaces. Gold beacons and the automatic 30-HOPS companion join are retired. Formal policy: [Art and UX direction](docs/concept/ART_UX_DIRECTION.md).
+
+See [final integration audit](docs/FINAL_INTEGRATION_AUDIT.md) for the current source snapshots, minimal fixes, evidence, merge plan and remaining human checks. Developer marker comparison requires **both** `&marker=full` (or `neutral`) **and** `&compare=1`; old marker-only links resolve to C. `npm run check:assets` is a dry run, and `npm run preview:assets` serves a local Workers preview on port 8011 with `/dev/` excluded. No merge or production deploy has occurred.
+
+## Historical implementation notes
+
+The sections below record earlier PR stages, **not the current playable specification**. In particular, A/default, gold beacons and an automatic 30-HOPS companion are superseded; use the current candidate and formal direction above.
 
 v0.3 (course `v=3`) is unpublished and stacked on Draft PRs #1 → #2. See [v0.3 fair ground and milestone sound](docs/V03_FAIR_GROUND.md) for the first-pit fix, milestone accents, developer sound A/B (`?sfx=classic`, `/dev/sfx.html`) and open human checks. [v0.2 design and acceptance](docs/V02_ACCEPTANCE.md) and [v0.1 notes](docs/PROTOTYPE.md) are historical. No automatic merge or production deploy.
 

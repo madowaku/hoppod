@@ -132,7 +132,7 @@ function reset() {
   audio.unlock(); state = newRun(); terrain = new Terrain(run.seed);
   running = true; paused = false; lastTime = null;
   deathAge = 0; landAge = 10; particles = []; failure = ''; signal = 0; signalAge = 10; notice = null; recordNotified = false;
-  parts = new PartRun(layout); flights = []; crewAge = -1;
+  layout = new PartLayout(run.seed); parts = new PartRun(layout); flights = []; crewAge = -1;
   releaseInput(); get('overlay').hidden = true;
   get('share-actions').hidden = true; get('result-details').hidden = true;
 }
@@ -183,10 +183,12 @@ for (const mode of MARKER_MODES) get('marker-' + mode).addEventListener('click',
 });
 window.addEventListener('popstate', loadCourse);
 get('sound').addEventListener('click', () => {
+  get('sound').blur();
   audio.unlock(); const muted = audio.toggle(); savePreference('hoppod.pref.muted',muted?'1':'0');
   refreshCopy();
 });
 get('language').addEventListener('click', () => {
+  get('language').blur();
   language = language === 'ja' ? 'en' : 'ja';
   savePreference('hoppod.pref.lang',language); refreshCopy();
 });

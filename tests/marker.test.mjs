@@ -6,7 +6,8 @@ import {Terrain,newRun,advance,PERIOD,SLOW_SPEED,FAST_SPEED} from '../public/src
 test('A/B/C URL selection: invalid/default values default to no landing marker',()=>{
   assert.deepEqual(MARKER_MODES,['full','neutral','off']);
   for(const [query,expected] of [
-    ['', 'off'],['?marker=full','full'],['?marker=neutral','neutral'],
+    ['', 'off'],['?marker=full','off'],['?marker=neutral','off'],
+    ['?marker=full&compare=1','full'],['?marker=neutral&compare=1','neutral'],
     ['?marker=off','off'],['?marker=missing','off'],['?marker=OFF','off']
   ]) assert.equal(markerModeFromUrl('http://localhost/'+query),expected);
 });

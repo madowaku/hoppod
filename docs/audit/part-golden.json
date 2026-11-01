@@ -1,0 +1,42 @@
+[
+  {
+    "seed": 0,
+    "hash": "9cc27b5dc045ca27d81321c82b82573b109d6d12e76fd91d3898a389083c79f6",
+    "first": {
+      "hop": 27,
+      "x": 3775.3
+    }
+  },
+  {
+    "seed": 1,
+    "hash": "f5ed9a36f7257adf1572278ef37a910c1854970197006c139aaecfb23b2264c9",
+    "first": {
+      "hop": 23,
+      "x": 3142.3
+    }
+  },
+  {
+    "seed": 7,
+    "hash": "23a85dffe9b46eb29eed778b86575d06435bf4bbcc3da41f071c3002a8f2e5e3",
+    "first": {
+      "hop": 34,
+      "x": 4876.3
+    }
+  },
+  {
+    "seed": 42,
+    "hash": "dfeed68c89a30b3632a371d41eec12e79cb26b9589a2a43ab9ece2d495d8047f",
+    "first": {
+      "hop": 29,
+      "x": 4098.3
+    }
+  },
+  {
+    "seed": 4294967295,
+    "hash": "bb5df172dc35e60fbdc6b279602f344d263f200150f425a6daeab7739998a547",
+    "first": {
+      "hop": 26,
+      "x": 3651.3
+    }
+  }
+]
