@@ -6,7 +6,7 @@ import {createAudio,milestoneTier,LAND_NOTES} from '../public/src/audio.mjs';
 function fakeContext(state='running') {
   const log={oscillators:[],compressors:0};
   const param=()=>({value:0,events:[],setValueAtTime(v,t){this.events.push(['set',v,t]);},exponentialRampToValueAtTime(v,t){this.events.push(['ramp',v,t]);}});
-  const node=extra=>({connections:[],connect(n){this.connections.push(n);},disconnect(){},...extra});
+  const node=extra=>({connections:[],connect(n){this.connections.push(n);},disconnect(){this.disconnected=true;},...extra});
   class Context {
     constructor(){this.state=state;this.currentTime=10;this.destination=node({name:'destination'});}
     resume(){return Promise.resolve();}
@@ -78,4 +78,25 @@ test('classic A/B mode, mute and a suspended context produce no accents',()=>{
   assert.equal(log.oscillators.length,0);
   log=fakeContext('suspended');audio=createAudio();audio.unlock();audio.play('land',100);
   assert.equal(log.oscillators.length,0);
+});
+
+test('muting a hundred chord stops its running and future-scheduled voices',()=>{
+  const log=fakeContext(),audio=createAudio();audio.unlock();audio.play('land',100);
+  audio.toggle();
+  for(const o of log.oscillators) assert.ok(o.stopAt<=10.02,`voice still scheduled until ${o.stopAt}`);
+});
+
+test('reset stop releases voices and lets the next run celebrate again',()=>{
+  const log=fakeContext(),audio=createAudio();audio.unlock();audio.play('land',100);
+  assert.equal(typeof audio.stop,'function','run lifecycle needs a sound cancellation API');
+  audio.stop();
+  for(const o of log.oscillators) assert.ok(o.stopAt<=10.02);
+  log.oscillators.forEach(o=>o.onended?.());
+  audio.play('land',10);assert.equal(log.oscillators.length,9);
+});
+
+test('ordinary landing nodes disconnect when ended, as well as accent nodes',()=>{
+  const log=fakeContext(),audio=createAudio();audio.unlock();audio.play('land',100);
+  for(const o of log.oscillators){o.onended();o.onended();assert.equal(o.disconnected,true);assert.equal(o.connections[0].disconnected,true);}
+  audio.play('land',100);assert.equal(log.oscillators.length,12);
 });

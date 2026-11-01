@@ -2,6 +2,8 @@
 
 Orchestrated and implemented by Claude Code. Please review independently: re-run the reproduction steps rather than trusting the summaries.
 
+Independent follow-up: [V03_INDEPENDENT_REVIEW.md](V03_INDEPENDENT_REVIEW.md) records the reproduced sustained-audio cancellation defect, fixes stacked on #4, additional browser/long-run tests, asset exclusion verification and Earth timing comparison. The original implementation notes below are retained as history.
+
 ## Stack and order
 
 ```

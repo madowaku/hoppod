@@ -17,15 +17,16 @@ const fast = () => pointers.size + keys.size > 0;
 // Developer A/B only: ?sfx=classic plays v0.2 cues without milestone accents.
 // The course URL is normalized on load, so the choice is kept for this tab.
 function accentsEnabled() {
+  const value = new URL(location.href).searchParams.get('sfx');
   try {
-    const value = new URL(location.href).searchParams.get('sfx');
     if (value) sessionStorage.setItem('hoppod.dev.sfx', value);
     return (value || sessionStorage.getItem('hoppod.dev.sfx')) !== 'classic';
-  } catch { return true; }
+  } catch { return value !== 'classic'; }
 }
 function releaseInput() { pointers.clear(); keys.clear(); modeFast = false; updateHud(); }
 function bestKey() { return 'hoppod.best.v' + COURSE_VERSION + '.' + (run.mode === 'daily' ? run.date : 'free'); }
 function loadCourse() {
+  audio.stop();
   run = resolveRun(location.href);
   history.replaceState(null, '', run.url);
   try { best = Math.max(0, Math.floor(Number(localStorage.getItem(bestKey())) || 0)); if (!Number.isFinite(best)) best = 0; } catch { best = 0; }
@@ -46,6 +47,7 @@ function overlay(title, subtitle, button) {
   get('action').textContent = button; get('overlay').hidden = false;
 }
 function reset() {
+  audio.stop();
   get('action').blur();
   audio.unlock(); state = newRun(); terrain = new Terrain(run.seed);
   running = true; paused = false; lastTime = null;
@@ -61,6 +63,7 @@ function updateHud() {
   get('hold-instruction').textContent = fast() ? 'RELEASE TO SLOW' : 'HOLD TO GO FAST';
 }
 function endRun() {
+  audio.stop();
   failure = landingMiss(terrain, state.x, state.hopStartX) === 'short' ? 'TOO SHORT · HOLD A LITTLE LONGER' : 'TOO FAR · RELEASE A LITTLE EARLIER';
   failureX = state.x; running = false; deathAge = .001; audio.play('fall');
   const record = state.hops > best;
@@ -72,6 +75,7 @@ function endRun() {
   overlay(record ? 'A NEW LITTLE RECORD.' : 'ONE MORE HOP?', failure, 'TRY AGAIN');
 }
 function pause() {
+  audio.stop();
   releaseInput(); if (!running || paused) return;
   paused = true; lastTime = null; get('overlay').dataset.screen = 'pause';
   overlay('TAKE A BREATHER.', 'Resume at SLOW.', 'RESUME');

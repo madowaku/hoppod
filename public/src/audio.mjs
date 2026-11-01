@@ -15,6 +15,36 @@ const ACCENTS = {
 const MAX_ACCENT_VOICES = 12;
 export function createAudio({ accents = true } = {}) {
   let ctx, bus, muted = false, active = 0;
+  const voices = new Set();
+  const track = (o, g, at, isAccent = false) => {
+    const voice = { o, g, at, isAccent, stopping: false };
+    voices.add(voice);
+    if (isAccent) active += 1;
+    o.onended = () => {
+      if (!voices.delete(voice)) return;
+      if (isAccent) active -= 1;
+      o.disconnect(); g.disconnect();
+    };
+  };
+  // Cancel future notes as well as sounding ones. A short fade prevents a
+  // discontinuity when muting a sustained chord; the v0.2 play path is intact.
+  const stop = (accentsOnly = false) => {
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    for (const v of voices) {
+      if (v.stopping || (accentsOnly && !v.isAccent)) continue;
+      v.stopping = true;
+      if (v.at > t) {
+        v.g.gain.cancelScheduledValues?.(t); v.g.gain.setValueAtTime(0, t); v.o.stop(t);
+      } else {
+        if (v.g.gain.cancelAndHoldAtTime) v.g.gain.cancelAndHoldAtTime(t);
+        else { v.g.gain.cancelScheduledValues?.(t); v.g.gain.setValueAtTime(Math.max(.0001, v.g.gain.value), t); }
+        if (v.g.gain.linearRampToValueAtTime) v.g.gain.linearRampToValueAtTime(0, t + .008);
+        else v.g.gain.exponentialRampToValueAtTime(.0001, t + .008);
+        v.o.stop(t + .01);
+      }
+    }
+  };
   const unlock = () => {
     try {
       ctx ||= new (globalThis.AudioContext || globalThis.webkitAudioContext)();
@@ -38,7 +68,7 @@ export function createAudio({ accents = true } = {}) {
       g.gain.setValueAtTime(.0001, at); g.gain.exponentialRampToValueAtTime(peak, at + (tier === 'hundred' ? .04 : .006));
       g.gain.exponentialRampToValueAtTime(.0001, at + decay);
       o.connect(g); g.connect(accentBus()); o.start(at); o.stop(at + decay + .05);
-      active += 1; o.onended = () => { active -= 1; o.disconnect(); g.disconnect(); };
+      track(o, g, at, true);
     }
   };
   const play = (kind, hops = 0) => {
@@ -52,11 +82,12 @@ export function createAudio({ accents = true } = {}) {
     g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(.07, t + .008);
     g.gain.exponentialRampToValueAtTime(.0001, t + (kind === 'fall' ? .22 : .12));
     o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t + .25);
+    track(o, g, t);
     const tier = kind === 'land' && accents ? milestoneTier(hops) : null;
     if (tier) accent(tier, t);
   };
   return {
-    unlock, play, toggle() { muted = !muted; return muted; }, get muted() { return muted; },
-    get accents() { return accents; }, set accents(value) { accents = Boolean(value); },
+    unlock, play, stop, toggle() { muted = !muted; if (muted) stop(); return muted; }, get muted() { return muted; },
+    get accents() { return accents; }, set accents(value) { accents = Boolean(value); if (!accents) stop(true); },
   };
 }
