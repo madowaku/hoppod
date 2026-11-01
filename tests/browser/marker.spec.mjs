@@ -2,10 +2,10 @@ import {test,expect} from '@playwright/test';
 import {mkdir} from 'node:fs/promises';
 
 const dir='output/playwright';
-async function startSeed(page,marker='full') {
+async function startSeed(page,marker='off',compare=false) {
   await page.clock.install({time:new Date('2026-11-01T03:00:00Z')});
-  const suffix=marker==='full'?'':'&marker='+marker;
-  await page.goto('/?mode=free&seed=7'+suffix);
+  const suffix=marker==='off'?'':'&marker='+marker;
+  await page.goto('/?mode=free&seed=7'+suffix+(compare?'&compare=1':''));
   await page.clock.pauseAt(new Date('2026-11-01T03:00:01Z'));
 }
 
@@ -24,7 +24,7 @@ test('v0.4-A: A dangerous first pit shows full warning; B only a neutral ring; C
       return nativeText.call(this,text,...args);
     };
   });
-  await startSeed(page);
+  await startSeed(page,'full',true);
   for(const [mode,color,expectHints] of [
     ['full','#ff9b80',true],
     ['neutral','#d2d2bc',false],
@@ -52,7 +52,7 @@ test('v0.4-A: A dangerous first pit shows full warning; B only a neutral ring; C
     }
   }
   expect(new URL(page.url()).searchParams.get('seed')).toBe('7');
-  expect(new URL(page.url()).searchParams.get('marker')).toBe('off');
+  expect(new URL(page.url()).searchParams.get('marker')).toBeNull();
 });
 
 test('A/B/C preserve course seed, query through reload, and independent bests per variant',async({page})=>{
@@ -61,14 +61,14 @@ test('A/B/C preserve course seed, query through reload, and independent bests pe
     localStorage.setItem('hoppod.best.v4.free.marker.neutral','48');
     localStorage.setItem('hoppod.best.v4.free.marker.off','24');
   });
-  await startSeed(page);
-  await expect(page.locator('#best')).toHaveText('193');
-  for(const [mode,expected] of [['neutral','48'],['off','24'],['full','193']]) {
+  await startSeed(page,'off',true);
+  await expect(page.locator('#best')).toHaveText('24');
+  for(const [mode,expected] of [['full','193'],['neutral','48'],['off','24']]) {
     await page.locator('#marker-'+mode).click();
     await expect(page.locator('#best')).toHaveText(expected);
     await expect(page.locator('#score')).toHaveText('0');
     expect(new URL(page.url()).searchParams.get('seed')).toBe('7');
-    expect(new URL(page.url()).searchParams.get('marker')).toBe(mode==='full'?null:mode);
+    expect(new URL(page.url()).searchParams.get('marker')).toBe(mode==='off'?null:mode);
     await page.reload();
     await expect(page.locator('#marker-'+mode)).toHaveAttribute('aria-pressed','true');
     await expect(page.locator('#best')).toHaveText(expected);
@@ -78,4 +78,28 @@ test('A/B/C preserve course seed, query through reload, and independent bests pe
   expect(new URL(page.url()).searchParams.get('marker')).toBe('neutral');
   await page.locator('#free').click();
   expect(new URL(page.url()).searchParams.get('marker')).toBe('neutral');
+});
+
+test('C is the clean public default, while A/B remain available by explicit developer URL',async({page})=>{
+  await startSeed(page);
+  await expect(page.locator('#marker-compare')).toBeHidden();
+  await expect(page.locator('#marker-guide')).toBeHidden();
+  await expect(page.locator('#marker-off')).toHaveAttribute('aria-pressed','true');
+  expect(new URL(page.url()).searchParams.get('marker')).toBeNull();
+  await page.locator('#action').click();
+  await page.clock.runFor(7*780+70);
+  await expect(page.locator('#score')).toHaveText('7');
+  const ordinary=page.url();
+  await page.goto('/?mode=free&seed=7&marker=full');
+  await expect(page.locator('#marker-full')).toHaveAttribute('aria-pressed','true');
+  await expect(page.locator('#marker-compare')).toBeHidden();
+  expect(new URL(page.url()).searchParams.get('marker')).toBe('full');
+  // Explicit comparison mode is an internal switch, never added to shared URLs.
+  await page.goto('/?mode=free&seed=7&marker=neutral&compare=1');
+  await expect(page.locator('#marker-compare')).toBeVisible();
+  await page.locator('#marker-off').click();
+  await expect(page.locator('#marker-compare')).toBeVisible();
+  expect(new URL(page.url()).searchParams.get('marker')).toBeNull();
+  expect(new URL(page.url()).searchParams.get('compare')).toBe('1');
+  expect(new URL(ordinary).searchParams.get('marker')).toBeNull();
 });
