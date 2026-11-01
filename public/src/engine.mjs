@@ -70,7 +70,6 @@ export class Terrain {
     this.planPositions = new Map();
     for (let hop = 1; hop <= 7; hop++) { this.plan.set(hop, 0); this.planPositions.set(hop, 75 + hop * PERIOD * SLOW_SPEED); }
     this.referenceX = 75 + 7 * PERIOD * SLOW_SPEED;
-    this.beacons = [];
     this.motif = null; this.motifIndex = 4; this.motifs = []; this.motifGroups = 0;
     this.extendTo(1900);
   }
@@ -102,7 +101,6 @@ export class Terrain {
       : this.referenceX - halfWidth;
     addPlatform(this.platforms,
       ensureNextHopMargin(this.platforms.at(-1), [left, this.referenceX + halfWidth]));
-    if (this.referenceHop % 5 === 0) this.beacons.push({id: this.referenceHop, x: this.referenceX});
   }
   extendTo(worldX) {
     while (this.referenceX < worldX) {
@@ -111,7 +109,6 @@ export class Terrain {
   }
   trim(worldX) {
     this.platforms = this.platforms.filter(([a, b]) => b >= worldX - 400);
-    this.beacons = this.beacons.filter(b => b.x >= worldX - 100);
     this.motifs = this.motifs.filter(m => m.x >= worldX - 400);
     for (const hop of this.plan.keys()) {
       if (this.planPositions.get(hop) < worldX - 400) { this.plan.delete(hop); this.planPositions.delete(hop); }
@@ -166,7 +163,7 @@ export function landingMiss(terrain, x, hopStartX) {
   return direction;
 }
 export function newRun() {
-  return { x: 75, hopStartX: 75, phase: 0, hops: 0, beacons: 0, status: 'playing', lastEvent: null };
+  return { x: 75, hopStartX: 75, phase: 0, hops: 0, status: 'playing', lastEvent: null };
 }
 export function advance(state, terrain, seconds, fast) {
   if (state.status !== 'playing' || !Number.isFinite(seconds) || seconds <= 0) return [];
@@ -188,13 +185,6 @@ export function advance(state, terrain, seconds, fast) {
         state.hopStartX = state.x;
         state.lastEvent = 'land';
         events.push('land');
-        for (const beacon of terrain.beacons) {
-          if (!beacon.taken && Math.abs(state.x - beacon.x) <= 27) {
-            beacon.taken = true;
-            state.beacons += 1;
-            events.push('beacon');
-          }
-        }
         terrain.extendTo(state.x + 1600);
         terrain.trim(state.x);
       }
