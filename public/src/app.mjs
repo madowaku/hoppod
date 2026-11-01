@@ -3,6 +3,7 @@ import { resolveRun, jstDate, shareUrl } from './links.mjs';
 import { drawPod } from './pod.mjs';
 import { EARTH_PEEK, earthRise, earthCenterY, drawEarth } from './earth.mjs';
 import { createAudio } from './audio.mjs';
+import { MARKER_MODES, markerModeFromUrl, markerVisual } from './marker.mjs';
 
 const get = id => document.getElementById(id);
 const canvas = get('play'), ctx = canvas.getContext('2d');
@@ -12,7 +13,7 @@ const pointers = new Set(), keys = new Set(), audio = createAudio({ accents: acc
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 let run, state, terrain, best = 0, running = false, paused = false, lastTime = null;
 let landAge = 10, deathAge = 0, particles = [], modeFast = false, worldTime = 0;
-let failure = '', failureX = 0, signal = 0, signalAge = 10;
+let failure = '', failureX = 0, signal = 0, signalAge = 10, markerMode = markerModeFromUrl(location.href);
 const fast = () => pointers.size + keys.size > 0;
 // Developer A/B only: ?sfx=classic plays v0.2 cues without milestone accents.
 // The course URL is normalized on load, so the choice is kept for this tab.
@@ -24,11 +25,38 @@ function accentsEnabled() {
   } catch { return value !== 'classic'; }
 }
 function releaseInput() { pointers.clear(); keys.clear(); modeFast = false; updateHud(); }
-function bestKey() { return 'hoppod.best.v' + COURSE_VERSION + '.' + (run.mode === 'daily' ? run.date : 'free'); }
+function bestKey() {
+  return 'hoppod.best.v' + COURSE_VERSION + '.' + (run.mode === 'daily' ? run.date : 'free') +
+    (markerMode === 'full' ? '' : '.marker.' + markerMode);
+}
+function markerUrl(url, mode = markerMode) {
+  const copy = new URL(url);
+  if (mode === 'full') copy.searchParams.delete('marker');
+  else copy.searchParams.set('marker', mode);
+  return copy.href;
+}
+function syncMarkerUI() {
+  for (const mode of MARKER_MODES) {
+    const button = get('marker-' + mode);
+    const selected = markerMode === mode;
+    button.classList.toggle('selected', selected);
+    button.setAttribute('aria-pressed', String(selected));
+  }
+  get('marker-guide').textContent = markerMode === 'full'
+    ? 'MINT RING = SAFE AT THIS SPEED'
+    : markerMode === 'neutral' ? 'LANDING POSITION · NO SAFETY COLOUR' : 'NO LANDING PREVIEW';
+  canvas.setAttribute('aria-label', markerMode === 'full'
+    ? 'Automatic hopping. Hold for FAST; release for SLOW. Mint ring predicts a safe landing at the current speed.'
+    : markerMode === 'neutral'
+      ? 'Automatic hopping. Hold for FAST; release for SLOW. The neutral ring shows a projected landing position, not safety.'
+      : 'Automatic hopping. Hold for FAST; release for SLOW. No landing marker is shown. Judge the terrain and your rhythm.');
+}
 function loadCourse() {
   audio.stop();
+  markerMode = markerModeFromUrl(location.href);
   run = resolveRun(location.href);
-  history.replaceState(null, '', run.url);
+  history.replaceState(null, '', markerUrl(run.url));
+  syncMarkerUI();
   try { best = Math.max(0, Math.floor(Number(localStorage.getItem(bestKey())) || 0)); if (!Number.isFinite(best)) best = 0; } catch { best = 0; }
   get('mode-name').textContent = run.mode === 'daily' ? 'MOON / ' + run.date : 'FREE / ' + run.seed;
   for (const mode of ['daily', 'free']) {
@@ -88,7 +116,12 @@ get('action').addEventListener('click', () => {
 for (const mode of ['daily', 'free']) get(mode).addEventListener('click', () => {
   releaseInput(); const url = new URL(location.href);
   url.search = mode === 'daily' ? '?mode=daily&date=' + jstDate() : '?mode=free';
-  history.replaceState(null, '', url); loadCourse();
+  history.replaceState(null, '', markerUrl(url)); loadCourse();
+});
+for (const mode of MARKER_MODES) get('marker-' + mode).addEventListener('click', () => {
+  // Reset to exactly the same seed on every switch, so A/B/C is comparable.
+  history.replaceState(null, '', markerUrl(location.href, mode));
+  loadCourse();
 });
 window.addEventListener('popstate', loadCourse);
 get('sound').addEventListener('click', () => {
@@ -190,13 +223,14 @@ function draw(now) {
   }
   const height = running || paused ? Math.sin(state.phase / PERIOD * Math.PI) * 96 : 0;
   const heroY = FLOOR - 2 - height + (dead ? Math.min(110, deathAge * deathAge * 160) : 0);
-  if (!dead && get('overlay').hidden) {
-    const projected = predictLanding(state, fast()), safe = isSafe(terrain, projected), x = screen(projected), color = safe ? '#8ee6c4' : '#ff9b80';
-    ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.setLineDash([2, 5]);
+  if (!dead && get('overlay').hidden && markerMode !== 'off') {
+    const projected = predictLanding(state, fast()), x = screen(projected);
+    const visual = markerVisual(markerMode, markerMode === 'full' && isSafe(terrain, projected));
+    ctx.strokeStyle = visual.color; ctx.lineWidth = 1; ctx.setLineDash([2, 5]);
     ctx.beginPath(); ctx.moveTo(HERO_X + 12, heroY - 12); ctx.lineTo(x, FLOOR - 5); ctx.stroke(); ctx.setLineDash([]);
     ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(x, FLOOR - 3, 12, 4, 0, 0, Math.PI * 2); ctx.stroke();
     ctx.beginPath(); ctx.arc(x, FLOOR - 22, 5, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (1 - state.phase / PERIOD)); ctx.stroke();
-    if (!safe) { ctx.font = 'bold 10px monospace'; ctx.textAlign = 'center'; ctx.fillStyle = color;
+    if (visual.hint) { ctx.font = 'bold 10px monospace'; ctx.textAlign = 'center'; ctx.fillStyle = visual.color;
       ctx.fillText(fast() ? 'RELEASE' : 'HOLD', Math.max(30, Math.min(W - 30, x)), FLOOR - 39); }
   }
   if (dead) { ctx.strokeStyle = '#ff9b80'; ctx.lineWidth = 2; const x = screen(failureX);
