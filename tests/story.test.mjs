@@ -178,3 +178,47 @@ test('music: the tick is the touchdown; the ending hands the beat to the friends
   assert.ok(Array.from({ length: 8 }, (_, i) => at(D + ENDING.perc + i)).flat().some(n => n.part === 'perc'));
   assert.ok(!Array.from({ length: 40 }, (_, i) => at(D + i)).flat().some(n => n.part === 'tick'));
 });
+
+test('every note the composer emits has a finite pitch, length and level', () => {
+  const songs = [
+    { dockBeat: null, parts: new Set(), tick: () => true },
+    { dockBeat: null, parts: new Set(['bell', 'bass', 'perc']), tick: b => b % 3 !== 0 },
+    { dockBeat: 40, parts: new Set(['bell', 'bass', 'perc', 'sparkle']), tick: () => false },
+  ];
+  let count = 0;
+  for (const song of songs) for (let n = 0; n < 4 * 16 * 8; n++) for (const note of notesAt(n, song)) {
+    count++;
+    for (const key of ['f', 'd', 'v']) assert.ok(Number.isFinite(note[key]) && note[key] > 0, JSON.stringify(note));
+    assert.ok(note.f >= 40 && note.f <= 8000, 'audible pitch ' + note.f);
+  }
+  assert.ok(count > 500);
+});
+
+test('green loses the link once in the valley on every route, and a relay restores it', () => {
+  const i = COURSE.checkpoints.findIndex(cp => cp.from <= COURSE.relays[0] && COURSE.relays[0] < cp.from + 300);
+  let seed = 3, routes = 0;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  for (let k = 0; k < 12; k++) {
+    const order = [0, .125, .25, .375, .5, .625, .75, .875, 1].sort(() => rnd() - .5);
+    const m = solve(COURSE, storyFrom(COURSE, i), { until: r => r.x > COURSE.relays[1] + 10, order });
+    if (!m.end) continue;
+    routes++;
+    const run = storyFrom(COURSE, i), types = [];
+    for (const f of m.path) for (const e of hop(run, COURSE, f)) types.push(e.type);
+    assert.ok(types.includes('strand') && types.includes('relink'), types.join());
+    assert.ok(['catch', 'follow'].includes(run.green.state), run.green.state);
+  }
+  assert.ok(routes >= 8);
+});
+
+test('after two falls at the switch, green lingers on its socket so SLOW alone opens the bridge', () => {
+  const run = storyFrom(COURSE, fieldCheckpoint);
+  run.fails[fieldCheckpoint] = 2;
+  for (let k = 0; k < 30 && run.x < COURSE.bridge.b && run.status === 'playing'; k++) hop(run, COURSE, 0);
+  assert.ok(run.switchOn, 'green stayed on the switch');
+  assert.ok(run.x > COURSE.bridge.a, 'and the hero crossed');
+  const once = storyFrom(COURSE, fieldCheckpoint);
+  once.fails[fieldCheckpoint] = 1;
+  for (let k = 0; k < 30 && once.status === 'playing' && once.x < COURSE.bridge.b; k++) hop(once, COURSE, 0);
+  assert.ok(!once.switchOn, 'after one fall a FAST burst is still needed');
+});

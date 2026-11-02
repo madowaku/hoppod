@@ -27,6 +27,7 @@ const tr = key => storyCopy(language, key);
 audio.setMuted(readPreference('hoppod.pref.muted') === '1');
 
 let cull = 20;
+let flashes = [];
 let run, screen = 'start', s = 0, nextStep = 0, particles = [], banner = null, launched = false;
 const perfNow = () => performance.now() / 1000;
 const fast = () => pointers.size + keys.size > 0;
@@ -45,7 +46,7 @@ function initialRun() {
 }
 function begin() {
   audio.unlock(); audio.cancel();
-  run = initialRun(); s = 0; particles = []; launched = false;
+  run = initialRun(); ahead = structuredClone(run); cued.clear(); s = 0; heroX = HERO_X; cameraS = 0; particles = []; flashes = []; launched = false;
   clock.start(0, perfNow()); input.reset(0, false); nextStep = 0;
   releaseInput(); screen = 'play'; showBanner(run.status === 'docked' ? 'send' : run.chapter);
   get('overlay').hidden = true; get('action').blur();
@@ -137,26 +138,54 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) pause
 window.addEventListener('pagehide', pause);
 
 // ---------- music ----------
+// The audio side works ahead of the picture by output latency + lookahead.
+// `ahead` is the run simulated to that point with the current input held, so
+// scheduled notes and cues land with the touchdowns they belong to, even on
+// Bluetooth. A late input change can rarely make a cue wrong; an event that
+// was not predicted still sounds, just late.
+let ahead = null;
+const cued = new Map();
+const CUES = new Set(['collect', 'assemble', 'join', 'switch', 'strand', 'relink', 'reunion', 'station', 'dock', 'fall', 'respawn']);
+const eventKey = e => e.type + ':' + e.beat + ':' + (e.who ?? e.index ?? '');
+function predict() {
+  ahead = structuredClone(run);
+  if (!audio.running || clock.domain !== 'audio' || run.status === 'docked') return;
+  const front = audio.context.currentTime + LOOKAHEAD - clock.offset, events = [];
+  if (front > run.t) advanceStory(ahead, COURSE, front, input.fast, events);
+  for (const e of events) {
+    if (!CUES.has(e.type) || cued.has(eventKey(e))) continue;
+    const at = clock.contextTime(e.t);
+    if (at > audio.context.currentTime + .003) { audio.cue(e.type, at); cued.set(eventKey(e), e.t); probeNote('cue:' + e.type, at, e.t); }
+  }
+  for (const [key, t] of cued) if (t < s - 8) cued.delete(key);
+}
 const song = {
-  get dockBeat() { return run.status === 'docked' ? run.dockAt : null; },
+  get dockBeat() { return ahead.status === 'docked' ? ahead.dockAt : null; },
   parts: new Set(),
-  // The clockwork tick sounds on every beat the hero touches down.
-  tick: beat => run.status === 'playing' || (run.status === 'falling' && beat === run.fallAt + FALL_BEATS),
+  // The clockwork tick sounds on every beat the hero touches down; a beat
+  // predicted to be a fall stays silent.
+  tick: beat => ahead.status === 'playing' || (ahead.status === 'falling' && beat === ahead.fallAt + FALL_BEATS) || (ahead.status === 'docked' && beat <= ahead.dockAt),
 };
 const smooth = (a, b, x) => { const k = Math.max(0, Math.min(1, (x - a) / (b - a))); return k * k * (3 - 2 * k); };
-function friendLevel(friend) {
-  if (friend.state === 'dormant') return 0;
-  if (friend.state === 'station') return 1;
-  return 1 - smooth(FOLLOW_GAP * 1.5, RANGE * 1.5, Math.abs(run.x - friend.x));
+// A friend's part by distance: inside the range it is full and clear, at
+// the edge it thins; beyond it, it turns into a faint, muffled radio that
+// fades out over a few hops.
+function friendSound(friend) {
+  if (friend.state === 'dormant') return { level: 0, clarity: 1 };
+  if (friend.state === 'station') return { level: 1, clarity: 1 };
+  const d = Math.abs(run.x - friend.x);
+  if (d <= RANGE && friend.state !== 'lost' && friend.state !== 'switch') return { level: 1 - .3 * smooth(RANGE * .4, RANGE, d), clarity: 1 - .45 * smooth(RANGE * .6, RANGE, d) };
+  return { level: .5 * (1 - smooth(RANGE, RANGE * 4.5, d)), clarity: .3 * (1 - smooth(RANGE, RANGE * 3, d)) };
 }
 const lightOpen = () => run.parts.assembledAt === null ? 0 : smooth(0, 3, run.t - run.parts.assembledAt);
 const after = () => run.status === 'docked' ? s / BEAT - run.dockAt : -1;
 function mixMusic() {
   song.parts.clear();
-  if (run.blue.state !== 'parts') song.parts.add('bell');
-  if (run.green.state !== 'dormant') song.parts.add('bass');
-  if (run.red.state !== 'dormant') song.parts.add('perc');
-  const a = after(), levels = { tick: .9, bell: .85 * lightOpen(), bass: .9 * friendLevel(run.green), perc: .9 * friendLevel(run.red), sparkle: 0 };
+  if (ahead.blue.state !== 'parts') song.parts.add('bell');
+  if (ahead.green.state !== 'dormant') song.parts.add('bass');
+  if (ahead.red.state !== 'dormant') song.parts.add('perc');
+  const green = friendSound(run.green), red = friendSound(run.red), clarity = { bass: green.clarity, perc: red.clarity, bell: 1 };
+  const a = after(), levels = { tick: .9, bell: .85 * lightOpen(), bass: .9 * green.level, perc: .9 * red.level, sparkle: 0 };
   let muffle = 1 - lightOpen();
   if (a >= 0) {
     // Seen from the rocket: the base's music thins with distance; a little
@@ -166,7 +195,7 @@ function mixMusic() {
     levels.sparkle = smooth(ENDING.away, ENDING.away + 8, a) * .7 * out; muffle = k * .85;
     if (a >= ENDING.away) song.parts.add('sparkle');
   }
-  audio.mix(levels, muffle);
+  audio.mix(levels, muffle, clarity);
 }
 function scheduleMusic() {
   const c = audio.context, horizon = c && c.currentTime + LOOKAHEAD;
@@ -175,7 +204,7 @@ function scheduleMusic() {
   for (;;) {
     const at = clock.contextTime(nextStep * STEP);
     if (at > horizon) break;
-    if (at > c.currentTime + .003) for (const note of notesAt(nextStep, song)) audio.note(note, at);
+    if (at > c.currentTime + .003) for (const note of notesAt(nextStep, song)) { audio.note(note, at); probeNote(note.part, at, nextStep * STEP); }
     nextStep += 1;
   }
 }
@@ -187,29 +216,47 @@ function burst(x, y, colors, n = 8) {
 }
 function handle(events) {
   for (const e of events) {
+    if (CUES.has(e.type) && !cued.has(eventKey(e))) { audio.cue(e.type); probeNote('late:' + e.type, audio.context?.currentTime ?? 0, e.t); }
+    probeEvent(e);
     if (e.type === 'land') burst(run.x, FLOOR - 4, ['#efdaad', '#8ee6c4'], 6);
-    else if (e.type === 'collect') { audio.cue('collect'); burst(e.x, FLOOR - 10, ['#a9d6ff', '#4f9dff'], 10); }
-    else if (e.type === 'assemble') audio.cue('assemble');
-    else if (e.type === 'join') audio.cue('join');
-    else if (e.type === 'switch') audio.cue('switch');
-    else if (e.type === 'strand') audio.cue('strand');
-    else if (e.type === 'reunion') audio.cue('reunion');
-    else if (e.type === 'station') audio.cue('station');
-    else if (e.type === 'dock') { audio.cue('dock'); releaseInput(); showBanner('send'); }
-    else if (e.type === 'fall') audio.cue('fall');
-    else if (e.type === 'respawn') audio.cue('respawn');
+    else if (e.type === 'collect') burst(e.x, FLOOR - 10, ['#a9d6ff', '#4f9dff'], 10);
+    else if (e.type === 'strand') flashes.push({ kind: 'snap', x: e.x, at: e.t });
+    else if (e.type === 'relink') flashes.push({ kind: 'relink', x: COURSE.relays.filter(r => r <= run.x).at(-1), at: s });
+    else if (e.type === 'switch') flashes.push({ kind: 'switch', x: COURSE.switchX, at: e.t });
+    else if (e.type === 'assemble') flashes.push({ kind: 'dawn', x: run.x, at: s });
+    else if (e.type === 'dock') { releaseInput(); showBanner('send'); }
     else if (e.type === 'chapter') showBanner(e.id);
   }
 }
+// Test probe: scheduled notes and events (only when a probe is injected).
+const probe = globalThis.__rapippoStoryProbe;
+function probeNote(part, at, storyTime) { if (probe) (probe.notes ||= []).push({ part, at, s: storyTime }); }
+function probeEvent(e) { if (probe) (probe.events ||= []).push({ type: e.type, t: e.t, beat: e.beat }); }
 
 // ---------- drawing ----------
 const heroBlink = () => beatIndex(s) !== beatIndex(s - .12) || (s % BEAT) < .12;
-const camera = () => run.x - HERO_X;
+// The hero's screen x. While a friend lags behind (green in II, red at the
+// crane in III), the camera slides so both stay in view: the player watches
+// the gap open and sees the friend they leave behind.
+let heroX = HERO_X, cameraS = 0;
+function steerCamera() {
+  let lag = 0;
+  for (const f of [run.green, run.red]) {
+    if (run.together || ['dormant', 'station'].includes(f.state)) continue;
+    const d = run.x - f.x;
+    // Capped so a full FAST hop ahead always stays visible.
+    if (d > 0 && d < RANGE * 2) lag = Math.max(lag, Math.min(d - FOLLOW_GAP, 50) * (1 - smooth(RANGE * 1.5, RANGE * 2, d)));
+  }
+  const dt = Math.max(0, Math.min(.1, s - cameraS)); cameraS = s;
+  heroX += (HERO_X + Math.max(0, lag) - heroX) * (1 - Math.exp(-dt * 5));
+}
+const camera = () => run.x - heroX;
 function friendY(who, friend) {
   const lag = { blue: .5, green: .25, red: .75 }[who];
   const phase = ((s / BEAT + lag) % 1 + 1) % 1;
   if (friend.state === 'station') return FLOOR - 2 - Math.abs(Math.sin(phase * Math.PI)) * 18;
-  if (friend.state === 'dormant' || friend.state === 'lost' || friend.state === 'switch') return FLOOR - 2;
+  if (friend.state === 'dormant' || friend.state === 'lost') return FLOOR - 2;
+  if (friend.state === 'switch') return FLOOR - 6 - Math.abs(Math.sin(phase * Math.PI)) * 6;
   return FLOOR - 18 - Math.sin(phase * Math.PI) * 44;
 }
 function drawPlatforms(cam) {
@@ -235,20 +282,37 @@ function drawGlints(cam) {
   }
 }
 function drawDevices(cam) {
-  // Switch and bridge.
-  const sx = COURSE.switchX - cam;
+  // Relay antennas: they carry the signal to a stranded friend.
+  for (const rx of COURSE.relays) {
+    const x = rx - cam; if (x < -30 - cull || x > W + 30 + cull) continue;
+    ctx.fillStyle = '#4c6a66'; ctx.fillRect(x - 1, FLOOR - 64, 3, 64); ctx.fillRect(x - 7, FLOOR - 64, 15, 2);
+    ctx.fillStyle = beatIndex(s) % 2 ? '#5fe39a' : '#27503c'; ctx.fillRect(x - 2, FLOOR - 70, 5, 5);
+  }
+  // The switch is a socket shaped like green: it glows whenever green floats
+  // over it and the bridge stirs, before the player ever leaves green there.
+  const sx = COURSE.switchX - cam, g = run.green;
+  const over = !run.switchOn && g.state === 'follow' && Math.abs(g.x - COURSE.switchX) < 40;
   if (sx > -40 - cull && sx < W + 40 + cull) {
-    ctx.fillStyle = run.switchOn ? '#5fe39a' : '#3c5a55'; ctx.fillRect(sx - 18, FLOOR - 4, 36, 4);
-    ctx.fillStyle = run.switchOn ? '#c8ffdc' : '#5d7b74'; ctx.fillRect(sx - 3, FLOOR - 26, 6, 22);
+    ctx.fillStyle = run.switchOn ? '#5fe39a' : over ? '#3f8f66' : '#2d4a44'; ctx.fillRect(sx - 16, FLOOR - 4, 32, 4);
+    ctx.strokeStyle = run.switchOn ? '#c8ffdc' : over ? '#9ff0c4' : '#4f7a6c'; ctx.lineWidth = 1; ctx.setLineDash(run.switchOn ? [] : [2, 2]);
+    ctx.beginPath(); ctx.arc(sx, FLOOR - 15, 9, Math.PI, 0); ctx.lineTo(sx + 9, FLOOR - 5); ctx.lineTo(sx - 9, FLOOR - 5); ctx.closePath(); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = ctx.strokeStyle; ctx.fillRect(sx - 6, FLOOR - 31, 2, 7); ctx.fillRect(sx + 4, FLOOR - 31, 2, 7);
+    if (over) { ctx.fillStyle = 'rgba(95,227,154,.18)'; ctx.beginPath(); ctx.arc(sx, FLOOR - 14, 22, 0, Math.PI * 2); ctx.fill(); }
   }
   const ba = COURSE.bridge.a - cam, bb = COURSE.bridge.b - cam;
   if (bb > -10 - cull && ba < W + 10 + cull) {
-    if (run.switchOn) {
-      ctx.fillStyle = '#3d6b58'; ctx.fillRect(ba, FLOOR, bb - ba, 10);
-      ctx.fillStyle = '#9ff0c4'; for (let x = ba; x < bb; x += 14) ctx.fillRect(x, FLOOR, 10, 3);
-    } else {
-      ctx.strokeStyle = '#3c5a55'; ctx.setLineDash([4, 6]); ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(ba, FLOOR + 2); ctx.lineTo(bb, FLOOR + 2); ctx.stroke(); ctx.setLineDash([]);
+    // Once on, the planks run out from the near edge over one beat.
+    const k = run.switchOn ? smooth(0, BEAT, run.t - run.switchAt) : over ? .12 + .04 * Math.sin(s * 20) : 0;
+    const end = ba + (bb - ba) * k;
+    ctx.fillStyle = '#2d4a44'; ctx.fillRect(ba - 4, FLOOR - 2, 6, 14); ctx.fillRect(bb - 2, FLOOR - 2, 6, 14);
+    ctx.fillStyle = run.switchOn ? '#5fe39a' : '#27503c'; ctx.fillRect(ba - 3, FLOOR - 6, 4, 4); ctx.fillRect(bb - 1, FLOOR - 6, 4, 4);
+    if (k > 0) {
+      ctx.fillStyle = '#3d6b58'; ctx.fillRect(ba, FLOOR, end - ba, 10);
+      ctx.fillStyle = '#9ff0c4'; for (let x = ba; x < end - 10; x += 14) ctx.fillRect(x, FLOOR, 10, 3);
+    }
+    if (k < 1) {
+      ctx.strokeStyle = '#27403c'; ctx.setLineDash([3, 7]); ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(end, FLOOR + 2); ctx.lineTo(bb, FLOOR + 2); ctx.stroke(); ctx.setLineDash([]);
     }
   }
   // Crane: the span drops on its two solid beats of every four.
@@ -282,18 +346,85 @@ function drawFriends(cam) {
   for (const who of ['red', 'green', 'blue']) {
     const f = run[who];
     if (who === 'blue' && f.state === 'parts') continue;
-    const x = f.x - cam, y = friendY(who, f);
+    const slide = f.state === 'switch' && run.switchAt > 0 ? smooth(0, BEAT * .6, run.t - run.switchAt) : 1;
+    const x = (f.from !== undefined && slide < 1 ? f.from + (f.x - f.from) * slide : f.x) - cam, y = friendY(who, f);
     if (x < -30 - cull || x > W + 30 + cull) continue;
     const awake = !['dormant', 'lost'].includes(f.state);
-    if (f.state === 'follow' && !run.together && who === 'green') {
-      // The link to the hero thins as green drifts; it flickers near the edge.
-      const d = run.x - f.x, k = d / RANGE, flicker = k > .75 && (s * 14 | 0) % 2;
-      ctx.strokeStyle = `rgba(95, 227, 154, ${flicker ? .1 : Math.max(.12, .7 - k * .55)})`;
-      ctx.setLineDash([2, 4]); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(HERO_X, heroY() - 56); ctx.lineTo(x, y - 30); ctx.stroke(); ctx.setLineDash([]);
+    if (who === 'green' && !run.together) drawGreenSignal(f, x, y);
+    // A friend that lost the link goes dark-eyed with grey antenna tips.
+    const palette = f.state === 'lost' ? { ...PALETTE[who], a: '#3a4a44' } : PALETTE[who];
+    if (who === 'blue') {
+      // Blue is the lamp: a soft pool of light under it.
+      const glow = ctx.createRadialGradient(x, FLOOR - 4, 2, x, FLOOR - 4, 46);
+      glow.addColorStop(0, `rgba(111,182,255,${.22 * lightOpen()})`); glow.addColorStop(1, 'rgba(111,182,255,0)');
+      ctx.fillStyle = glow; ctx.fillRect(x - 46, FLOOR - 50, 92, 60);
     }
-    drawPod(ctx, x, y, 1, { phase: (s / BEAT) % 1, time: s, palette: PALETTE[who], eyes: awake, idle: !awake });
-    if (f.state === 'lost') { ctx.fillStyle = '#ff9b80'; ctx.font = 'bold 9px monospace'; ctx.textAlign = 'center'; ctx.fillText('×', x, y - 44); }
+    drawPod(ctx, x, y, 1, { phase: (s / BEAT) % 1, time: s, palette, eyes: awake, idle: !awake });
   }
+}
+// Green's link: a dotted line to the hero and three bars over green. Both
+// thin as the distance grows and flicker at the edge; when the link breaks
+// the bars drop out and green's eyes go dark. It was left behind by the
+// player's own speed, not by a script.
+function drawGreenSignal(f, x, y) {
+  if (f.state === 'dormant') return;
+  const k = Math.abs(run.x - f.x) / RANGE, linked = f.state === 'follow' || f.state === 'catch';
+  const bars = !linked ? 0 : k < .5 ? 3 : k < .78 ? 2 : 1, edge = linked && k > .78 && (s * 12 | 0) % 2;
+  if (linked) {
+    ctx.strokeStyle = `rgba(95, 227, 154, ${edge ? .08 : Math.max(.15, .75 - k * .55)})`;
+    ctx.setLineDash([2, 4]); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(heroX, heroY() - 56); ctx.lineTo(x, y - 30); ctx.stroke(); ctx.setLineDash([]);
+  }
+  for (let i = 0; i < 3; i++) {
+    ctx.fillStyle = i < bars ? (edge ? '#2c5a44' : '#5fe39a') : '#24342f';
+    ctx.fillRect(x + 9 + i * 3, y - 38 - i * 2, 2, 3 + i * 2);
+  }
+  if (f.state === 'lost' && (s * 3 | 0) % 2) {
+    ctx.fillStyle = '#ff9b80';
+    for (const [dx, dy] of [[0, 0], [4, 0], [2, 2], [0, 4], [4, 4]]) ctx.fillRect(x + 9 + dx, y - 46 + dy, 2, 2);
+  }
+}
+// Off the left edge, a small marker keeps a left-behind friend in mind while
+// its music can still be heard.
+function drawBehind(cam) {
+  for (const who of ['green', 'red']) {
+    const f = run[who], x = f.x - cam;
+    if (run.together || x > -6 || ['dormant', 'station'].includes(f.state)) continue;
+    const fade = 1 - smooth(RANGE, RANGE * 4.5, run.x - f.x);
+    if (fade <= 0) continue;
+    ctx.globalAlpha = fade; ctx.fillStyle = PALETTE[who].a;
+    ctx.beginPath(); ctx.moveTo(4, FLOOR - 40); ctx.lineTo(11, FLOOR - 45); ctx.lineTo(11, FLOOR - 35); ctx.fill();
+    ctx.fillStyle = f.state === 'lost' ? '#3a4a44' : PALETTE[who].c; ctx.fillRect(14, FLOOR - 44, 7, 8);
+    ctx.fillStyle = f.state === 'lost' || f.state === 'dormant' ? '#24342f' : '#172638'; ctx.fillRect(15, FLOOR - 42, 2, 2); ctx.fillRect(18, FLOOR - 42, 2, 2);
+    ctx.globalAlpha = 1;
+  }
+}
+// The communication range, a faint ring while green follows in chapter II.
+function drawRange() {
+  const g = run.green;
+  if (run.together || !(g.state === 'follow' || g.state === 'catch') || run.chapter !== 'apart') return;
+  const k = (run.x - g.x) / RANGE;
+  ctx.strokeStyle = `rgba(95, 227, 154, ${.07 + .25 * smooth(.55, 1, k)})`; ctx.lineWidth = 1; ctx.setLineDash([3, 6]);
+  ctx.beginPath(); ctx.arc(heroX, heroY() - 56, RANGE, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+}
+function drawFlashes(cam) {
+  for (const f of flashes) {
+    const age = s - f.at, x = f.x - cam;
+    if (f.kind === 'snap' && age < .5) {
+      ctx.fillStyle = `rgba(255,155,128,${1 - age / .5})`;
+      for (let i = 0; i < 6; i++) ctx.fillRect(x + Math.cos(i) * age * 60, FLOOR - 40 + Math.sin(i * 2) * age * 40, 2, 2);
+    } else if (f.kind === 'relink' && age < 1.2) {
+      ctx.strokeStyle = `rgba(95,227,154,${1 - age / 1.2})`; ctx.lineWidth = 2;
+      for (const lag of [0, .25]) { const r = Math.max(0, age - lag) * 160; ctx.beginPath(); ctx.arc(x, FLOOR - 68, r, Math.PI, Math.PI * 2); ctx.stroke(); }
+    } else if (f.kind === 'switch' && age < 1) {
+      ctx.strokeStyle = `rgba(200,255,220,${1 - age})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, FLOOR - 14, 10 + age * 40, 0, Math.PI * 2); ctx.stroke();
+    } else if (f.kind === 'dawn' && age < 2.2) {
+      // The light rolls out from the newly built lamp across the moon.
+      ctx.strokeStyle = `rgba(169,214,255,${.7 * (1 - age / 2.2)})`; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(heroX - 30, FLOOR - 30, age * 260, 0, Math.PI * 2); ctx.stroke();
+      if (age < .3) { ctx.fillStyle = `rgba(230,244,255,${.5 * (1 - age / .3)})`; ctx.fillRect(0, 0, W, H); }
+    }
+  }
+  flashes = flashes.filter(f => s - f.at < 2.5 && s >= f.at - 1);
 }
 function heroY() {
   if (run.status === 'falling') { const age = s - run.fallAt * BEAT; return FLOOR - 2 + Math.min(150, age * age * 260); }
@@ -310,7 +441,7 @@ function drawDarkness() {
   if (open >= 1 || run.chapter !== 'wake') return;
   // The hero's own glow pulses wider at each touchdown.
   const touch = Math.max(0, 1 - (s % BEAT) / .3), r = 64 + touch * 22 + open * 600;
-  const gx = HERO_X, gy = heroY() - 20;
+  const gx = heroX, gy = heroY() - 20;
   const g = ctx.createRadialGradient(gx, gy, r * .35, gx, gy, r);
   g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, `rgba(2,4,6,${.95 * (1 - open)})`);
   ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
@@ -319,13 +450,13 @@ function drawScene() {
   const cam = camera();
   drawBackdrop(cam);
   ctx.fillStyle = '#020406'; ctx.fillRect(0, FLOOR, W, H - FLOOR);
-  drawPlatforms(cam); drawDevices(cam); drawFriends(cam); drawHero(cam);
+  drawRange(); drawPlatforms(cam); drawDevices(cam); drawFriends(cam); drawHero(cam);
   for (const p of particles) {
     ctx.globalAlpha = Math.max(0, 1 - p.age / .4); ctx.fillStyle = p.color;
     ctx.fillRect(p.x - cam + p.vx * p.age, p.y + p.vy * p.age + 120 * p.age ** 2, 3, 3);
   }
   ctx.globalAlpha = 1;
-  drawDarkness(); drawGlints(cam);
+  drawDarkness(); drawGlints(cam); drawFlashes(cam); drawBehind(cam);
   // The active blue part glows through the dark.
   if (run.parts.got < COURSE.parts.length) {
     const px = run.parts.x - cam, pulse = reducedMotion.matches ? .5 : .5 + .5 * Math.sin(s * 4);
@@ -347,6 +478,19 @@ function drawBackdrop(cam, alpha = 1) {
     ctx.fillStyle = i % 7 ? `rgba(82,105,118,${stars})` : `rgba(234,214,164,${stars})`;
     ctx.fillRect(x | 0, 18 + i * 37 % 260, 2, i % 7 ? 2 : 3);
   }
+  // Out of the dark: a horizon glow and a far range with lit rims appear only
+  // once blue's light opens. The moon was always this wide.
+  const open = lightOpen() * alpha;
+  if (open > 0) {
+    const sky = ctx.createLinearGradient(0, 150, 0, FLOOR);
+    sky.addColorStop(0, 'rgba(40,70,100,0)'); sky.addColorStop(1, `rgba(60,100,140,${.35 * open})`);
+    ctx.fillStyle = sky; ctx.fillRect(0, 150, W, FLOOR - 150);
+    for (let x = -40; x < W + 40; x += 4) {
+      const wx = x + cam * .015, h = 50 + Math.sin(wx * .011) * 28 + Math.sin(wx * .037) * 10;
+      ctx.fillStyle = `rgba(22,38,50,${open})`; ctx.fillRect(x, FLOOR - 40 - h, 4, h);
+      ctx.fillStyle = `rgba(150,190,220,${.45 * open})`; ctx.fillRect(x, FLOOR - 40 - h, 4, 1);
+    }
+  }
   ctx.globalAlpha = alpha;
   for (let layer = 0; layer < 2; layer++) {
     ctx.fillStyle = layer ? '#14242e' : '#101d26';
@@ -362,7 +506,7 @@ function drawEnding() {
   // and recedes until only four small lights remain.
   const a = after(), fit = smooth(0, 6, a), turn = smooth(ENDING.turn, ENDING.away, a), away = smooth(ENDING.away, ENDING.lights, a);
   const zoom = (1 - .42 * fit) * (1 - .3 * turn) * Math.exp(-2.3 * away);
-  const cam = (run.x - HERO_X) * (1 - fit) + (COURSE.baseCenter - W / 2) * fit;
+  const cam = (run.x - heroX) * (1 - fit) + (COURSE.baseCenter - W / 2) * fit;
   const cy = FLOOR - 70 * fit + (H / 2 + 40 - FLOOR + 70) * turn;
   drawBackdrop(cam, 1 - turn);
   ctx.save(); ctx.translate(W / 2, cy); ctx.scale(zoom, zoom); ctx.translate(-W / 2, -FLOOR); cull = W / zoom;
@@ -415,7 +559,7 @@ function frame() {
       if (run.status === 'docked') { run.t = s; }
       else input.advance(s, (from, to, f) => advanceStory(run, COURSE, to, f, events));
       lastS = s;
-      handle(events);
+      predict(); handle(events); steerCamera();
       mixMusic(); scheduleMusic();
       const a = after();
       if (a >= ENDING.launch && !launched) { launched = true; audio.rumble(clock.contextTime(s) ?? 0, 7); }
@@ -427,10 +571,13 @@ function frame() {
   drawHints(); drawBanner();
   requestAnimationFrame(frame);
 }
-run = initialRun(); refreshCopy(); requestAnimationFrame(frame);
+run = initialRun(); ahead = structuredClone(run); refreshCopy(); requestAnimationFrame(frame);
 // Browser tests read (never write) the run through an injected probe.
 if (globalThis.__rapippoStoryProbe) globalThis.__rapippoStoryProbe.read = () => ({
   screen, s, x: run.x, beat: run.beat, status: run.status, chapter: run.chapter, checkpoint: run.checkpoint,
-  parts: run.parts.got, blue: run.blue.state, green: run.green.state, red: run.red.state, switchOn: run.switchOn,
-  domain: clock.domain, dockAt: run.dockAt,
+  parts: run.parts.got, blue: run.blue.state, green: run.green.state, red: run.red.state, switchOn: run.switchOn, greenX: run.green.x, redX: run.red.x,
+  domain: clock.domain, dockAt: run.dockAt, offset: clock.offset, audio: audio.debug(),
+  // How far the context clock runs ahead of what is heard right now.
+  latency: audio.running ? audio.context.currentTime - heardFromContext(audio.context, perfNow()) : null,
+  hasOutputTimestamp: !!audio.context?.getOutputTimestamp,
 });

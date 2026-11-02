@@ -10,7 +10,9 @@ export function hop(run, course, f) {
   advanceStory(run, course, t0 + BEAT, false, events);
   return events;
 }
-const bad = events => events.some(e => e.type === 'fall' || e.type === 'strand');
+// Losing green before the switch field is recoverable (relay antennas);
+// losing it on the field dooms the bridge, so prune that branch early.
+const bad = (events, course) => events.some(e => e.type === 'fall' || (e.type === 'strand' && e.x >= course.fieldStart - 300));
 export function solve(course, run, { limit = 200000, until = r => r.status === 'docked', order = CHOICES } = {}) {
   const path = [];
   let nodes = 0;
@@ -19,7 +21,7 @@ export function solve(course, run, { limit = 200000, until = r => r.status === '
     for (const f of order) {
       if (++nodes > limit) return null;
       const next = structuredClone(state);
-      if (bad(hop(next, course, f))) continue;
+      if (bad(hop(next, course, f), course)) continue;
       path.push(f);
       const done = go(next);
       if (done) return done;

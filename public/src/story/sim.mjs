@@ -6,8 +6,9 @@ import { BEAT } from './beat.mjs';
 import { platformAt, chapterAt, platformAhead } from './course.mjs';
 
 // Communication range from the hero's antenna. A friend that drifts beyond it
-// loses the signal and stops; nobody is ever commanded.
-export const RANGE = 240;
+// loses the signal and stops; nobody is ever commanded. Small enough that the
+// whole ring, and the friend leaving it, fits on screen behind the hero.
+export const RANGE = 150;
 export const FOLLOW_GAP = 46;
 // Green floats between SLOW and FAST: FAST pulls away, SLOW lets it catch up.
 export const GREEN_SPEED = 160;
@@ -29,7 +30,7 @@ export function newStory(course) {
     blue: { state: 'parts', x: course.start - 30 },
     green: { state: 'dormant', x: course.greenMeet },
     red: { state: 'dormant', x: course.redConsole },
-    switchOn: false, fails: {},
+    switchOn: false, switchAt: null, fails: {},
   };
 }
 
@@ -41,7 +42,7 @@ export function storyFrom(course, i) {
   run.parts.got = got; run.parts.x = course.parts[got] ?? 0;
   if (got === course.parts.length) { run.blue.state = 'follow'; run.blue.x = cp.x - FOLLOW_GAP; run.parts.assembledAt = -10; }
   if (cp.x >= course.greenMeet - JOIN_REACH) { run.green.state = 'follow'; run.green.x = cp.x - FOLLOW_GAP; }
-  if (cp.x > course.switchX) { run.green.state = 'switch'; run.green.x = course.switchX; run.switchOn = true; }
+  if (cp.x > course.switchX) { run.green.state = 'switch'; run.green.x = course.switchX; run.switchOn = true; run.switchAt = -10; }
   if (cp.x >= course.redConsole - WAKE_REACH) run.red.state = 'crane';
   if (cp.x >= course.craneFar) { run.red.state = run.green.state = 'carry'; run.red.x = cp.x - 700; run.green.x = run.red.x - 16; }
   if (cp.chapter === 'base') {
@@ -59,10 +60,12 @@ export const craneSolid = (run, beat) => run.red.state === 'crane' && (craneDown
 export function advanceStory(run, course, to, fast, events = []) {
   while (run.t < to - 1e-12) {
     const next = (run.beat + 1) * BEAT, end = Math.min(to, next), dt = end - run.t;
-    const speed = run.status === 'playing' ? (fast ? FAST_SPEED : SLOW_SPEED) : 0;
+    const speed = run.status === 'playing' ? (fast ? FAST_SPEED : SLOW_SPEED) : 0, n = events.length;
     moveCrew(run, course, dt, speed, events);
     run.x += dt * speed; run.t = end;
     if (end >= next - 1e-9) { run.t = next; run.beat += 1; touchdown(run, course, events); }
+    // Every event carries its story time, so its sound can be scheduled ahead.
+    for (let i = n; i < events.length; i++) { events[i].t ??= run.t; events[i].beat ??= run.beat; }
   }
   return events;
 }
@@ -92,6 +95,11 @@ function land(run, course, p, events) {
   collectPart(run, course, events);
   if (run.green.state === 'dormant' && run.x >= course.greenMeet - JOIN_REACH) {
     run.green.state = 'follow'; events.push({ type: 'join', who: 'green' });
+  }
+  // A relay antenna between the hero and a stranded green carries the signal
+  // again: green wakes and hurries to catch up.
+  if (run.green.state === 'lost' && course.relays.some(r => r > run.green.x && r <= run.x)) {
+    run.green.state = 'catch'; events.push({ type: 'relink', who: 'green' });
   }
   if (run.red.state === 'dormant' && run.x >= course.redConsole - WAKE_REACH) {
     run.red.state = 'crane'; events.push({ type: 'join', who: 'red' });
@@ -136,12 +144,21 @@ function moveCrew(run, course, dt, speed, events) {
   const { blue, green, red } = run, x1 = run.x + speed * dt;
   if (blue.state === 'follow') blue.x = x1 - FOLLOW_GAP * .7 + (blue.x - (x1 - FOLLOW_GAP * .7)) * Math.exp(-6 * dt);
   if (green.state === 'follow') {
-    const vg = run.together ? TEAM_SPEED : GREEN_SPEED, g1 = Math.min(x1 - FOLLOW_GAP, green.x + vg * dt);
+    // After a fall at the switch, green lingers over its socket: a little
+    // after one try, almost stopping after two. Nobody tells it to; it has
+    // noticed the bridge. SLOW alone then leaves it there, so nobody is stuck.
+    const tries = run.switchOn ? 0 : run.fails[run.checkpoint] || 0;
+    const linger = tries && Math.abs(green.x - course.switchX) < 40 && run.chapter === 'apart' ? (tries >= 2 ? 20 : 80) : null;
+    const vg = run.together ? TEAM_SPEED : linger ?? GREEN_SPEED, g1 = Math.min(x1 - FOLLOW_GAP, green.x + vg * dt);
     if (!run.together && x1 - g1 > RANGE) {
       // Exact instant the link breaks, independent of frame size.
       const d0 = run.x - green.x, tc = Math.max(0, Math.min(dt, (RANGE - d0) / Math.max(1e-9, speed - vg)));
-      strand(run, course, green.x + vg * tc, events);
+      strand(run, course, green.x + vg * tc, events, run.t + tc);
     } else green.x = g1;
+  }
+  if (green.state === 'catch') {
+    green.x = Math.min(x1 - FOLLOW_GAP, green.x + TEAM_SPEED * dt);
+    if (x1 - green.x <= FOLLOW_GAP + 1e-6) green.state = 'follow';
   }
   if (red.state === 'rescue') {
     red.x -= RESCUE_SPEED * dt;
@@ -155,14 +172,14 @@ function moveCrew(run, course, dt, speed, events) {
   } else if (red.state === 'follow') red.x = Math.min(x1 - FOLLOW_GAP * 1.6, red.x + TEAM_SPEED * dt);
 }
 
-function strand(run, course, x, events) {
+function strand(run, course, x, events, t) {
   const green = run.green;
   if (!run.switchOn && Math.abs(x - course.switchX) <= switchSnap(run)) {
-    green.state = 'switch'; green.from = x; green.x = course.switchX; run.switchOn = true;
-    events.push({ type: 'switch', from: x });
+    green.state = 'switch'; green.from = x; green.x = course.switchX; run.switchOn = true; run.switchAt = t;
+    events.push({ type: 'switch', from: x, t });
   } else {
-    green.state = 'lost'; green.x = x;
-    events.push({ type: 'strand', x });
+    green.state = 'lost'; green.x = x; green.lostAt = t;
+    events.push({ type: 'strand', x, t });
   }
 }
 
@@ -174,7 +191,7 @@ function respawn(run, course, events) {
   for (const friend of [blue, green, red]) if (friend.state === 'station') friend.state = 'follow';
   if (blue.state === 'follow') blue.x = cp.x - FOLLOW_GAP;
   if (green.state === 'switch' && cp.x < course.switchX) { green.state = 'follow'; run.switchOn = false; }
-  if (green.state === 'lost') green.state = cp.x >= course.greenMeet - JOIN_REACH ? 'follow' : 'dormant';
+  if (green.state === 'lost' || green.state === 'catch') green.state = cp.x >= course.greenMeet - JOIN_REACH ? 'follow' : 'dormant';
   if (green.state === 'dormant') green.x = course.greenMeet;
   if (red.state === 'rescue' || red.state === 'carry') {
     red.state = green.state = 'carry'; red.x = cp.x - 700; green.x = red.x - 16;

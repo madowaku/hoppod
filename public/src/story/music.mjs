@@ -29,7 +29,8 @@ export function notesAt(n, song) {
   const docked = song.dockBeat !== null && beat >= song.dockBeat;
   const after = docked ? beat - song.dockBeat : -1;
   const on = part => docked ? after >= ENDING[part] : song.parts.has(part);
-  if (!docked && sub === 0 && song.tick(beat)) out.push({ part: 'tick', kind: 'tick', f: beat % 2 ? 1760 : 2350, d: .05, v: 1 });
+  // The dock touchdown itself still ticks; every beat after it is the friends'.
+  if ((!docked || after === 0) && sub === 0 && song.tick(beat)) out.push({ part: 'tick', kind: 'tick', f: beat % 2 ? 1760 : 2350, d: .05, v: 1 });
   if (!docked && sub === 2 && song.tick(beat)) out.push({ part: 'tick', kind: 'wind', f: 3100, d: .03, v: .35 });
   const chord = chordAt(beat);
   if (on('bell') && sub % 2 === 0) {
@@ -56,7 +57,8 @@ const CUES = {
   assemble: [[0, 1319, .08, .05], [.09, 1760, .24, .05], [.2, 2637, .5, .03]],
   join: [[0, 784, .12, .05], [.1, 1175, .3, .045]],
   switch: [[0, 392, .1, .06], [.08, 587, .1, .05], [.16, 784, .35, .05]],
-  strand: [[0, 523, .2, .04], [.14, 392, .4, .035]],
+  strand: [[0, 659, .12, .045], [.1, 523, .16, .04], [.22, 392, .5, .035]],
+  relink: [[0, 523, .1, .04], [.08, 784, .12, .045], [.16, 1047, .3, .045]],
   reunion: [[0, 784, .2, .05], [.1, 988, .2, .05], [.2, 1175, .3, .05], [.34, 1568, .8, .04]],
   station: [[0, 1175, .15, .045], [.09, 1568, .4, .04]],
   dock: [[0, 196, .3, .09], [.02, 98, .5, .08]],
@@ -65,7 +67,7 @@ const CUES = {
 };
 
 export function createStoryAudio() {
-  let ctx = null, master, muffle, buses = {}, noise, muted = false;
+  let ctx = null, master, muffle, buses = {}, tones = {}, noise, muted = false;
   const voices = new Set();
   const build = () => {
     master = ctx.createGain(); master.connect(ctx.destination);
@@ -74,8 +76,11 @@ export function createStoryAudio() {
     muffle = ctx.createBiquadFilter(); muffle.type = 'lowpass'; muffle.frequency.value = 12000; muffle.Q.value = .4;
     const music = ctx.createGain(); music.gain.value = .9; music.connect(muffle); muffle.connect(master);
     for (const part of PARTS) {
-      const g = ctx.createGain(); g.gain.value = 0;
-      g.connect(part === 'tick' || part === 'sparkle' ? master : music); buses[part] = g;
+      const g = ctx.createGain(); g.gain.value = 0; buses[part] = g;
+      if (part === 'tick' || part === 'sparkle') { g.connect(master); continue; }
+      // A friend's own tone filter: far away it thins out like a weak radio.
+      const tone = ctx.createBiquadFilter(); tone.type = 'lowpass'; tone.frequency.value = 12000; tone.Q.value = .7;
+      g.connect(tone); tone.connect(music); tones[part] = tone;
     }
     buses.cue = ctx.createGain(); buses.cue.gain.value = 1; buses.cue.connect(master);
     noise = ctx.createBuffer(1, ctx.sampleRate * .5, ctx.sampleRate);
@@ -90,15 +95,16 @@ export function createStoryAudio() {
     g.gain.setValueAtTime(.0001, at); g.gain.exponentialRampToValueAtTime(Math.max(.0002, peak), at + attack);
     g.gain.exponentialRampToValueAtTime(.0001, at + decay);
   };
-  const tone = (bus, type, f, at, decay, peak, glide = 0) => {
+  const tone = (bus, type, f, at, decay, peak, glide = 0, attack = .004) => {
     const o = ctx.createOscillator(), g = ctx.createGain();
     o.type = type; o.frequency.setValueAtTime(f, at);
     if (glide) o.frequency.exponentialRampToValueAtTime(f * glide, at + decay);
-    envelope(g, at, peak, decay); o.connect(g); g.connect(bus); o.start(at); o.stop(at + decay + .05); track(o, g, at);
+    envelope(g, at, peak, decay, attack); o.connect(g); g.connect(bus); o.start(at); o.stop(at + decay + .05); track(o, g, at);
   };
   const hiss = (bus, f, at, decay, peak, type = 'highpass') => {
     const s = ctx.createBufferSource(), filter = ctx.createBiquadFilter(), g = ctx.createGain();
-    s.buffer = noise; filter.type = type; filter.frequency.value = f; filter.Q.value = type === 'bandpass' ? 4 : .7;
+    // The noise buffer loops, so long sweeps (the launch rumble) never cut out.
+    s.buffer = noise; s.loop = true; filter.type = type; filter.frequency.value = f; filter.Q.value = type === 'bandpass' ? 4 : .7;
     envelope(g, at, peak, decay, .002); s.connect(filter); filter.connect(g); g.connect(bus);
     s.start(at, (at * 7.3) % .4); s.stop(at + decay + .05); track(s, g, at);
   };
@@ -124,10 +130,12 @@ export function createStoryAudio() {
     get muted() { return muted; },
     // Muting silences the master only; the context and the beat keep running.
     setMuted(value) { muted = value; if (ctx) master.gain.setTargetAtTime(muted ? 0 : 1, ctx.currentTime, .02); },
-    mix(levels, muffleAmount = 0) {
+    // levels: part → gain; clarity: part → 0 (radio-thin) … 1 (clear).
+    mix(levels, muffleAmount = 0, clarity = {}) {
       if (!ctx) return;
       const t = ctx.currentTime;
       for (const part of PARTS) buses[part].gain.setTargetAtTime(levels[part] || 0, t, .12);
+      for (const [part, tone] of Object.entries(tones)) tone.frequency.setTargetAtTime(350 * Math.pow(12000 / 350, Math.max(0, Math.min(1, clarity[part] ?? 1))), t, .2);
       muffle.frequency.setTargetAtTime(12000 * Math.pow(500 / 12000, Math.max(0, Math.min(1, muffleAmount))), t, .25);
     },
     note(note, at) { if (ctx) voice(note, at); },
@@ -136,11 +144,29 @@ export function createStoryAudio() {
       const start = at ?? ctx.currentTime + .005;
       for (const [delay, f, decay, peak] of CUES[name] || []) tone(buses.cue, name === 'dock' || name === 'fall' ? 'triangle' : 'sine', f, start + delay, decay, peak, name === 'fall' ? .5 : 0);
       if (name === 'dock') hiss(buses.cue, 900, start, .25, .06, 'bandpass');
+      // Out of the dark: a slow, wide chord under the boot chime.
+      if (name === 'assemble') for (const [i, f] of [196, 293.66, 392, 493.88, 587.33].entries()) tone(buses.cue, 'sine', f, start + .25 + i * .05, 4.5, .022, 0, .9);
     },
+    // Launch: swell for 1.5s, hold, then fade out over the last 2s.
     rumble(at, seconds) {
       if (!ctx) return;
-      hiss(buses.cue, 160, at, seconds, .12, 'lowpass');
-      tone(buses.cue, 'sawtooth', 55, at, seconds, .02, 1.6);
+      const s = ctx.createBufferSource(), filter = ctx.createBiquadFilter(), g = ctx.createGain(), o = ctx.createOscillator(), og = ctx.createGain();
+      s.buffer = noise; s.loop = true; filter.type = 'lowpass'; filter.frequency.value = 160;
+      o.type = 'sawtooth'; o.frequency.setValueAtTime(55, at); o.frequency.linearRampToValueAtTime(90, at + seconds);
+      for (const [gain, peak] of [[g, .12], [og, .018]]) {
+        gain.gain.setValueAtTime(0, at); gain.gain.linearRampToValueAtTime(peak, at + 1.5);
+        gain.gain.setValueAtTime(peak, at + seconds - 2); gain.gain.linearRampToValueAtTime(0, at + seconds);
+      }
+      s.connect(filter); filter.connect(g); g.connect(buses.cue); o.connect(og); og.connect(buses.cue);
+      s.start(at); s.stop(at + seconds + .05); o.start(at); o.stop(at + seconds + .05);
+      track(s, g, at); track(o, og, at);
+    },
+    // Read-only snapshot for tests.
+    debug() {
+      if (!ctx) return null;
+      const t = ctx.currentTime;
+      return { state: ctx.state, master: master.gain.value, voices: voices.size, future: [...voices].filter(v => v.at > t).length,
+        baseLatency: ctx.baseLatency ?? null, outputLatency: ctx.outputLatency ?? null, sampleRate: ctx.sampleRate };
     },
     // Drop every note not yet started (pause, restart); sounding ones fade.
     cancel() {

@@ -44,11 +44,15 @@ export function buildCourse() {
   c.chapter('apart');
   p = c.plat(50, 420); c.checkpoint(p, 'apart'); c.marks.greenMeet = p.a + 300;
   c.filler(6, r, [40, 80], [150, 220]);
-  // Long valley: two pits only FAST can clear, then islands that want SLOW.
+  // Long valley: stepping stones only a mostly-FAST rhythm can cross. Green
+  // always loses the link here once, safely: the relay antenna on the rest
+  // ground after it reconnects green. The rule is learnt before the switch.
   p = c.plat(50, 220); c.checkpoint(p, 'apart');
-  c.plat(168, 150); c.plat(172, 160);
-  c.plat(42, 72); c.plat(40, 70); c.plat(44, 74);
-  c.plat(50, 260);
+  c.marks.relays = [Math.round(p.a + 150)];
+  for (let i = 0; i < 4; i++) c.plat(125, 70);
+  c.plat(60, 200);
+  c.plat(42, 72); c.plat(40, 70);
+  p = c.plat(44, 300); c.marks.relays.push(Math.round(p.a + 170));
   c.filler(3, r, [40, 70], [150, 200]);
   // Switch field: one long ground, the switch, then a chasm only the bridge spans.
   p = c.plat(50, 1060); c.checkpoint({ a: p.a, b: p.a + 160 }, 'apart');

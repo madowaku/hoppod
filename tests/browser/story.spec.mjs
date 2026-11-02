@@ -52,6 +52,8 @@ test('the whole STORY plays through with real key events to the end card',async(
     if(r.switchOn&&!shots.switchOn){shots.switchOn=true;await page.locator('#play').screenshot({path:artifacts+'/story-switch.png'});}
     if(r.red==='follow'&&!shots.reunion){shots.reunion=true;await page.locator('#play').screenshot({path:artifacts+'/story-reunion.png'});}
   }
+  // The clock starts a few ms after the click, so let the last touchdown land.
+  await page.clock.runFor(100);
   let r=await read(page);expect(r.status).toBe('docked');
   await page.clock.runFor(ENDING.lights*780);await page.locator('#play').screenshot({path:artifacts+'/story-lights.png'});
   await page.clock.runFor((ENDING.card-ENDING.lights)*780+500);
