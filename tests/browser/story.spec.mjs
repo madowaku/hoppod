@@ -41,13 +41,13 @@ test('the whole STORY plays through with real key events to the end card',async(
   const {path}=solve(COURSE,newStory(COURSE),{order:[.25,0,.5,.75,1]});
   const errors=await open(page);
   await page.locator('#action').click();
-  const shots={join:false,switchOn:false,reunion:false};
+  const shots={join:false,switchOn:false,reunion:false};let inset=0;
   for(const f of path) {
     const hold=Math.round(f*780);
     if(hold>0){await page.keyboard.down('Space');await page.clock.runFor(hold);await page.keyboard.up('Space');}
     await page.clock.runFor(780-hold);
     const r=await read(page);
-    expect(r.status).not.toBe('falling');
+    expect(r.status).not.toBe('falling');inset=Math.max(inset,r.inset);
     if(r.green==='follow'&&!shots.join){shots.join=true;await page.locator('#play').screenshot({path:artifacts+'/story-green.png'});}
     if(r.switchOn&&!shots.switchOn){shots.switchOn=true;await page.locator('#play').screenshot({path:artifacts+'/story-switch.png'});}
     if(r.red==='follow'&&!shots.reunion){shots.reunion=true;await page.locator('#play').screenshot({path:artifacts+'/story-reunion.png'});}
@@ -55,7 +55,19 @@ test('the whole STORY plays through with real key events to the end card',async(
   // The clock starts a few ms after the click, so let the last touchdown land.
   await page.clock.runFor(100);
   let r=await read(page);expect(r.status).toBe('docked');
-  await page.clock.runFor(ENDING.lights*780);await page.locator('#play').screenshot({path:artifacts+'/story-lights.png'});
+  // Every story beat happened, in order, and red's trip was shown in its window.
+  const types=(await page.evaluate(()=>globalThis.__rapippoStoryProbe.events)).map(e=>e.type);
+  const order=['collect','assemble','join','strand','relink','socket','switch','join','notice','rescue','pickup','reunion','station','station','station','dock'];
+  let at=0;for(const t of types)if(t===order[at])at++;
+  expect(order.slice(at),'missing story beats').toEqual([]);
+  expect(inset).toBeGreaterThan(.9);
+  // The hero stops for good: no more touchdowns after the dock.
+  const lands=(await page.evaluate(()=>globalThis.__rapippoStoryProbe.events)).filter(e=>e.type==='land').length;
+  await page.clock.runFor(780*6);
+  expect((await page.evaluate(()=>globalThis.__rapippoStoryProbe.events)).filter(e=>e.type==='land').length).toBe(lands);
+  r=await read(page);expect(r.friendY.blue).not.toBeCloseTo(378,0);
+  await page.clock.runFor((ENDING.lights-6)*780);await page.locator('#play').screenshot({path:artifacts+'/story-lights.png'});
+  r=await read(page);expect(r.lights.length).toBe(4);
   await page.clock.runFor((ENDING.card-ENDING.lights)*780+500);
   await expect(page.locator('#overlay')).toHaveAttribute('data-screen','end');
   await expect(page.locator('#again')).toBeVisible();

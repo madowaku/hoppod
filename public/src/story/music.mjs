@@ -7,7 +7,7 @@ import { BEAT } from './beat.mjs';
 export const STEP = BEAT / 4;
 export const PARTS = Object.freeze(['tick', 'bell', 'bass', 'perc', 'sparkle']);
 // G major, four bars of four beats: G – Em – C – D. Frequencies in Hz.
-const NOTE = { D3: 146.83, E3: 164.81, G2: 98, A2: 110, B2: 123.47, C3: 130.81, Fs3: 185, G3: 196,
+const NOTE = { G4: 392, D3: 146.83, E3: 164.81, G2: 98, A2: 110, B2: 123.47, C3: 130.81, Fs3: 185, G3: 196,
   B4: 493.88, C5: 523.25, D5: 587.33, E5: 659.25, Fs5: 739.99, G5: 783.99, A5: 880, B5: 987.77, C6: 1046.5, D6: 1174.66, E6: 1318.51, G6: 1567.98 };
 const PROGRESSION = [
   { bass: [NOTE.G2, NOTE.D3], tones: [NOTE.G5, NOTE.B5, NOTE.D6, NOTE.G6] },
@@ -33,6 +33,9 @@ export function notesAt(n, song) {
   if ((!docked || after === 0) && sub === 0 && song.tick(beat)) out.push({ part: 'tick', kind: 'tick', f: beat % 2 ? 1760 : 2350, d: .05, v: 1 });
   if (!docked && sub === 2 && song.tick(beat)) out.push({ part: 'tick', kind: 'wind', f: 3100, d: .03, v: .35 });
   const chord = chordAt(beat);
+  // D+1: blue takes over the beat the hero would have landed on, with a low
+  // bell under it so the hand-off is heard, not just seen.
+  if (docked && after === ENDING.bell && sub === 0) out.push({ part: 'bell', kind: 'bell', f: NOTE.G4, d: 1.8, v: 1 });
   if (on('bell') && sub % 2 === 0) {
     const i = ARP[(bar * 2 + sub / 2) % ARP.length];
     out.push({ part: 'bell', kind: 'bell', f: chord.tones[i], d: .9, v: sub === 0 ? 1 : .7 });
@@ -59,6 +62,10 @@ const CUES = {
   switch: [[0, 392, .1, .06], [.08, 587, .1, .05], [.16, 784, .35, .05]],
   strand: [[0, 659, .12, .045], [.1, 523, .16, .04], [.22, 392, .5, .035]],
   relink: [[0, 523, .1, .04], [.08, 784, .12, .045], [.16, 1047, .3, .045]],
+  socket: [[0, 1568, .06, .025], [.08, 2093, .12, .02]],
+  notice: [[0, 880, .08, .04], [.14, 1175, .16, .04]],
+  rescue: [[0, 587, .1, .045], [.05, 880, .1, .045], [.1, 1319, .3, .04]],
+  pickup: [[0, 523, .1, .045], [.08, 784, .12, .05], [.16, 1047, .2, .05], [.3, 1568, .4, .03]],
   reunion: [[0, 784, .2, .05], [.1, 988, .2, .05], [.2, 1175, .3, .05], [.34, 1568, .8, .04]],
   station: [[0, 1175, .15, .045], [.09, 1568, .4, .04]],
   dock: [[0, 196, .3, .09], [.02, 98, .5, .08]],
@@ -166,7 +173,8 @@ export function createStoryAudio() {
       if (!ctx) return null;
       const t = ctx.currentTime;
       return { state: ctx.state, master: master.gain.value, voices: voices.size, future: [...voices].filter(v => v.at > t).length,
-        baseLatency: ctx.baseLatency ?? null, outputLatency: ctx.outputLatency ?? null, sampleRate: ctx.sampleRate };
+        baseLatency: ctx.baseLatency ?? null, outputLatency: ctx.outputLatency ?? null, sampleRate: ctx.sampleRate,
+        levels: Object.fromEntries(PARTS.map(part => [part, buses[part].gain.value])), clarity: Object.fromEntries(Object.entries(tones).map(([part, t]) => [part, t.frequency.value])) };
     },
     // Drop every note not yet started (pause, restart); sounding ones fade.
     cancel() {

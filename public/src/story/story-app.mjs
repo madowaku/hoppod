@@ -1,19 +1,22 @@
 // RAPIPPO STORY. Separate page and modules; FREE RUN code is only imported
 // read-only (physics constants, footing, pod artwork).
-import { INSET, footing } from '../engine.mjs';
+import { INSET, FAST_SPEED, footing } from '../engine.mjs';
 import { drawPod } from '../pod.mjs';
 import { COMPANION_PALETTE } from '../companion.mjs';
 import { BEAT, BeatClock, TimedInput, heardFromContext, beatIndex } from './beat.mjs';
 import { COURSE } from './course.mjs';
-import { newStory, storyFrom, advanceStory, craneSolid, hopLift, RANGE, FOLLOW_GAP, FALL_BEATS } from './sim.mjs';
+import { newStory, storyFrom, advanceStory, craneSolid, hopLift, switchTries, switchSnap, RANGE, FOLLOW_GAP, FALL_BEATS } from './sim.mjs';
 import { createStoryAudio, notesAt, STEP, ENDING } from './music.mjs';
 import { chooseLanguage, storyCopy } from './copy.mjs';
 
 const get = id => document.getElementById(id);
 const canvas = get('play'), ctx = canvas.getContext('2d');
 const W = 360, H = 510, FLOOR = 382, HERO_X = 130, LOOKAHEAD = .15;
+const LAG_MAX = Math.floor(W - 8 - HERO_X - FAST_SPEED * BEAT);
 const PALETTE = { blue: COMPANION_PALETTE, green: { c: '#b4f2c8', w: '#ecfff2', s: '#73c290', a: '#3fcf7f' }, red: { c: '#ffbcae', w: '#fff1ec', s: '#d98a7a', a: '#ff6a4f' } };
 const GLOW = { blue: '#6fb6ff', green: '#5fe39a', red: '#ff7f66', hero: '#bfe6ff' };
+// Each friend's part, and so the ending beat it rejoins on.
+const PART = { blue: 'bell', green: 'bass', red: 'perc' };
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 const audio = createStoryAudio();
 const clock = new BeatClock(perf => heardFromContext(audio.context, perf));
@@ -46,7 +49,7 @@ function initialRun() {
 }
 function begin() {
   audio.unlock(); audio.cancel();
-  run = initialRun(); ahead = structuredClone(run); cued.clear(); s = 0; heroX = HERO_X; cameraS = 0; particles = []; flashes = []; launched = false;
+  run = initialRun(); ahead = structuredClone(run); cued.clear(); s = 0; heroX = HERO_X; cameraS = 0; particles = []; flashes = []; launched = false; inset = 0; pickupAt = null;
   clock.start(0, perfNow()); input.reset(0, false); nextStep = 0;
   releaseInput(); screen = 'play'; showBanner(run.status === 'docked' ? 'send' : run.chapter);
   get('overlay').hidden = true; get('action').blur();
@@ -145,7 +148,7 @@ window.addEventListener('pagehide', pause);
 // was not predicted still sounds, just late.
 let ahead = null;
 const cued = new Map();
-const CUES = new Set(['collect', 'assemble', 'join', 'switch', 'strand', 'relink', 'reunion', 'station', 'dock', 'fall', 'respawn']);
+const CUES = new Set(['collect', 'assemble', 'join', 'socket', 'switch', 'strand', 'relink', 'notice', 'rescue', 'pickup', 'reunion', 'station', 'dock', 'fall', 'respawn']);
 const eventKey = e => e.type + ':' + e.beat + ':' + (e.who ?? e.index ?? '');
 function predict() {
   ahead = structuredClone(run);
@@ -175,7 +178,14 @@ function friendSound(friend) {
   if (friend.state === 'station') return { level: 1, clarity: 1 };
   const d = Math.abs(run.x - friend.x);
   if (d <= RANGE && friend.state !== 'lost' && friend.state !== 'switch') return { level: 1 - .3 * smooth(RANGE * .4, RANGE, d), clarity: 1 - .45 * smooth(RANGE * .6, RANGE, d) };
-  return { level: .5 * (1 - smooth(RANGE, RANGE * 4.5, d)), clarity: .3 * (1 - smooth(RANGE, RANGE * 3, d)) };
+  const far = { level: .5 * (1 - smooth(RANGE, RANGE * 4.5, d)), clarity: .3 * (1 - smooth(RANGE, RANGE * 3, d)) };
+  // Once red has green, both parts come back through red's own link: faint
+  // and thin at first, clearer with every hop until they are beside you.
+  if (friend.state === 'carry') {
+    const near = smooth(Math.log(6000), Math.log(RANGE), Math.log(Math.max(d, 1)));
+    return { level: Math.max(far.level, .3 + .6 * near), clarity: Math.max(far.clarity, .12 + .6 * near) };
+  }
+  return far;
 }
 const lightOpen = () => run.parts.assembledAt === null ? 0 : smooth(0, 3, run.t - run.parts.assembledAt);
 const after = () => run.status === 'docked' ? s / BEAT - run.dockAt : -1;
@@ -191,7 +201,8 @@ function mixMusic() {
     // Seen from the rocket: the base's music thins with distance; a little
     // sparkle stays until the very end.
     const k = smooth(ENDING.away, ENDING.lights, a), out = 1 - smooth(ENDING.black - 2, ENDING.black + 2, a);
-    levels.tick = 0; levels.bell = levels.bass = levels.perc = (1 - k) ** 2 * out;
+    // The base keeps playing to the very end; only the distance grows.
+    levels.tick = 0; levels.bell = levels.bass = levels.perc = (.12 + .88 * (1 - k) ** 2) * out;
     levels.sparkle = smooth(ENDING.away, ENDING.away + 8, a) * .7 * out; muffle = k * .85;
     if (a >= ENDING.away) song.parts.add('sparkle');
   }
@@ -224,7 +235,10 @@ function handle(events) {
     else if (e.type === 'relink') flashes.push({ kind: 'relink', x: COURSE.relays.filter(r => r <= run.x).at(-1), at: s });
     else if (e.type === 'switch') flashes.push({ kind: 'switch', x: COURSE.switchX, at: e.t });
     else if (e.type === 'assemble') flashes.push({ kind: 'dawn', x: run.x, at: s });
-    else if (e.type === 'dock') { releaseInput(); showBanner('send'); }
+    else if (e.type === 'notice') flashes.push({ kind: 'ping', x: run.red.x, at: e.t });
+    else if (e.type === 'pickup') { pickupAt = e.t; flashes.push({ kind: 'pickup', x: e.x, at: e.t }); }
+    else if (e.type === 'reunion') flashes.push({ kind: 'reunion', x: run.x, at: e.t });
+    else if (e.type === 'dock') { releaseInput(); showBanner('send'); flashes.push({ kind: 'dock', x: COURSE.dockX, at: e.t }); }
     else if (e.type === 'chapter') showBanner(e.id);
   }
 }
@@ -234,7 +248,9 @@ function probeNote(part, at, storyTime) { if (probe) (probe.notes ||= []).push({
 function probeEvent(e) { if (probe) (probe.events ||= []).push({ type: e.type, t: e.t, beat: e.beat }); }
 
 // ---------- drawing ----------
-const heroBlink = () => beatIndex(s) !== beatIndex(s - .12) || (s % BEAT) < .12;
+// Docked, the hero's light blinks for 0.12s on every beat from D+1: the
+// first blink is the beat blue takes over.
+const heroBlink = () => run.status === 'docked' && after() >= 1 && s - beatIndex(s) * BEAT < .12;
 // The hero's screen x. While a friend lags behind (green in II, red at the
 // crane in III), the camera slides so both stay in view: the player watches
 // the gap open and sees the friend they leave behind.
@@ -244,8 +260,10 @@ function steerCamera() {
   for (const f of [run.green, run.red]) {
     if (run.together || ['dormant', 'station'].includes(f.state)) continue;
     const d = run.x - f.x;
-    // Capped so a full FAST hop ahead always stays visible.
-    if (d > 0 && d < RANGE * 2) lag = Math.max(lag, Math.min(d - FOLLOW_GAP, 50) * (1 - smooth(RANGE * 1.5, RANGE * 2, d)));
+    // Capped so the landing of a full FAST hop (HERO_X + 210.6px) never
+    // leaves the screen; past that, the ring and the edge marker show the
+    // friend left behind. Red looks back from right beside the hero.
+    if (d > 0 && d < RANGE * 2) lag = Math.max(lag, Math.min(d - FOLLOW_GAP, LAG_MAX) * (1 - smooth(RANGE * 1.5, RANGE * 2, d)));
   }
   const dt = Math.max(0, Math.min(.1, s - cameraS)); cameraS = s;
   heroX += (HERO_X + Math.max(0, lag) - heroX) * (1 - Math.exp(-dt * 5));
@@ -254,16 +272,27 @@ const camera = () => run.x - heroX;
 function friendY(who, friend) {
   const lag = { blue: .5, green: .25, red: .75 }[who];
   const phase = ((s / BEAT + lag) % 1 + 1) % 1;
-  if (friend.state === 'station') return FLOOR - 2 - Math.abs(Math.sin(phase * Math.PI)) * 18;
+  if (friend.state === 'station') {
+    // At their stations friends touch down on the beat with the hero. When
+    // the hero stops they hold still, and each starts again on its own beat.
+    if (run.status === 'docked' && after() < ENDING[PART[who]]) return FLOOR - 4;
+    return FLOOR - 2 - Math.sin((((s / BEAT) % 1) + 1) % 1 * Math.PI) * 18;
+  }
   if (friend.state === 'dormant' || friend.state === 'lost') return FLOOR - 2;
+  // Red sits on the crane's beam (y 120) while it works the span.
+  if (friend.state === 'crane') return 119 + (FLOOR - 18 - Math.sin(phase * Math.PI) * 44 - 119) * smooth(0, 260, Math.abs(friend.x - (COURSE.crane.a + COURSE.crane.b) / 2));
+  if (friend.state === 'notice') return 119 + (FLOOR - 44 - 119) * smooth(0, BEAT * .6, s - friend.noticeAt * BEAT);
+  if (friend.state === 'rescue' || friend.state === 'carry') return FLOOR - 64 + Math.sin(s * 6) * 3 + (who === 'green' ? 18 : 0);
   if (friend.state === 'switch') return FLOOR - 6 - Math.abs(Math.sin(phase * Math.PI)) * 6;
   return FLOOR - 18 - Math.sin(phase * Math.PI) * 44;
 }
-function drawPlatforms(cam) {
+function drawPlatforms(cam, flat = false) {
   for (const p of COURSE.platforms) {
     const [left, right] = footing([p.a, p.b]), l = Math.round(left - cam), r = Math.round(right - cam);
     if (r < -cull || l > W + cull || p.kind === 'crane') continue;
-    ctx.fillStyle = '#2e4850'; ctx.fillRect(l, FLOOR, r - l, H - FLOOR);
+    // Seen from the rocket only the lit tops show on the moon's surface.
+    if (flat) { ctx.fillStyle = p.kind === 'station' ? '#c9d9ff' : p.kind === 'dock' ? '#ffe3ac' : '#4a636a'; ctx.fillRect(l, FLOOR, r - l, 8); continue; }
+    ctx.fillStyle = '#2e4850'; ctx.fillRect(l, FLOOR, r - l, H);
     ctx.fillStyle = '#26404a'; ctx.fillRect(l - INSET, FLOOR + 6, INSET, H); ctx.fillRect(r, FLOOR + 6, INSET, H);
     ctx.fillStyle = p.kind === 'station' ? '#c9d9ff' : p.kind === 'dock' ? '#ffe3ac' : '#a8b7a5'; ctx.fillRect(l, FLOOR, r - l, 6);
     ctx.fillStyle = '#65858a'; ctx.fillRect(l, FLOOR + 6, r - l, 8);
@@ -290,14 +319,26 @@ function drawDevices(cam) {
   }
   // The switch is a socket shaped like green: it glows whenever green floats
   // over it and the bridge stirs, before the player ever leaves green there.
-  const sx = COURSE.switchX - cam, g = run.green;
-  const over = !run.switchOn && g.state === 'follow' && Math.abs(g.x - COURSE.switchX) < 40;
-  if (sx > -40 - cull && sx < W + 40 + cull) {
+  const sx = COURSE.switchX - cam, g = run.green, tries = run.chapter === 'apart' ? switchTries(run) : 0;
+  const over = !run.switchOn && g.state === 'follow' && Math.abs(g.x - COURSE.switchX) < Math.max(40, tries ? switchSnap(run) : 0);
+  if (sx > -200 - cull && sx < W + 200 + cull) {
+    // After a fall the socket shows where green may stop: the band widens
+    // with each try, and from the second it pulses on every beat.
+    if (tries && !run.switchOn) {
+      const snap = switchSnap(run);
+      ctx.fillStyle = `rgba(95,227,154,${.08 + .04 * Math.min(3, tries)})`; ctx.fillRect(sx - snap, FLOOR, snap * 2, 3);
+      ctx.fillStyle = 'rgba(159,240,196,.5)'; ctx.fillRect(sx - snap, FLOOR - 3, 2, 6); ctx.fillRect(sx + snap - 2, FLOOR - 3, 2, 6);
+      if (tries >= 2 && run.x >= COURSE.fieldStart) {
+        const age = s - beatIndex(s) * BEAT;
+        ctx.strokeStyle = `rgba(159,240,196,${.5 * (1 - age / BEAT)})`; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.arc(sx, FLOOR - 14, 12 + age * 30, Math.PI, 0); ctx.stroke();
+      }
+    }
     ctx.fillStyle = run.switchOn ? '#5fe39a' : over ? '#3f8f66' : '#2d4a44'; ctx.fillRect(sx - 16, FLOOR - 4, 32, 4);
     ctx.strokeStyle = run.switchOn ? '#c8ffdc' : over ? '#9ff0c4' : '#4f7a6c'; ctx.lineWidth = 1; ctx.setLineDash(run.switchOn ? [] : [2, 2]);
     ctx.beginPath(); ctx.arc(sx, FLOOR - 15, 9, Math.PI, 0); ctx.lineTo(sx + 9, FLOOR - 5); ctx.lineTo(sx - 9, FLOOR - 5); ctx.closePath(); ctx.stroke(); ctx.setLineDash([]);
     ctx.fillStyle = ctx.strokeStyle; ctx.fillRect(sx - 6, FLOOR - 31, 2, 7); ctx.fillRect(sx + 4, FLOOR - 31, 2, 7);
-    if (over) { ctx.fillStyle = 'rgba(95,227,154,.18)'; ctx.beginPath(); ctx.arc(sx, FLOOR - 14, 22, 0, Math.PI * 2); ctx.fill(); }
+    if (over) { ctx.fillStyle = 'rgba(95,227,154,.18)'; ctx.beginPath(); ctx.arc(sx, FLOOR - 14, 22 + 8 * Math.min(3, tries), 0, Math.PI * 2); ctx.fill(); }
   }
   const ba = COURSE.bridge.a - cam, bb = COURSE.bridge.b - cam;
   if (bb > -10 - cull && ba < W + 10 + cull) {
@@ -333,16 +374,32 @@ function drawDevices(cam) {
   if (dx > -80 - cull && dx < W + 200 + cull) {
     ctx.fillStyle = '#5b6f7a'; ctx.fillRect(dx - 3, FLOOR - 120, 6, 120);
     ctx.fillStyle = '#ffe3ac'; ctx.fillRect(dx - 14, FLOOR - 124, 28, 4);
-    const a = after(), lift = a > ENDING.launch ? (a - ENDING.launch) ** 2 * 14 : 0, rx = COURSE.rocketX - cam, ry = FLOOR - lift;
+    const a = after();
+    if (a >= 0) {
+      // The connector drops onto the hero on the dock beat; from D+1 the mast
+      // sends a ring out on every beat: the hero's light, broadcast.
+      const top = FLOOR - 118, head = heroY() - 58, k = smooth(0, .22, a);
+      ctx.strokeStyle = '#ffe3ac'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(dx + 6, top); ctx.lineTo(dx + 6, top + (head - top) * k); ctx.stroke();
+      ctx.fillStyle = '#ffe3ac'; ctx.fillRect(dx + 3, top + (head - top) * k - 3, 7, 4);
+      if (a >= 1) {
+        const age = s - beatIndex(s) * BEAT;
+        ctx.strokeStyle = `rgba(191,230,255,${.6 * (1 - age / BEAT)})`; ctx.lineWidth = 1.5;
+        for (const lag of [0, .3]) { const r = 6 + Math.max(0, age - lag * BEAT) * 70; ctx.beginPath(); ctx.arc(dx, FLOOR - 124, r, Math.PI * 1.15, Math.PI * 1.85); ctx.stroke(); }
+      }
+    }
+    const lift = rocketLift(a), rx = COURSE.rocketX - cam, ry = FLOOR - lift;
+    if (a < ENDING.turn) {
     ctx.fillStyle = '#3a4a52'; ctx.fillRect(rx - 26, FLOOR - 4, 52, 4);
     ctx.fillStyle = '#e8e2d0'; ctx.fillRect(rx - 9, ry - 70, 18, 60);
     ctx.fillStyle = '#ff9161'; ctx.beginPath(); ctx.moveTo(rx - 9, ry - 70); ctx.lineTo(rx, ry - 88); ctx.lineTo(rx + 9, ry - 70); ctx.fill();
     ctx.fillRect(rx - 15, ry - 22, 6, 14); ctx.fillRect(rx + 9, ry - 22, 6, 14);
     ctx.fillStyle = '#8fd0ff'; ctx.fillRect(rx - 4, ry - 56, 8, 8);
     if (a > ENDING.launch - 2) { ctx.fillStyle = (s * 20 | 0) % 2 ? '#ffd28a' : '#ff9161'; ctx.fillRect(rx - 6, ry - 8, 12, 10 + (s * 30 | 0) % 8); }
+    }
   }
 }
-function drawFriends(cam) {
+const rocketLift = a => a > ENDING.launch ? (a - ENDING.launch) ** 2 * 14 : 0;
+function drawFriends(cam, inset = false) {
   for (const who of ['red', 'green', 'blue']) {
     const f = run[who];
     if (who === 'blue' && f.state === 'parts') continue;
@@ -350,7 +407,14 @@ function drawFriends(cam) {
     const x = (f.from !== undefined && slide < 1 ? f.from + (f.x - f.from) * slide : f.x) - cam, y = friendY(who, f);
     if (x < -30 - cull || x > W + 30 + cull) continue;
     const awake = !['dormant', 'lost'].includes(f.state);
-    if (who === 'green' && !run.together) drawGreenSignal(f, x, y);
+    if (who === 'green' && !run.together && !inset) drawGreenSignal(f, x, y);
+    if (who === 'red' && (f.state === 'rescue' || f.state === 'carry')) {
+      // Red flies on its own: a streak behind it, and its own signal ring.
+      const dir = f.state === 'rescue' ? 1 : -1;
+      ctx.fillStyle = 'rgba(255,127,102,.35)'; ctx.fillRect(x + dir * 10, y - 22, dir * 50, 2); ctx.fillRect(x + dir * 14, y - 16, dir * 30, 1);
+      ctx.strokeStyle = `rgba(255,127,102,${.25 + .2 * Math.sin(s * 8)})`; ctx.lineWidth = 1; ctx.setLineDash([3, 5]);
+      ctx.beginPath(); ctx.arc(x, y - 20, 40, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+    }
     // A friend that lost the link goes dark-eyed with grey antenna tips.
     const palette = f.state === 'lost' ? { ...PALETTE[who], a: '#3a4a44' } : PALETTE[who];
     if (who === 'blue') {
@@ -360,7 +424,82 @@ function drawFriends(cam) {
       ctx.fillStyle = glow; ctx.fillRect(x - 46, FLOOR - 50, 92, 60);
     }
     drawPod(ctx, x, y, 1, { phase: (s / BEAT) % 1, time: s, palette, eyes: awake, idle: !awake });
+    drawRole(who, f, x, y, palette, awake);
+    // In the ending each friend's touchdown on its beat leaves a small ring.
+    if (f.state === 'station' && run.status === 'docked' && after() >= ENDING[PART[who]]) {
+      const age = s - beatIndex(s) * BEAT;
+      if (age < .35) { ctx.strokeStyle = GLOW[who]; ctx.globalAlpha = 1 - age / .35; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.ellipse(x, FLOOR - 1, 10 + age * 50, 3 + age * 8, 0, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1; }
+    }
   }
+}
+// Each friend shares the hero's face but is built for its job, so the three
+// read apart as silhouettes even when small (story-only overlay on the
+// shared pod art; details are for P4).
+//   blue  — the lamp: a mast with a light on top, floating on a soft jet
+//   green — the anchor: wide fixed legs that spread and plant on the switch
+//   red   — the crane: an asymmetric folding arm that reaches out to rescue
+function drawRole(who, f, x, y, palette, awake) {
+  const phase = ((s / BEAT) % 1 + 1) % 1, top = -18 - Math.round(3 + Math.sin(phase * Math.PI) * 2);
+  ctx.save(); ctx.translate(Math.round(x), Math.round(y));
+  const px = (c, a, b, w, h) => { ctx.fillStyle = c; ctx.fillRect(a, b, w, h); };
+  if (who === 'blue') {
+    px(palette.s, -1, top - 17, 2, 7);
+    const on = awake ? .6 + .4 * Math.sin(s * 5) : .2;
+    ctx.globalAlpha = on * .35; px(GLOW.blue, -4, top - 22, 8, 7); ctx.globalAlpha = 1;
+    px(on > .5 ? '#e6f4ff' : '#6fb6ff', -2, top - 20, 4, 4);
+    if (awake) { ctx.globalAlpha = .45; px(GLOW.blue, -5, 3, 10, 1); px(GLOW.blue, -3, 5 + Math.round(Math.sin(s * 9)), 6, 1); ctx.globalAlpha = 1; }
+  } else if (who === 'green') {
+    const planted = f.state === 'switch', spread = planted ? 15 : 11, drop = planted ? 3 : 1;
+    for (const side of [-1, 1]) {
+      for (let k = 0; k < 6; k++) px(palette.s, side * (8 + (spread - 8) * k / 5) - (side < 0 ? 1 : 0), -6 + k * (6 + drop) / 6, 2, 2);
+      px(palette.c, side * spread - (side < 0 ? 4 : 0), drop, 5, 2);
+    }
+  } else if (who === 'red') {
+    // Folded at its side; reaching out and down while it fetches or carries.
+    const reach = f.state === 'rescue' || f.state === 'carry' || f.state === 'notice';
+    const sx = -10, sy = top + 9;
+    px(palette.s, sx - 2, sy - 1, 3, 3);
+    if (!reach) { px(palette.a, sx - 4, sy - 7, 2, 8); px(palette.a, sx - 4, sy - 7, 5, 2); px(palette.c, sx - 1, sy - 6, 2, 3); }
+    else {
+      const ex = f.state === 'carry' ? -16 : -22, ey = f.state === 'carry' ? -4 : sy + 4;
+      for (let k = 0; k <= 8; k++) px(palette.a, Math.round(sx + (ex - sx) * k / 8) - 1, Math.round(sy + (ey - 6 - sy) * k / 8), 2, 2);
+      px(palette.a, ex - 1, ey - 6, 2, 6); px(palette.c, ex - 3, ey, 6, 2);
+    }
+  }
+  ctx.restore();
+}
+// Red's trip back, seen through a small comms window while it is off
+// screen: red reaches green on the switch, green's eyes light again, and the
+// two lift off together. No words; the main view keeps playing.
+let inset = 0, insetS = 0, pickupAt = null;
+function insetWanted() {
+  const { red, green } = run;
+  if (red.state === 'rescue') return red.x - green.x < 1400;
+  return red.state === 'carry' && pickupAt !== null && s - pickupAt < 4.5 && red.x - camera() < -30;
+}
+function drawInset() {
+  const dt = Math.max(0, Math.min(.1, s - insetS)); insetS = s;
+  inset += ((insetWanted() ? 1 : 0) - inset) * (1 - Math.exp(-dt * 8));
+  if (inset < .02) return;
+  const { red, green } = run, w = 176, h = 100, x0 = 10, y0 = 50, scale = .6;
+  const focus = red.state === 'rescue' ? green.x + 40 : red.x - 30;
+  const cam = focus - W / 2;
+  ctx.save(); ctx.globalAlpha = inset;
+  ctx.beginPath(); ctx.roundRect(x0, y0, w, h, 6); ctx.clip();
+  ctx.fillStyle = '#060b10'; ctx.fillRect(x0, y0, w, h);
+  ctx.translate(x0 + w / 2, y0 + h - 18); ctx.scale(scale, scale); ctx.translate(-W / 2, -FLOOR); cull = W;
+  drawPlatforms(cam); drawDevices(cam); drawFriends(cam, true);
+  if (pickupAt !== null && s - pickupAt < 1.2) {
+    const age = s - pickupAt;
+    ctx.strokeStyle = `rgba(255,127,102,${1 - age / 1.2})`; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(green.x - cam, FLOOR - 60, 10 + age * 120, 0, Math.PI * 2); ctx.stroke();
+  }
+  ctx.restore(); cull = 20;
+  ctx.save(); ctx.globalAlpha = inset;
+  ctx.fillStyle = 'rgba(255,255,255,.04)'; for (let y = y0; y < y0 + h; y += 3) ctx.fillRect(x0, y, w, 1);
+  ctx.strokeStyle = 'rgba(255,127,102,.7)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.roundRect(x0, y0, w, h, 6); ctx.stroke();
+  ctx.fillStyle = (s * 2 | 0) % 2 ? '#ff7f66' : '#7a3a30'; ctx.fillRect(x0 + w - 10, y0 + 5, 4, 4);
+  ctx.restore();
 }
 // Green's link: a dotted line to the hero and three bars over green. Both
 // thin as the distance grows and flicker at the edge; when the link breaks
@@ -389,12 +528,15 @@ function drawBehind(cam) {
   for (const who of ['green', 'red']) {
     const f = run[who], x = f.x - cam;
     if (run.together || x > -6 || ['dormant', 'station'].includes(f.state)) continue;
-    const fade = 1 - smooth(RANGE, RANGE * 4.5, run.x - f.x);
+    if (who === 'green' && f.state === 'carry') continue;
+    // A carried pair is coming back: its marker stays until it arrives.
+    const fade = f.state === 'carry' ? 1 : 1 - smooth(RANGE, RANGE * 4.5, run.x - f.x);
     if (fade <= 0) continue;
     ctx.globalAlpha = fade; ctx.fillStyle = PALETTE[who].a;
     ctx.beginPath(); ctx.moveTo(4, FLOOR - 40); ctx.lineTo(11, FLOOR - 45); ctx.lineTo(11, FLOOR - 35); ctx.fill();
     ctx.fillStyle = f.state === 'lost' ? '#3a4a44' : PALETTE[who].c; ctx.fillRect(14, FLOOR - 44, 7, 8);
     ctx.fillStyle = f.state === 'lost' || f.state === 'dormant' ? '#24342f' : '#172638'; ctx.fillRect(15, FLOOR - 42, 2, 2); ctx.fillRect(18, FLOOR - 42, 2, 2);
+    if (f.state === 'carry') { ctx.fillStyle = PALETTE.green.c; ctx.fillRect(14, FLOOR - 33, 7, 7); }
     ctx.globalAlpha = 1;
   }
 }
@@ -417,6 +559,21 @@ function drawFlashes(cam) {
       for (const lag of [0, .25]) { const r = Math.max(0, age - lag) * 160; ctx.beginPath(); ctx.arc(x, FLOOR - 68, r, Math.PI, Math.PI * 2); ctx.stroke(); }
     } else if (f.kind === 'switch' && age < 1) {
       ctx.strokeStyle = `rgba(200,255,220,${1 - age})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, FLOOR - 14, 10 + age * 40, 0, Math.PI * 2); ctx.stroke();
+    } else if (f.kind === 'ping' && age < BEAT) {
+      // Red looks back: pings sent from where it is towards where green was left.
+      const rx = run.red.x - cam, ry = friendY('red', run.red) - 20;
+      ctx.strokeStyle = `rgba(255,127,102,${1 - age / BEAT})`; ctx.lineWidth = 2;
+      for (const lag of [0, .2]) { const r = 14 + Math.max(0, age - lag) * 120; ctx.beginPath(); ctx.arc(rx, ry, r, Math.PI * .75, Math.PI * 1.25); ctx.stroke(); }
+    } else if (f.kind === 'reunion' && age < 1.4) {
+      ctx.lineWidth = 2;
+      for (const [i, c] of ['#6fb6ff', '#5fe39a', '#ff7f66'].entries()) {
+        const r = Math.max(0, age - i * .12) * 150; ctx.strokeStyle = c; ctx.globalAlpha = Math.max(0, 1 - age / 1.4);
+        ctx.beginPath(); ctx.arc(heroX, heroY() - 30, r, 0, Math.PI * 2); ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    } else if (f.kind === 'dock' && age < 1) {
+      ctx.strokeStyle = `rgba(255,227,172,${1 - age})`; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.ellipse(x, FLOOR - 1, 12 + age * 70, 4 + age * 10, 0, 0, Math.PI * 2); ctx.stroke();
     } else if (f.kind === 'dawn' && age < 2.2) {
       // The light rolls out from the newly built lamp across the moon.
       ctx.strokeStyle = `rgba(169,214,255,${.7 * (1 - age / 2.2)})`; ctx.lineWidth = 3;
@@ -456,7 +613,7 @@ function drawScene() {
     ctx.fillRect(p.x - cam + p.vx * p.age, p.y + p.vy * p.age + 120 * p.age ** 2, 3, 3);
   }
   ctx.globalAlpha = 1;
-  drawDarkness(); drawGlints(cam); drawFlashes(cam); drawBehind(cam);
+  drawDarkness(); drawGlints(cam); drawFlashes(cam); drawBehind(cam); drawInset();
   // The active blue part glows through the dark.
   if (run.parts.got < COURSE.parts.length) {
     const px = run.parts.x - cam, pulse = reducedMotion.matches ? .5 : .5 + .5 * Math.sin(s * 4);
@@ -501,38 +658,67 @@ function drawBackdrop(cam, alpha = 1) {
   }
   ctx.globalAlpha = 1;
 }
+// The ending: the view settles on the whole base, follows the rocket up,
+// dips, and opens again in the rocket's window looking back at the base. The
+// base recedes until only four lights remain; the camera never turns away.
+let lights = [];
 function drawEnding() {
-  // The view settles on the whole base, then turns into the rocket's window
-  // and recedes until only four small lights remain.
-  const a = after(), fit = smooth(0, 6, a), turn = smooth(ENDING.turn, ENDING.away, a), away = smooth(ENDING.away, ENDING.lights, a);
-  const zoom = (1 - .42 * fit) * (1 - .3 * turn) * Math.exp(-2.3 * away);
-  const cam = (run.x - heroX) * (1 - fit) + (COURSE.baseCenter - W / 2) * fit;
-  const cy = FLOOR - 70 * fit + (H / 2 + 40 - FLOOR + 70) * turn;
-  drawBackdrop(cam, 1 - turn);
-  ctx.save(); ctx.translate(W / 2, cy); ctx.scale(zoom, zoom); ctx.translate(-W / 2, -FLOOR); cull = W / zoom;
-  ctx.fillStyle = `rgba(14,26,34,${turn})`; ctx.fillRect(-W * 30, FLOOR, W * 61, H * 30);
-  drawPlatforms(cam); drawDevices(cam); drawFriends(cam); drawHero(cam);
-  ctx.restore(); cull = 20;
-  // Four lights stay readable at any scale; the hero's blinks on the beat.
-  const glow = smooth(ENDING.away + 6, ENDING.lights - 8, a);
-  for (const [who, wx, wy] of [['blue', run.blue.x, friendY('blue', run.blue)], ['green', run.green.x, friendY('green', run.green)], ['red', run.red.x, friendY('red', run.red)], ['hero', COURSE.dockX, heroY() - 60]]) {
-    const on = who !== 'hero' || heroBlink();
-    const x = W / 2 + (wx - cam - W / 2) * zoom, y = cy + (wy - 20 - FLOOR) * zoom;
-    ctx.globalAlpha = glow * (on ? 1 : .2); ctx.fillStyle = GLOW[who];
-    ctx.beginPath(); ctx.arc(x, y, who === 'hero' && on ? 3 : 2.4, 0, Math.PI * 2); ctx.fill();
-  }
-  ctx.globalAlpha = 1;
-  if (turn > 0) {
-    const r = 430 - 270 * turn;
-    ctx.fillStyle = '#000'; ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.arc(W / 2, H / 2 - 10, r, 0, Math.PI * 2, true); ctx.fill('evenodd');
-    ctx.strokeStyle = `rgba(120,140,150,${turn * .6})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(W / 2, H / 2 - 10, r, 0, Math.PI * 2); ctx.stroke();
-  }
-  const black = smooth(ENDING.black - 2, ENDING.black, a);
+  const a = after();
+  if (a < ENDING.turn) drawBaseView(a); else drawWindowView(a);
+  const dip = smooth(ENDING.turn - .7, ENDING.turn, a) * (1 - smooth(ENDING.turn, ENDING.turn + 1, a));
+  const black = Math.max(dip, smooth(ENDING.black - 2, ENDING.black, a));
   if (black > 0) { ctx.fillStyle = `rgba(0,0,0,${black})`; ctx.fillRect(0, 0, W, H); }
   if (a >= ENDING.title) {
     ctx.globalAlpha = smooth(ENDING.title, ENDING.title + 2, a); ctx.fillStyle = '#fff0d0'; ctx.font = 'bold 30px monospace'; ctx.textAlign = 'center';
     ctx.fillText('RAPIPPO', W / 2, H / 2); ctx.globalAlpha = 1;
   }
+}
+function drawBaseView(a) {
+  // The camera pulls back on the stopping beat, so by D+1 the whole base,
+  // and blue taking the beat, is in view.
+  const fit = smooth(0, .9, a), follow = smooth(ENDING.launch, ENDING.launch + 3.5, a);
+  const zoom = 1 - .48 * fit;
+  const cam = ((run.x - heroX) * (1 - fit) + (COURSE.baseCenter - W / 2) * fit) * (1 - follow * .5) + (COURSE.rocketX - W / 2) * follow * .5;
+  const cy = FLOOR - 70 * fit + rocketLift(a) * zoom * follow * .8;
+  drawBackdrop(cam);
+  ctx.save(); ctx.translate(W / 2, cy); ctx.scale(zoom, zoom); ctx.translate(-W / 2, -FLOOR); cull = W / zoom;
+  ctx.fillStyle = '#020406'; ctx.fillRect(-W, FLOOR + 14, W * 3, H * 2);
+  drawPlatforms(cam); drawDevices(cam); drawFriends(cam); drawHero(cam); drawFlashes(cam);
+  ctx.restore(); cull = 20; lights = [];
+}
+function drawWindowView(a) {
+  // Climbing away: the base shrinks and sinks in the window, the horizon curves.
+  const k = smooth(ENDING.turn, ENDING.lights, a), zoom = .55 * Math.pow(.19 / .55, k), drop = 20 + 50 * k;
+  const cx = W / 2, cy = H / 2 - 10, cam = (COURSE.stations[0].x + COURSE.dockX) / 2 - W / 2, tilt = reducedMotion.matches ? 0 : .05 * Math.sin(a * .35);
+  ctx.fillStyle = '#04070b'; ctx.fillRect(0, 0, W, H);
+  for (let i = 0; i < 70; i++) { ctx.fillStyle = i % 6 ? '#3a4d58' : '#d8c9a0'; ctx.fillRect((i * 131 + a * 2) % W | 0, (i * 71) % H, 1.5, 1.5); }
+  ctx.save(); ctx.translate(cx, cy + drop); ctx.rotate(tilt); ctx.scale(zoom, zoom); ctx.translate(-W / 2, -FLOOR); cull = W / zoom;
+  // The moon's curve shows as the rocket climbs.
+  const R = 5200;
+  ctx.fillStyle = '#121e25'; ctx.beginPath(); ctx.arc(W / 2, FLOOR + R, R, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#38505a'; ctx.lineWidth = 3 / zoom; ctx.beginPath(); ctx.arc(W / 2, FLOOR + R, R, Math.PI * 1.2, Math.PI * 1.8); ctx.stroke();
+  drawPlatforms(cam, true); drawDevices(cam); drawFriends(cam); drawHero(cam);
+  ctx.restore(); cull = 20;
+  // Four lights stay readable at any scale; the hero's blinks on the beat.
+  const project = (wx, wy) => {
+    const dx = (wx - cam - W / 2) * zoom, dy = (wy - FLOOR) * zoom, c = Math.cos(tilt), sn = Math.sin(tilt);
+    return [cx + dx * c - dy * sn, cy + drop + dx * sn + dy * c];
+  };
+  const glow = smooth(ENDING.away, ENDING.away + 10, a);
+  lights = [['blue', run.blue.x, friendY('blue', run.blue) - 20], ['green', run.green.x, friendY('green', run.green) - 20], ['red', run.red.x, friendY('red', run.red) - 20], ['hero', COURSE.dockX, heroY() - 80]]
+    .map(([who, wx, wy]) => { const [x, y] = project(wx, wy); return { who, x, y, on: who !== 'hero' || heroBlink() }; });
+  for (const l of lights) {
+    ctx.globalAlpha = glow * (l.on ? .28 : .06); ctx.fillStyle = GLOW[l.who];
+    ctx.beginPath(); ctx.arc(l.x, l.y, 7, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = glow * (l.on ? 1 : .22);
+    ctx.beginPath(); ctx.arc(l.x, l.y, l.who === 'hero' && l.on ? 3.6 : 3, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  // The rocket's window.
+  const open = smooth(ENDING.turn, ENDING.turn + 1.5, a), r = 200 - 40 * open;
+  ctx.fillStyle = '#000'; ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.arc(cx, cy, r, 0, Math.PI * 2, true); ctx.fill('evenodd');
+  ctx.strokeStyle = 'rgba(120,140,150,.6)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = 'rgba(120,140,150,.25)'; ctx.lineWidth = 8; ctx.beginPath(); ctx.arc(cx, cy, r + 7, 0, Math.PI * 2); ctx.stroke();
 }
 function drawHints() {
   if (!playing() || run.hops >= 3 || run.status !== 'playing' || run.checkpoint > 0) return;
@@ -576,7 +762,8 @@ run = initialRun(); ahead = structuredClone(run); refreshCopy(); requestAnimatio
 if (globalThis.__rapippoStoryProbe) globalThis.__rapippoStoryProbe.read = () => ({
   screen, s, x: run.x, beat: run.beat, status: run.status, chapter: run.chapter, checkpoint: run.checkpoint,
   parts: run.parts.got, blue: run.blue.state, green: run.green.state, red: run.red.state, switchOn: run.switchOn, greenX: run.green.x, redX: run.red.x,
-  domain: clock.domain, dockAt: run.dockAt, offset: clock.offset, audio: audio.debug(),
+  domain: clock.domain, dockAt: run.dockAt, offset: clock.offset, audio: audio.debug(), after: after(), inset, heroLit: heroBlink(), lights,
+  friendY: { blue: friendY('blue', run.blue), green: friendY('green', run.green), red: friendY('red', run.red) }, tries: switchTries(run),
   // How far the context clock runs ahead of what is heard right now.
   latency: audio.running ? audio.context.currentTime - heardFromContext(audio.context, perfNow()) : null,
   hasOutputTimestamp: !!audio.context?.getOutputTimestamp,

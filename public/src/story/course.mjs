@@ -57,6 +57,9 @@ export function buildCourse() {
   // Switch field: one long ground, the switch, then a chasm only the bridge spans.
   p = c.plat(50, 1060); c.checkpoint({ a: p.a, b: p.a + 160 }, 'apart');
   c.marks.switchX = p.a + 620; c.marks.fieldStart = p.a;
+  // A last relay at the field's edge: a green lost on the approach is never
+  // carried onto the switch field without its link.
+  c.marks.relays.push(p.a + 40);
   const chasm = c.plat(300, 320); c.marks.bridge = { a: p.b, b: chasm.a };
   c.filler(14, r, [44, 90], [130, 200]);
 
@@ -66,7 +69,11 @@ export function buildCourse() {
   p = c.plat(50, 380); c.checkpoint(p, 'rescue'); c.marks.redConsole = p.a + 230;
   p = c.plat(46, 560); c.checkpoint({ a: p.a, b: p.a + 160 }, 'rescue');
   c.marks.crane = c.plat(100, 120, 'crane');
-  const far = c.plat(100, 280); c.marks.craneFar = far.a;
+  // A long, safe landing: red looks back and leaves while the hero has
+  // nothing to judge but plain ground.
+  const far = c.plat(100, 420); c.marks.craneFar = far.a;
+  // Red has left the crane by now: a fall beyond it never sends the hero back.
+  c.checkpoint(far, 'rescue');
   c.filler(18, r, [40, 80], [140, 210]);
   p = c.plat(50, 240); c.checkpoint(p, 'rescue');
   // Together again: a lively stretch for the three-part ensemble.

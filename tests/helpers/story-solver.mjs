@@ -13,7 +13,9 @@ export function hop(run, course, f) {
 // Losing green before the switch field is recoverable (relay antennas);
 // losing it on the field dooms the bridge, so prune that branch early.
 const bad = (events, course) => events.some(e => e.type === 'fall' || (e.type === 'strand' && e.x >= course.fieldStart - 300));
-export function solve(course, run, { limit = 200000, until = r => r.status === 'docked', order = CHOICES } = {}) {
+// robust > 0: only accept a hold that also survives being that many beats
+// early or late (real-time drivers switch FAST on frame boundaries).
+export function solve(course, run, { limit = 200000, until = r => r.status === 'docked', order = CHOICES, robust = 0 } = {}) {
   const path = [];
   let nodes = 0;
   const go = state => {
@@ -22,6 +24,7 @@ export function solve(course, run, { limit = 200000, until = r => r.status === '
       if (++nodes > limit) return null;
       const next = structuredClone(state);
       if (bad(hop(next, course, f), course)) continue;
+      if (robust && [f - robust, f + robust].some(g => g >= 0 && g <= 1 && bad(hop(structuredClone(state), course, g), course))) continue;
       path.push(f);
       const done = go(next);
       if (done) return done;

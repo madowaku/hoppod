@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { PERIOD, SLOW_SPEED, FAST_SPEED } from '../public/src/engine.mjs';
 import { BEAT, BPM, BeatClock, TimedInput, beatIndex, heardFromContext } from '../public/src/story/beat.mjs';
 import { COURSE, platformAt } from '../public/src/story/course.mjs';
-import { newStory, storyFrom, advanceStory, craneDown, RANGE, GREEN_SPEED } from '../public/src/story/sim.mjs';
+import { newStory, storyFrom, advanceStory, craneDown, craneSolid, RANGE, GREEN_SPEED, SETTLE_TRIES } from '../public/src/story/sim.mjs';
 import { notesAt, STEP, ENDING } from '../public/src/story/music.mjs';
 import { solve, hop } from './helpers/story-solver.mjs';
 
@@ -151,7 +151,7 @@ test('falling returns to the checkpoint on a beat and keeps friends and parts', 
 test('red rescues green beyond the range rule, then the three travel together', () => {
   const run = structuredClone(newStory(COURSE)), types = [];
   for (const f of witness.path) for (const e of hop(run, COURSE, f)) types.push(e.type);
-  const order = ['assemble', 'join', 'switch', 'join', 'rescue', 'pickup', 'reunion', 'station', 'station', 'station', 'dock'];
+  const order = ['assemble', 'join', 'switch', 'join', 'notice', 'rescue', 'pickup', 'reunion', 'station', 'station', 'station', 'dock'];
   let at = 0;
   for (const t of types) if (t === order[at]) at++;
   assert.equal(at, order.length, 'story beats happen in order: ' + types.filter(t => order.includes(t)).join(','));
@@ -211,14 +211,112 @@ test('green loses the link once in the valley on every route, and a relay restor
   assert.ok(routes >= 8);
 });
 
-test('after two falls at the switch, green lingers on its socket so SLOW alone opens the bridge', () => {
-  const run = storyFrom(COURSE, fieldCheckpoint);
-  run.fails[fieldCheckpoint] = 2;
-  for (let k = 0; k < 30 && run.x < COURSE.bridge.b && run.status === 'playing'; k++) hop(run, COURSE, 0);
-  assert.ok(run.switchOn, 'green stayed on the switch');
-  assert.ok(run.x > COURSE.bridge.a, 'and the hero crossed');
-  const once = storyFrom(COURSE, fieldCheckpoint);
-  once.fails[fieldCheckpoint] = 1;
-  for (let k = 0; k < 30 && once.status === 'playing' && once.x < COURSE.bridge.b; k++) hop(once, COURSE, 0);
-  assert.ok(!once.switchOn, 'after one fall a FAST burst is still needed');
+function switchPlan(tries, plan) {
+  const run = storyFrom(COURSE, fieldCheckpoint), log = [];
+  run.fails[fieldCheckpoint] = tries;
+  for (let k = 0; k < 40 && run.status === 'playing' && run.x < COURSE.bridge.b + 10; k++) log.push(...hop(run, COURSE, plan(k)));
+  return { ok: run.switchOn && run.x > COURSE.bridge.b, log };
+}
+test('each fall at the switch widens the window, but the last FAST burst stays with the player', () => {
+  const wins = [];
+  for (let tries = 0; tries <= SETTLE_TRIES; tries++) {
+    let ok = 0;
+    for (let j = 0; j < 8; j++) for (const f of [.25, .5, .75, 1]) for (const n of [1, 2]) if (switchPlan(tries, k => k >= j && k < j + n ? f : 0).ok) ok++;
+    wins.push(ok);
+    assert.equal(switchPlan(tries, () => 1).ok, false, 'FAST only strands green early');
+    assert.equal(switchPlan(tries, () => 0).ok, tries >= SETTLE_TRIES, `SLOW only after ${tries} falls`);
+  }
+  for (let t = 1; t < wins.length; t++) assert.ok(wins[t] >= wins[t - 1], wins.join());
+  assert.ok(wins[3] >= wins[0] * 3, 'three falls triple the single-burst plans: ' + wins.join());
+  // Green tells the player it is over its socket, on a beat.
+  const { log } = switchPlan(0, () => 0), socket = log.find(e => e.type === 'socket');
+  assert.ok(socket && Math.abs(socket.t - socket.beat * BEAT) < 1e-9);
+});
+
+// Noisy play: mostly a short look-ahead, sometimes a random hold. After every
+// respawn the run must still reach the next checkpoint (never stuck), and the
+// link may only ever break in chapter II, before the switch.
+test('noisy play never gets stuck and only loses green where the course means it', () => {
+  const choices = [0, .25, .5, .75, 1];
+  const stranded = [];
+  let respawns = 0;
+  for (const seed of [11, 23, 37, 51]) {
+    let x = seed;
+    const rnd = () => (x = (x * 16807) % 2147483647) / 2147483647;
+    const run = newStory(COURSE);
+    for (let n = 0; n < 1400 && run.status !== 'docked'; n++) {
+      let f;
+      if (rnd() < .12) f = choices[Math.floor(rnd() * choices.length)];
+      else {
+        const look = solve(COURSE, run, { until: r => r.beat >= run.beat + 4 || r.status === 'docked', limit: 400, order: [.25, 0, .5, .75, 1] });
+        f = look.path[0] ?? choices[Math.floor(rnd() * choices.length)];
+      }
+      for (const e of hop(run, COURSE, f)) {
+        if (e.type === 'strand') stranded.push({ x: e.x, chapter: run.chapter });
+        if (e.type !== 'respawn') continue;
+        respawns++;
+        const next = COURSE.checkpoints[run.checkpoint + 1];
+        const on = solve(COURSE, run, { until: r => (next ? r.x >= next.from : r.status === 'docked'), limit: 120000 });
+        assert.ok(on.end, `stuck after respawn at checkpoint ${run.checkpoint} (red ${run.red.state}, green ${run.green.state})`);
+      }
+    }
+    assert.equal(run.status, 'docked', 'seed ' + seed + ' reached the dock');
+  }
+  assert.ok(respawns >= 8, 'noise caused falls: ' + respawns);
+  for (const s of stranded) assert.ok(s.chapter === 'apart' && s.x < COURSE.bridge.a, JSON.stringify(s));
+});
+
+test('a fall after red has left the crane never strands the hero behind it', () => {
+  const i = COURSE.checkpoints.findIndex(cp => cp.chapter === 'rescue' && cp.x < COURSE.crane.a);
+  const m = solve(COURSE, storyFrom(COURSE, i + 1), { until: r => r.x > COURSE.craneFar + 20 });
+  const run = storyFrom(COURSE, i + 1);
+  for (const f of m.path) hop(run, COURSE, f);
+  hop(run, COURSE, 0);
+  assert.equal(run.red.state, 'rescue', 'red looked back for one beat, then left');
+  for (const beat of [0, 1, 2, 3]) assert.ok(craneSolid(run, beat), 'the span stays down once red has gone');
+  run.checkpoint = i + 1; run.status = 'falling'; run.fallAt = run.beat;
+  hop(run, COURSE, 0); hop(run, COURSE, 0);
+  assert.ok(solve(COURSE, run, { until: r => r.x > COURSE.craneFar + 20, limit: 50000 }).end);
+});
+
+// A fall at each moment of chapters III–IV: before and after the crane,
+// while red looks back, flies, carries green, right after the reunion, and
+// between the stations. After the respawn the crew must be in a state the
+// story can continue from, and the dock must still be reachable.
+test('a fall at any moment of the rescue or the base recovers into a consistent story', () => {
+  const from = COURSE.checkpoints.findIndex(cp => cp.chapter === 'rescue');
+  const path = solve(COURSE, storyFrom(COURSE, from)).path;
+  const moments = {
+    'before the crane': r => r.red.state === 'crane' && r.x > COURSE.crane.a - 200,
+    'red looks back': r => r.red.state === 'notice',
+    'red flies': r => r.red.state === 'rescue',
+    'red carries green': r => r.red.state === 'carry',
+    'just reunited': r => r.together && r.chapter === 'rescue',
+    'between stations': r => r.blue.state === 'station' && r.red.state !== 'station',
+  };
+  const seen = {};
+  const run = storyFrom(COURSE, from);
+  for (const f of path) {
+    hop(run, COURSE, f);
+    for (const [name, at] of Object.entries(moments)) {
+      if (seen[name] || !at(run) || run.status !== 'playing') continue;
+      seen[name] = true;
+      const fall = structuredClone(run), log = [];
+      fall.status = 'falling'; fall.fallAt = fall.beat; fall.fallX = fall.x;
+      for (let k = 0; k < 2; k++) log.push(...hop(fall, COURSE, 0));
+      assert.ok(log.some(e => e.type === 'respawn'), name);
+      const { red, green, blue } = fall;
+      assert.equal(blue.state, 'follow', name);
+      assert.ok(fall.switchOn, name + ': the bridge stays open behind');
+      assert.ok(['crane', 'carry', 'follow'].includes(red.state), name + ': red ' + red.state);
+      if (red.state === 'carry') assert.ok(green.state === 'carry' && Math.abs(green.x - (red.x - 16)) < 1e-9, name);
+      if (red.state === 'crane') assert.equal(green.state, 'switch', name);
+      if (fall.together) assert.ok(green.state === 'follow' && red.state === 'follow', name);
+      for (const beat of [0, 1, 2, 3]) if (red.state !== 'crane') assert.ok(craneSolid(fall, beat), name);
+      const on = solve(COURSE, fall, { limit: 150000 });
+      assert.ok(on.end, name + ': the dock is still reachable');
+      assert.ok(on.end.together && ['blue', 'green', 'red'].every(w => on.end[w].state === 'station'), name);
+    }
+  }
+  assert.deepEqual(Object.keys(seen).sort(), Object.keys(moments).sort());
 });

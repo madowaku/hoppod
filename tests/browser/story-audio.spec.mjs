@@ -5,7 +5,9 @@ import {storyFrom} from '../../public/src/story/sim.mjs';
 import {BEAT} from '../../public/src/story/beat.mjs';
 import {solve,hop} from '../helpers/story-solver.mjs';
 // Real AudioContext and real time (no Playwright clock). Skips if the
-// browser cannot run audio.
+// browser cannot run audio, unless STORY_AUDIO=required (CI and
+// `npm run test:story-audio`), where a silent browser is a failure.
+const required=process.env.STORY_AUDIO==='required';
 const dir='output/playwright/story-audio';
 async function open(page,cp) {
   await mkdir(dir,{recursive:true});
@@ -15,17 +17,18 @@ async function open(page,cp) {
   await page.locator('#action').click();
   await page.waitForTimeout(600);
   const r=await read(page);
-  test.skip(r.domain!=='audio','AudioContext not running in this browser');
+  if(required) expect(r.domain,'real audio required').toBe('audio');
+  else test.skip(r.domain!=='audio','AudioContext not running in this browser');
   return errors;
 }
 const read=page=>page.evaluate(()=>globalThis.__rapippoStoryProbe.read());
 const data=page=>page.evaluate(()=>({notes:globalThis.__rapippoStoryProbe.notes||[],events:globalThis.__rapippoStoryProbe.events||[]}));
-// In-page driver: hold FAST during hop i when path[i] is 1, switched on the
-// beat by the game's own story time (frame accuracy, ≤4px at FAST).
+// In-page driver: hold FAST for the first path[i] of hop i, switched by the
+// game's own story time (frame accuracy, ≤4px at FAST).
 async function drive(page,path) {
   await page.evaluate(path=>{
     let down=false;const key=on=>window.dispatchEvent(new KeyboardEvent(on?'keydown':'keyup',{code:'Space',bubbles:true}));
-    const tick=()=>{const r=globalThis.__rapippoStoryProbe.read();const want=!!path[Math.floor(r.s/.78)];if(want!==down){down=want;key(want);}if(r.status!=='docked')requestAnimationFrame(tick);};
+    const tick=()=>{const r=globalThis.__rapippoStoryProbe.read(),k=r.s/.78,i=Math.floor(k);const want=(path[i]??0)>k-i;if(want!==down){down=want;key(want);}if(r.status!=='docked')requestAnimationFrame(tick);};
     requestAnimationFrame(tick);
   },path);
 }
@@ -96,11 +99,45 @@ test('real audio: green bass follows, a predicted fall silences that beat, respa
 
 test('real audio: at the base all three friends play',async({page})=>{
   test.setTimeout(40000);
-  const errors=await open(page,8);
+  const errors=await open(page,COURSE.checkpoints.findIndex(cp=>cp.chapter==='base'));
   await page.waitForTimeout(8000);
   const {notes,events}=await data(page);
   checkBeatLock(notes,events);
   for(const part of ['bell','bass','perc','tick']) expect(notes.filter(n=>n.part===part).length,part).toBeGreaterThan(2);
+  expect(errors).toEqual([]);
+});
+
+test('real audio: red fetches green and their parts come back clearer with every hop',async({page})=>{
+  test.setTimeout(90000);
+  const i=COURSE.checkpoints.findIndex(cp=>cp.chapter==='rescue'&&cp.x<COURSE.crane.a&&cp.x>COURSE.redConsole);
+  // The page starts driving after ~0.6s, so the first hop is a plain SLOW one.
+  const start=storyFrom(COURSE,i);hop(start,COURSE,0);
+  const {path}=solve(COURSE,start,{until:r=>r.together&&r.beat>=0,order:[.25,0,.5,.75,1],robust:.04});
+  const after=solve(COURSE,(()=>{const r=storyFrom(COURSE,i);for(const f of [0,...path])hop(r,COURSE,f);return r;})(),{until:r=>r.beat>=start.beat+path.length+12,order:[.25,0,.5,.75,1],robust:.04}).path;
+  const errors=await open(page,i);await drive(page,[0,...path,...after]);
+  const samples=[];
+  for(let k=0;k<160;k++){const r=await read(page);samples.push({s:r.s,red:r.red,levels:r.audio.levels,clarity:r.audio.clarity});if(r.red==='follow'&&samples.filter(x=>x.red==='follow').length>6)break;await page.waitForTimeout(250);}
+  const {notes,events}=await data(page);
+  expect(events.filter(e=>!['land','checkpoint'].includes(e.type)).map(e=>e.type+'@'+e.beat).filter(t=>t.startsWith('fall'))).toEqual([]);
+  checkBeatLock(notes,events);
+  const at=state=>samples.filter(x=>x.red===state);
+  // Red flies off alone: its percussion fades to nothing.
+  expect(Math.min(...at('rescue').map(x=>x.levels.perc))).toBeLessThan(.1);
+  // From the pickup both parts return as a faint radio and grow clearer.
+  const carry=at('carry');expect(carry.length).toBeGreaterThan(4);
+  expect(Math.min(...carry.slice(2).map(x=>x.levels.bass))).toBeGreaterThan(.2);
+  const third=Math.floor(carry.length/3);
+  expect(carry[2*third].levels.bass).toBeGreaterThan(carry[1].levels.bass+.05);
+  expect(carry.at(-1).levels.bass).toBeGreaterThan(carry[2*third].levels.bass);
+  expect(carry.at(-1).clarity.bass).toBeGreaterThan(carry[2*third].clarity.bass);
+  const together=at('follow').at(-1);expect(together.levels.bass).toBeGreaterThan(.8);expect(together.levels.perc).toBeGreaterThan(.8);expect(together.clarity.bass).toBeGreaterThan(8000);
+  for(const type of ['notice','rescue','pickup','reunion']) {
+    const e=events.find(e=>e.type===type);expect(e,type).toBeTruthy();
+    expect(notes.some(n=>n.part==='cue:'+type&&near(n.s,e.t))||notes.some(n=>n.part==='late:'+type),'cue '+type).toBe(true);
+  }
+  const late=notes.filter(n=>n.part.startsWith('late:')).map(n=>n.part);
+  await writeFile(dir+'/rescue.json',JSON.stringify({samples:samples.map(x=>({s:+x.s.toFixed(2),red:x.red,bass:+x.levels.bass.toFixed(3),perc:+x.levels.perc.toFixed(3),bassHz:Math.round(x.clarity.bass)})),late},null,2));
+  expect(late).toEqual([]);
   expect(errors).toEqual([]);
 });
 
@@ -112,6 +149,8 @@ test('real audio: ending hands the beat from the hero to the friends',async({pag
   const first=part=>Math.min(...notes.filter(n=>n.part===part).map(n=>Math.round(n.s/BEAT)));
   expect(notes.filter(n=>n.part==='tick').length).toBe(0);
   expect(first('bell')).toBe(r.dockAt+1);expect(first('bass')).toBe(r.dockAt+4);expect(first('perc')).toBe(r.dockAt+8);
+  // D+1 carries the low hand-off bell under the arpeggio.
+  expect(notes.filter(n=>n.part==='bell'&&Math.round(n.s/BEAT*4)===(r.dockAt+1)*4).length).toBe(2);
   expect(errors).toEqual([]);
 });
 
