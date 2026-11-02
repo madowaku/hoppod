@@ -5,52 +5,104 @@
 import { BEAT } from './beat.mjs';
 
 export const STEP = BEAT / 4;
-export const PARTS = Object.freeze(['tick', 'bell', 'bass', 'perc', 'sparkle']);
-// G major, four bars of four beats: G – Em – C – D. Frequencies in Hz.
-const NOTE = { G4: 392, D3: 146.83, E3: 164.81, G2: 98, A2: 110, B2: 123.47, C3: 130.81, Fs3: 185, G3: 196,
-  B4: 493.88, C5: 523.25, D5: 587.33, E5: 659.25, Fs5: 739.99, G5: 783.99, A5: 880, B5: 987.77, C6: 1046.5, D6: 1174.66, E6: 1318.51, G6: 1567.98 };
-const PROGRESSION = [
-  { bass: [NOTE.G2, NOTE.D3], tones: [NOTE.G5, NOTE.B5, NOTE.D6, NOTE.G6] },
-  { bass: [NOTE.E3, NOTE.B2], tones: [NOTE.E5, NOTE.G5, NOTE.B5, NOTE.E6] },
-  { bass: [NOTE.C3, NOTE.G3], tones: [NOTE.C5, NOTE.E5, NOTE.G5, NOTE.C6] },
-  { bass: [NOTE.D3, NOTE.A2], tones: [NOTE.D5, NOTE.Fs5, NOTE.A5, NOTE.D6] },
-];
-const ARP = [0, 2, 1, 2, 0, 3, 1, 2];
-const SPARKLE = [NOTE.D6, NOTE.E6, NOTE.G6, NOTE.B5 * 2, NOTE.D6 * 2];
-export const chordAt = beat => PROGRESSION[Math.floor(beat / 4) % 4];
+export const PARTS = Object.freeze(['tick', 'bell', 'bass', 'perc', 'pad', 'sparkle']);
+const hz = m => 440 * 2 ** ((m - 69) / 12);
 
-// Ending gates relative to the dock beat D: silence on D, the blue bell on
-// D+1 where the next touchdown would have been, then bass, then percussion.
-export const ENDING = Object.freeze({ bell: 1, bass: 4, perc: 8, launch: 16, turn: 20, away: 24, lights: 56, black: 62, title: 64, card: 72 });
+// "Wind-up, waking, widening, flight." G major with a borrowed C minor
+// (the ache) in a 16-bar form, four phrases of four bars, one bar = 4 beats.
+// Each chord: bass root (MIDI) and the pad's four voices.
+const CHORDS = {
+  G: { root: 43, pad: [59, 62, 67, 69] },     // add9: warm, open
+  Em7: { root: 40, pad: [55, 59, 62, 66] },
+  Cmaj7: { root: 48, pad: [55, 59, 64, 67] },
+  D: { root: 50, pad: [54, 57, 62, 66] },
+  Bm7: { root: 47, pad: [54, 57, 62, 66] },
+  Cm6: { root: 48, pad: [55, 57, 60, 63] },   // E flat: warmth with an ache
+  GB: { root: 47, pad: [55, 59, 62, 67] },    // G over B
+  Am7: { root: 45, pad: [55, 57, 60, 64] },
+};
+export const FORM = Object.freeze([
+  'G', 'Em7', 'Cmaj7', 'D',
+  'G', 'Bm7', 'Cmaj7', 'Cm6',
+  'Em7', 'Bm7', 'Cmaj7', 'GB',
+  'Am7', 'Cm6', 'G', 'D',
+]);
+// Blue's melody, eight eighth-note slots per bar: a note, '-' to hold, '.'
+// to rest. It breathes: every phrase ends in a held note or silence.
+const N = { A4: 69, B4: 71, C5: 72, D5: 74, Eb5: 75, E5: 76, Fs5: 78, G5: 79, A5: 81, B5: 83, C6: 84 };
+const MELODY = [
+  'D5 - - B4 D5 - G5 -', 'Fs5 - E5 - D5 - - .', 'E5 - - G5 B5 - A5 G5', 'Fs5 - - - . . A4 B4',
+  'D5 - - B4 D5 - G5 -', 'A5 - Fs5 - D5 - - .', 'E5 - G5 - B5 - C6 -', 'B5 - A5 - G5 - Eb5 -',
+  'G5 - - - . . Fs5 G5', 'A5 - - Fs5 D5 - . .', 'E5 - - - G5 - E5 -', 'D5 - - - . . . .',
+  'C5 - E5 - A5 - G5 -', 'Eb5 - - - D5 - C5 -', 'B4 - - D5 G5 - - -', '. . . . A4 - B4 -',
+].map(bar => {
+  const slots = bar.split(' '), out = [];
+  slots.forEach((t, i) => {
+    if (!N[t]) return;
+    let len = 1; while (slots[i + len] === '-') len++;
+    out.push({ slot: i, m: N[t], len });
+  });
+  return out;
+});
+export const songBar = beat => FORM[((Math.floor(beat / 4) % 16) + 16) % 16];
+export const chordAt = beat => CHORDS[songBar(beat)];
 
-// Notes for grid step n. song = { tick(beat) → bool, dockBeat|null, parts:Set }.
+// Ending gates relative to the dock beat D. D is silent; on D+1, the beat
+// the next touchdown would have been, blue starts the song from its first
+// bar; green joins on the next downbeat, red on the one after, and the pad
+// (the whole ensemble) completes the sound a bar before the launch.
+export const ENDING = Object.freeze({ bell: 1, bass: 5, perc: 9, pad: 13, launch: 17, turn: 21, away: 25, lights: 57, black: 63, title: 65, card: 73 });
+
+// Notes for grid step n. song = { tick(beat) -> bool, dockBeat|null,
+// parts: Set, origin: beat where the song's bar 1 falls (blue's assembly) }.
 export function notesAt(n, song) {
-  const beat = Math.floor(n / 4), sub = n % 4, bar = beat % 4, out = [];
+  const beat = Math.floor(n / 4), sub = n % 4, out = [];
   const docked = song.dockBeat !== null && beat >= song.dockBeat;
   const after = docked ? beat - song.dockBeat : -1;
   const on = part => docked ? after >= ENDING[part] : song.parts.has(part);
   // The dock touchdown itself still ticks; every beat after it is the friends'.
   if ((!docked || after === 0) && sub === 0 && song.tick(beat)) out.push({ part: 'tick', kind: 'tick', f: beat % 2 ? 1760 : 2350, d: .05, v: 1 });
   if (!docked && sub === 2 && song.tick(beat)) out.push({ part: 'tick', kind: 'wind', f: 3100, d: .03, v: .35 });
-  const chord = chordAt(beat);
-  // D+1: blue takes over the beat the hero would have landed on, with a low
-  // bell under it so the hand-off is heard, not just seen.
-  if (docked && after === ENDING.bell && sub === 0) out.push({ part: 'bell', kind: 'bell', f: NOTE.G4, d: 1.8, v: 1 });
-  if (on('bell') && sub % 2 === 0) {
-    const i = ARP[(bar * 2 + sub / 2) % ARP.length];
-    out.push({ part: 'bell', kind: 'bell', f: chord.tones[i], d: .9, v: sub === 0 ? 1 : .7 });
+  // Song position: from D+1 the ending starts the song over at bar 1.
+  const b = beat - (docked ? song.dockBeat + ENDING.bell : song.origin ?? 0);
+  if (b < 0) return out;
+  const barN = Math.floor(b / 4), inBar = b % 4, chord = chordAt(b), loop = Math.floor(barN / 16), phrase = Math.floor(barN / 4) % 4;
+  if (on('bell')) {
+    // On the second pass through the first half the melody thins to its
+    // downbeats: the same tune, with more air.
+    const sparse = loop % 2 === 1 && phrase < 2;
+    for (const note of MELODY[barN % 16]) if (note.slot === inBar * 2 + sub / 2 && (!sparse || note.slot % 2 === 0)) {
+      out.push({ part: 'bell', kind: 'bell', f: hz(note.m), d: Math.min(2.4, .5 + note.len * BEAT / 2), v: note.slot % 2 ? .75 : 1 });
+    }
+    // The hand-off: a low G under blue's first note.
+    if (docked && b === 0 && sub === 0) out.push({ part: 'bell', kind: 'bell', f: hz(55), d: 2.4, v: .9 });
   }
-  if (on('bass')) {
-    if (bar === 0 && sub === 0) out.push({ part: 'bass', kind: 'bass', f: chord.bass[0], d: 1.5, v: 1 });
-    if (bar === 2 && sub === 0) out.push({ part: 'bass', kind: 'bass', f: chord.bass[1], d: .9, v: .8 });
-    if (bar === 3 && sub === 2) out.push({ part: 'bass', kind: 'bass', f: chord.bass[0] * 2, d: .3, v: .5 });
+  if (on('bass') && sub % 2 === 0) {
+    const r = chord.root, endOfPhrase = barN % 4 === 3;
+    if (inBar === 0 && sub === 0) out.push({ part: 'bass', kind: 'bass', f: hz(r), d: 1.4, v: 1 });
+    if (inBar === 2 && sub === 0) out.push({ part: 'bass', kind: 'bass', f: hz(r + 7), d: .7, v: .7 });
+    if (inBar === 3 && sub === 2) {
+      // Phrase ends walk up into the next root by a semitone.
+      const next = chordAt(b + 1).root;
+      out.push({ part: 'bass', kind: 'bass', f: hz(endOfPhrase ? next - 1 : r + 12), d: .3, v: endOfPhrase ? .75 : .45 });
+    }
   }
   if (on('perc')) {
-    if ((bar === 0 || bar === 2) && sub === 0) out.push({ part: 'perc', kind: 'thump', f: 90, d: .25, v: 1 });
-    if ((bar === 1 || bar === 3) && sub === 0) out.push({ part: 'perc', kind: 'wood', f: 820, d: .08, v: .8 });
-    if (sub === 2) out.push({ part: 'perc', kind: 'shaker', f: 6000, d: .05, v: .5 });
+    const fill = barN % 4 === 3 && inBar === 3;
+    if (inBar === 0 && sub === 0) out.push({ part: 'perc', kind: 'thump', f: 90, d: .25, v: 1 });
+    if (inBar === 2 && sub === 2 && barN % 2 === 1) out.push({ part: 'perc', kind: 'thump', f: 80, d: .2, v: .7 });
+    if ((inBar === 1 || inBar === 3) && sub === 0 && !fill) out.push({ part: 'perc', kind: 'wood', f: 820, d: .08, v: .8 });
+    if (fill) out.push({ part: 'perc', kind: 'wood', f: 700 + sub * 120, d: .06, v: .55 + sub * .1 });
+    if (sub === 2 && !fill) out.push({ part: 'perc', kind: 'shaker', f: 6000, d: .05, v: inBar % 2 ? .6 : .4 });
+    if (sub === 3 && inBar === 1) out.push({ part: 'perc', kind: 'shaker', f: 7000, d: .03, v: .25 });
   }
-  if (song.parts.has('sparkle') && (n * 7) % 5 === 0) out.push({ part: 'sparkle', kind: 'bell', f: SPARKLE[(n * 3) % SPARKLE.length], d: 1.6, v: .5 });
+  // The pad is the four of them together: it only sounds once everyone is.
+  if (on('pad') && inBar === 0 && sub === 0) for (const m of chord.pad) out.push({ part: 'pad', kind: 'pad', f: hz(m), d: BEAT * 4 + .6, v: .8 });
+  // Seen from the rocket: high, sparse glints in the current chord.
+  if (song.parts.has('sparkle') && (n * 7) % 5 === 0) {
+    const tones = chord.pad, m = tones[(n * 3) % tones.length] + 24;
+    out.push({ part: 'sparkle', kind: 'glint', f: hz(m), d: 2.2, v: .5 });
+  }
   return out;
 }
 
@@ -77,17 +129,33 @@ export function createStoryAudio() {
   let ctx = null, master, muffle, buses = {}, tones = {}, noise, muted = false;
   const voices = new Set();
   const build = () => {
-    master = ctx.createGain(); master.connect(ctx.destination);
+    // Output: mute (master) → make-up gain for phone speakers → a gentle
+    // limiter so the full ensemble and the launch never clip.
+    const loud = ctx.createGain(), limit = ctx.createDynamicsCompressor();
+    loud.gain.value = 2; limit.threshold.value = -8; limit.knee.value = 6; limit.ratio.value = 6; limit.attack.value = .004; limit.release.value = .2;
+    master = ctx.createGain(); master.connect(loud); loud.connect(limit); limit.connect(ctx.destination);
     master.gain.value = muted ? 0 : 1;
     // Darkness muffles only the music parts; cues and the tick stay clear.
     muffle = ctx.createBiquadFilter(); muffle.type = 'lowpass'; muffle.frequency.value = 12000; muffle.Q.value = .4;
     const music = ctx.createGain(); music.gain.value = .9; music.connect(muffle); muffle.connect(master);
     for (const part of PARTS) {
       const g = ctx.createGain(); g.gain.value = 0; buses[part] = g;
-      if (part === 'tick' || part === 'sparkle') { g.connect(master); continue; }
+      if (part === 'tick') { g.connect(master); continue; }
+      if (part === 'sparkle') {
+        // The glints ring out into a long echo: space opening up.
+        g.connect(master); const echo = ctx.createDelay(2), back = ctx.createGain(), wet = ctx.createGain();
+        echo.delayTime.value = BEAT * .75; back.gain.value = .45; wet.gain.value = .5;
+        g.connect(echo); echo.connect(back); back.connect(echo); echo.connect(wet); wet.connect(master); continue;
+      }
       // A friend's own tone filter: far away it thins out like a weak radio.
       const tone = ctx.createBiquadFilter(); tone.type = 'lowpass'; tone.frequency.value = 12000; tone.Q.value = .7;
       g.connect(tone); tone.connect(music); tones[part] = tone;
+      if (part === 'bell') {
+        // A dotted-eighth echo gives blue's bell room to ring.
+        const echo = ctx.createDelay(1), back = ctx.createGain(), wet = ctx.createGain();
+        echo.delayTime.value = BEAT * .75; back.gain.value = .3; wet.gain.value = .22;
+        tone.connect(echo); echo.connect(back); back.connect(echo); echo.connect(wet); wet.connect(music);
+      }
     }
     buses.cue = ctx.createGain(); buses.cue.gain.value = 1; buses.cue.connect(master);
     noise = ctx.createBuffer(1, ctx.sampleRate * .5, ctx.sampleRate);
@@ -99,7 +167,9 @@ export function createStoryAudio() {
     node.onended = () => { voices.delete(v); node.disconnect(); gain.disconnect(); };
   };
   const envelope = (g, at, peak, decay, attack = .004) => {
-    g.gain.setValueAtTime(.0001, at); g.gain.exponentialRampToValueAtTime(Math.max(.0002, peak), at + attack);
+    // A new gain starts at 1; silence it first, or the sample before `at`
+    // leaks through at full level as a click.
+    g.gain.value = 0; g.gain.setValueAtTime(.0001, at); g.gain.exponentialRampToValueAtTime(Math.max(.0002, peak), at + attack);
     g.gain.exponentialRampToValueAtTime(.0001, at + decay);
   };
   const tone = (bus, type, f, at, decay, peak, glide = 0, attack = .004) => {
@@ -119,9 +189,11 @@ export function createStoryAudio() {
     const bus = buses[note.part], v = note.v;
     if (note.kind === 'tick') { hiss(bus, 4000, at, .035, .09 * v); tone(bus, 'square', note.f, at, .03, .025 * v); }
     else if (note.kind === 'wind') hiss(bus, note.f, at, note.d, .03 * v, 'bandpass');
-    else if (note.kind === 'bell') { tone(bus, 'sine', note.f, at, note.d, .05 * v); tone(bus, 'sine', note.f * 2.76, at, note.d * .25, .012 * v); }
-    else if (note.kind === 'bass') { tone(bus, 'triangle', note.f, at, note.d, .13 * v); tone(bus, 'sine', note.f / 2, at, note.d, .06 * v); }
-    else if (note.kind === 'thump') tone(bus, 'sine', note.f, at, note.d, .16 * v, .5);
+    else if (note.kind === 'bell') { tone(bus, 'sine', note.f, at, note.d, .1 * v); tone(bus, 'sine', note.f * 2.76, at, note.d * .25, .02 * v); tone(bus, 'triangle', note.f * .5, at, note.d * .6, .015 * v, 0, .02); }
+    else if (note.kind === 'bass') { tone(bus, 'triangle', note.f, at, note.d, .13 * v, 0, .012); tone(bus, 'sine', note.f / 2, at, note.d, .07 * v, 0, .012); tone(bus, 'sine', note.f * 2, at, .12, .02 * v); }
+    else if (note.kind === 'pad') { tone(bus, 'sine', note.f, at, note.d, .018 * v, 0, .5); tone(bus, 'triangle', note.f * 1.003, at, note.d, .008 * v, 0, .7); }
+    else if (note.kind === 'glint') { tone(bus, 'sine', note.f, at, note.d, .03 * v); tone(bus, 'sine', note.f * 2.01, at, note.d * .4, .008 * v); }
+    else if (note.kind === 'thump') tone(bus, 'sine', note.f, at, note.d, .12 * v, .5);
     else if (note.kind === 'wood') { tone(bus, 'triangle', note.f, at, note.d, .05 * v); hiss(bus, 1800, at, .03, .03 * v, 'bandpass'); }
     else if (note.kind === 'shaker') hiss(bus, note.f, at, note.d, .025 * v);
   };
@@ -138,9 +210,9 @@ export function createStoryAudio() {
     // Muting silences the master only; the context and the beat keep running.
     setMuted(value) { muted = value; if (ctx) master.gain.setTargetAtTime(muted ? 0 : 1, ctx.currentTime, .02); },
     // levels: part → gain; clarity: part → 0 (radio-thin) … 1 (clear).
-    mix(levels, muffleAmount = 0, clarity = {}) {
+    mix(levels, muffleAmount = 0, clarity = {}, at = null) {
       if (!ctx) return;
-      const t = ctx.currentTime;
+      const t = at ?? ctx.currentTime;
       for (const part of PARTS) buses[part].gain.setTargetAtTime(levels[part] || 0, t, .12);
       for (const [part, tone] of Object.entries(tones)) tone.frequency.setTargetAtTime(350 * Math.pow(12000 / 350, Math.max(0, Math.min(1, clarity[part] ?? 1))), t, .2);
       muffle.frequency.setTargetAtTime(12000 * Math.pow(500 / 12000, Math.max(0, Math.min(1, muffleAmount))), t, .25);
@@ -161,7 +233,7 @@ export function createStoryAudio() {
       s.buffer = noise; s.loop = true; filter.type = 'lowpass'; filter.frequency.value = 160;
       o.type = 'sawtooth'; o.frequency.setValueAtTime(55, at); o.frequency.linearRampToValueAtTime(90, at + seconds);
       for (const [gain, peak] of [[g, .12], [og, .018]]) {
-        gain.gain.setValueAtTime(0, at); gain.gain.linearRampToValueAtTime(peak, at + 1.5);
+        gain.gain.value = 0; gain.gain.setValueAtTime(0, at); gain.gain.linearRampToValueAtTime(peak, at + 1.5);
         gain.gain.setValueAtTime(peak, at + seconds - 2); gain.gain.linearRampToValueAtTime(0, at + seconds);
       }
       s.connect(filter); filter.connect(g); g.connect(buses.cue); o.connect(og); og.connect(buses.cue);

@@ -74,10 +74,10 @@ test('P3 dock: the hero stops, blue takes the next beat, then green and red; the
   r=await at(1.05);expect(r.heroLit).toBe(true);expect(r.friendY.blue).toBeGreaterThan(374);expect(r.friendY.green).toBeCloseTo(378,0);
   await shot(page,'dock-3-blue-beat');
   r=await at(1.5);expect(r.heroLit).toBe(false);expect(r.friendY.blue).toBeLessThan(370);expect(r.friendY.green).toBeCloseTo(378,0);
-  r=await at(4.5);expect(r.friendY.green).toBeLessThan(370);expect(r.friendY.red).toBeCloseTo(378,0);await shot(page,'dock-4-green');
-  r=await at(8.5);expect(r.friendY.red).toBeLessThan(370);await shot(page,'dock-5-red');
+  r=await at(ENDING.bass+.5);expect(r.friendY.green).toBeLessThan(370);expect(r.friendY.red).toBeCloseTo(378,0);await shot(page,'dock-4-green');
+  r=await at(ENDING.perc+.5);expect(r.friendY.red).toBeLessThan(370);await shot(page,'dock-5-red');
   // The light blinks on every beat: on just after it, off between.
-  for(const b of [9,10,11]){expect((await at(b+.05)).heroLit).toBe(true);expect((await at(b+.5)).heroLit).toBe(false);}
+  for(const b of [ENDING.perc+1,ENDING.perc+2,ENDING.perc+3]){expect((await at(b+.05)).heroLit).toBe(true);expect((await at(b+.5)).heroLit).toBe(false);}
   await at(ENDING.launch+2.5);await shot(page,'end-1-launch');
   await at(ENDING.turn+3);await shot(page,'end-2-window');
   await at(ENDING.away+12);await shot(page,'end-3-receding');

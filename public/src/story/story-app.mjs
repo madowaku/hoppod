@@ -166,6 +166,8 @@ function predict() {
 const song = {
   get dockBeat() { return ahead.status === 'docked' ? ahead.dockAt : null; },
   parts: new Set(),
+  // Bar 1 of the song falls on the beat blue is assembled.
+  get origin() { return ahead.parts.assembledAt === null ? 0 : Math.round(ahead.parts.assembledAt / BEAT); },
   // The clockwork tick sounds on every beat the hero touches down; a beat
   // predicted to be a fall stays silent.
   tick: beat => ahead.status === 'playing' || (ahead.status === 'falling' && beat === ahead.fallAt + FALL_BEATS) || (ahead.status === 'docked' && beat <= ahead.dockAt),
@@ -203,7 +205,8 @@ function mixMusic() {
     // sparkle stays until the very end.
     const k = smooth(ENDING.away, ENDING.lights, a), out = 1 - smooth(ENDING.black - 2, ENDING.black + 2, a);
     // The base keeps playing to the very end; only the distance grows.
-    levels.tick = 0; levels.bell = levels.bass = levels.perc = (.12 + .88 * (1 - k) ** 2) * out;
+    // The pad exists only here: the four of them, finally all together.
+    levels.tick = 0; levels.bell = levels.bass = levels.perc = levels.pad = (.12 + .88 * (1 - k) ** 2) * out;
     levels.sparkle = smooth(ENDING.away, ENDING.away + 8, a) * .7 * out; muffle = k * .85;
     if (a >= ENDING.away) song.parts.add('sparkle');
   }
@@ -584,6 +587,30 @@ function drawHero(cam) {
   // a light that blinks on every beat although it no longer hops.
   if (docked && after() >= 0) drawTransmit(ctx, x, heroY(), 2, smooth(0, .3, after()), heroBlink());
 }
+// Wind-up: a low, ragged rock ceiling presses down while the hero ticks
+// through the dark. When blue is built it lifts away over three seconds and
+// the sky, the far range and the horizon open above: the moon was always
+// this wide. It never reaches the ground, so landings stay readable.
+function drawCeiling(cam) {
+  const open = lightOpen();
+  if (open >= 1 || run.chapter !== 'wake') return;
+  const lift = 190 * open * open;
+  ctx.fillStyle = '#0b1319';
+  ctx.beginPath(); ctx.moveTo(0, -10);
+  for (let x = 0; x <= W; x += 6) {
+    const wx = x + cam * .6, h = 128 + Math.sin(wx * .021) * 24 + Math.sin(wx * .083) * 9 + (Math.sin(wx * .4) > .85 ? 16 : 0);
+    ctx.lineTo(x, h - lift);
+  }
+  ctx.lineTo(W, -10); ctx.closePath(); ctx.fill();
+  // Its underside catches the hero's glow on each touchdown.
+  const touch = Math.max(0, 1 - (s % BEAT) / .3);
+  ctx.strokeStyle = `rgba(140,170,180,${.3 + .25 * touch})`; ctx.lineWidth = 1.5; ctx.beginPath();
+  for (let x = 0; x <= W; x += 6) {
+    const wx = x + cam * .6, h = 128 + Math.sin(wx * .021) * 24 + Math.sin(wx * .083) * 9 + (Math.sin(wx * .4) > .85 ? 16 : 0);
+    x ? ctx.lineTo(x, h - lift) : ctx.moveTo(x, h - lift);
+  }
+  ctx.stroke();
+}
 function drawDarkness() {
   const open = lightOpen();
   if (open >= 1 || run.chapter !== 'wake') return;
@@ -604,7 +631,7 @@ function drawScene() {
     ctx.fillRect(p.x - cam + p.vx * p.age, p.y + p.vy * p.age + 120 * p.age ** 2, 3, 3);
   }
   ctx.globalAlpha = 1;
-  drawDarkness(); drawGlints(cam); drawFlashes(cam); drawBehind(cam); drawInset();
+  drawDarkness(); drawCeiling(cam); drawGlints(cam); drawFlashes(cam); drawBehind(cam); drawInset();
   // The active blue part glows through the dark.
   if (run.parts.got < COURSE.parts.length) {
     const px = run.parts.x - cam, pulse = reducedMotion.matches ? .5 : .5 + .5 * Math.sin(s * 4);
@@ -638,6 +665,14 @@ function drawBackdrop(cam, alpha = 1) {
       ctx.fillStyle = `rgba(22,38,50,${open})`; ctx.fillRect(x, FLOOR - 40 - h, 4, h);
       ctx.fillStyle = `rgba(150,190,220,${.45 * open})`; ctx.fillRect(x, FLOOR - 40 - h, 4, 1);
     }
+    // On the far ridge, the base's lights: where this road goes. Nearly at
+    // infinity, they drift only a few pixels over the whole journey.
+    for (const [i, x0] of [[0, 268], [1, 281], [2, 302]]) {
+      const x = x0 - Math.min(40, cam * .0014), wx = x + cam * .015, ridge = FLOOR - 40 - (50 + Math.sin(wx * .011) * 28 + Math.sin(wx * .037) * 10);
+      ctx.globalAlpha = open * (.45 + .4 * Math.sin(s * 1.3 + i * 2)); ctx.fillStyle = i === 1 ? '#ffe3ac' : '#bfe6ff';
+      ctx.fillRect(x | 0, (ridge | 0) - 3, 2, 2);
+    }
+    ctx.globalAlpha = 1;
   }
   ctx.globalAlpha = alpha;
   for (let layer = 0; layer < 2; layer++) {

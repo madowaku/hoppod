@@ -320,3 +320,24 @@ test('a fall at any moment of the rescue or the base recovers into a consistent 
   }
   assert.deepEqual(Object.keys(seen).sort(), Object.keys(moments).sort());
 });
+
+test('composition: blue starts the song on D+1, the others join on downbeats, the pad completes it', () => {
+  const D = 200, all = new Set(['bell', 'bass', 'perc']), song = { dockBeat: D, parts: all, tick: () => false };
+  const at = (beat, part) => [0, 1, 2, 3].flatMap(sub => notesAt(beat * 4 + sub, song)).filter(n => n.part === part);
+  const first = part => { for (let b = D; b < D + 40; b++) if (at(b, part).length) return b - D; return null; };
+  assert.deepEqual([first('bell'), first('bass'), first('perc'), first('pad')], [ENDING.bell, ENDING.bass, ENDING.perc, ENDING.pad]);
+  for (const part of ['bass', 'perc', 'pad']) assert.equal((ENDING[part] - ENDING.bell) % 4, 0, part + ' enters on a downbeat');
+  // D+1: the melody's first note and the low hand-off G together.
+  assert.equal(notesAt((D + 1) * 4, song).filter(n => n.part === 'bell').length, 2);
+  assert.ok(ENDING.pad < ENDING.launch, 'the ensemble is complete before the rocket leaves');
+  // Melody stays in G major plus the borrowed E flat; it has rests.
+  const play = { dockBeat: null, parts: new Set(['bell']), tick: () => true, origin: 0 };
+  const pcs = new Set(), onsets = new Set();
+  for (let n = 0; n < 64 * 4; n++) for (const note of notesAt(n, play)) if (note.part === 'bell') { pcs.add(Math.round(12 * Math.log2(note.f / 440) + 69) % 12); onsets.add(Math.floor(n / 2)); }
+  for (const pc of pcs) assert.ok([7, 9, 11, 0, 2, 3, 4, 6].includes(pc), 'pitch class ' + pc);
+  assert.ok(pcs.has(3), 'the borrowed E flat is there');
+  assert.ok(onsets.size < 64 * 2 * .6, 'at least 40% of eighth slots are rests or holds: ' + onsets.size);
+  // Before blue is built there is no song at all, only the clockwork.
+  const dark = { dockBeat: null, parts: new Set(), tick: () => true, origin: 0 };
+  for (let n = 0; n < 64; n++) for (const note of notesAt(n, dark)) assert.equal(note.part, 'tick');
+});

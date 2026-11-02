@@ -30,7 +30,7 @@ Fixed course, five chapters, eleven checkpoints (one added past the crane in P3)
 | ② APART | Green floats at 160px/s (SLOW 105 < green < FAST 270): FAST pulls away, SLOW lets it catch up. Beyond 150px (the ring) the link breaks and green stops. See P2 below. |
 | ③ FETCH | Red wakes and rides the crane's beam; the span is solid on two of every four beats (always solid after two falls there, and locked down once red has left). Across the crane red looks back for one beat and leaves on its own. See P3. |
 | ④ BASE | Three station islands: landing on each leaves that friend at its station, touching down on the beat with the hero. Landing on the dock stops the hero. |
-| ⑤ SEND | See P3: the stop, the hand-off, the rocket's window, four lights, black at D+62; `RAPIPPO` +64; end card +72. |
+| ⑤ SEND | See P3/P4: the stop, the hand-off, the rocket's window, four lights, black at D+63; `RAPIPPO` +65; end card +73. |
 
 Length from the solver witnesses: dock at 167–216s depending on pace, plus a 56s ending → **3.7–4.5 minutes** before falls.
 
@@ -65,9 +65,9 @@ Discoverability, honestly: the valley teaches "FAST → green drops out" and "re
 **The first stop (D → D+1).**
 - D: the hero lands on the dock; a connector drops onto its head in 0.2s, a gold ring spreads on the deck, the dock "clunk" plays, and every part falls silent. The friends at their stations stop bouncing and hold still. The camera pulls back during this beat so the whole base is in view by D+1.
 - D+1, the beat the next touchdown would have been: blue touches down on its island with a blue ring, the bell plays with a low G under it, the hero's light blinks for the first time and the mast sends out its first ring.
-- D+4 green touches down with the bass; D+8 red with the percussion. From then on the three land on every beat and the hero's light blinks on every beat (0.12s on, at k × 0.78s). Nobody hops for the hero; the music goes on.
+- D+5 green (P4: on the next downbeat) touches down with the bass; D+9 red with the percussion. From then on the three land on every beat and the hero's light blinks on every beat (0.12s on, at k × 0.78s). Nobody hops for the hero; the music goes on.
 
-**The rocket's window.** D+16 launch (rumble) and the camera follows the rocket up; D+19.3–21 a dip to black; then the view opens inside a round window looking back down at the base. The base shrinks (zoom 0.55 → 0.19) and sinks in the window while the moon's horizon curves; platforms show only their lit tops. The music thins and muffles with distance but never stops before black (floor 12%). Blue, green and red lights plus the hero's blinking one stay on screen; the camera never turns away; black at D+62.
+**The rocket's window.** D+17 launch (P4) (rumble) and the camera follows the rocket up; D+20.3–22 a dip to black; then the view opens inside a round window looking back down at the base. The base shrinks (zoom 0.55 → 0.19) and sinks in the window while the moon's horizon curves; platforms show only their lit tops. The music thins and muffles with distance but never stops before black (floor 12%). Blue, green and red lights plus the hero's blinking one stay on screen; the camera never turns away; black at D+63.
 
 **Phones.** At 390×844 (the Playwright viewport) the four lights end about 22–25 CSS px apart (asserted > 14px): 3px dots with 7px halos, inside the window.
 
@@ -91,6 +91,17 @@ Single-burst plans that work (8 start hops × 4 holds × 1–2 hops): 4 → 9 �
 
 Same face, different job: see [CREW_SPRITES.md](story/CREW_SPRITES.md). Blue has a lamp above its ears, green wide foot pads, red a folded side arm. Each transforms while it works (light mode, anchor, crane), and Rapippo becomes the transmit tower on the dock. Shared `pod.mjs` is untouched (FREE RUN unchanged).
 
+## P4 — wind-up, waking, widening, flight
+
+- **Music:** a new 16-bar composition (G major with a borrowed C minor), a melody that breathes, a bass that walks, a groove with fills, a pad that exists only once all four are together in the ending, and glints for the rocket. Previews render to WAV with the game's own code. See [MUSIC.md](story/MUSIC.md). A click bug since P0 (new gains starting at 1) is fixed.
+- **Blue's awakening:** chapter ① runs under a low, ragged rock ceiling. When blue is built it lifts away over three seconds as the light opens: the sky, the far range, the horizon glow and, on the far ridge, the base's lights (where the road goes). The ceiling never reaches the ground; landings read the same.
+- **Crew forms:** Rapippo's transmit form now also folds out two fixed legs. See [CREW_SPRITES.md](story/CREW_SPRITES.md).
+- **Ending gates** move to downbeats of the song that restarts on D+1: bass D+5, perc D+9, pad D+13, launch D+17, black D+63.
+- **Phone load:** 390×844 at DPR 3 with the CPU throttled 4×: 60fps in the dark start, chapter II, the rescue window and the rocket window (mean 16.6ms, p95 ≤ 16.8ms, 0 frames over 33ms). Headless Chromium; GPU raster cost is not emulated, so a real Android check remains.
+
+![Awakening, before P4 (top) and P4 (bottom)](story/p4-wake.png)
+![Ending, before P4 (top) and P4 (bottom)](story/p4-ending.png)
+
 ## Real Web Audio verification
 
 `tests/browser/story-audio.spec.mjs` runs a real `AudioContext` in Chromium (headless, real time, no clock mocking). With `STORY_AUDIO=required` (set in CI, and by `npm run test:story-audio`) a browser without running audio **fails** instead of skipping.
@@ -109,7 +120,7 @@ Checks:
 |---|---|
 | JS exceptions / console errors during play, pause, resume, mute, ending | none |
 | Every touchdown has a tick note scheduled on exactly that beat; every note at `s + offset` (spread < 1µs) | pass |
-| Bell enters only after assembly; bass with green; percussion at the base; ending: no tick, bell D+1, bass D+4, perc D+8 | pass |
+| Bell enters only after assembly; bass with green; percussion at the base; ending: no tick, bell D+1, bass D+5, perc D+9 (P4 gates) | pass |
 | Pickup ×2 and assembly cues predicted and scheduled at their event time; late cues | 0 late |
 | Fall beat has no tick; respawn beat ticks; fall cue predicted | pass |
 | Red leaves: perc → < 0.1; after pickup bass/perc return faint and rise (0.27 → 0.71 → 0.90, 0.5 → 12kHz); notice/rescue/pickup/reunion cues predicted, 0 late | pass |
@@ -125,7 +136,7 @@ Not measurable here: real speaker/Bluetooth latency and touch latency on Android
 - `tests/story.test.mjs` (19): exact beat, clock rebasing/pause/jitter/latency mapping, full-course solvability and length, frame-rate independence, the switch puzzle (SLOW-only and FAST-only fail; the assist widens the window per fall, SLOW alone only after four), the valley link break + relay on every route, respawn keeps progress, story event order (incl. notice → rescue → pickup → reunion), crane beats, music hand-off, finite notes, noisy play never stuck, a fall after red leaves the crane, falls at six rescue/base moments.
 - `tests/browser/story.spec.mjs` (3): FREE RUN link; start on the beat and pause without losing phase; a full browser playthrough with real key events to the end card, checking every story beat in order, the comms window, no touchdown after the dock, and the four lights.
 - `tests/browser/story-p2.spec.mjs` (2): blue reveal and green link/relay/switch scenes.
-- `tests/browser/story-p3.spec.mjs` (2): red's rescue scenes (red waits exactly one beat); the dock beat to black: friends hold still on D, blue lands on D+1 with the hero's first blink, green D+4, red D+8, the light on/off on beats 9–11, four lights > 14 CSS px apart on a 390px-wide screen.
+- `tests/browser/story-p3.spec.mjs` (2): red's rescue scenes (red waits exactly one beat); the dock beat to black: friends hold still on D, blue lands on D+1 with the hero's first blink, green D+5, red D+9, the light on/off on the three beats after, four lights > 14 CSS px apart on a 390px-wide screen.
 - `tests/browser/story-crew.spec.mjs` (1): crew silhouettes in both forms, measured from pixels.
 - `tests/browser/story-audio.spec.mjs` (6): real Web Audio checks above.
 - All 72 existing Node tests and 38 existing browser tests still pass.
@@ -133,7 +144,7 @@ Not measurable here: real speaker/Bluetooth latency and touch latency on Android
 ![Blue: assembly, flash, opening, wide moon](story/p2-blue.png)
 ![Green: link lost (edge marker), relay, over the socket, switch on and bridge, alone](story/p2-green.png)
 ![Red: looks back, leaves, comms window, pickup, coming back, reunion](story/p3-red.png)
-![Dock: stop, still, blue takes D+1, green D+4, red D+8, launch](story/p3-dock.png)
+![Dock: stop, still, blue takes D+1, green D+4, red D+8 (P3 gates), launch](story/p3-dock.png)
 ![Rocket window: base below, receding, four lights, black](story/p3-end.png)
 
 ## Open items (next)

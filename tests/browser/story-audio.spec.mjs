@@ -3,6 +3,7 @@ import {mkdir,writeFile} from 'node:fs/promises';
 import {COURSE} from '../../public/src/story/course.mjs';
 import {storyFrom} from '../../public/src/story/sim.mjs';
 import {BEAT} from '../../public/src/story/beat.mjs';
+import {ENDING} from '../../public/src/story/music.mjs';
 import {solve,hop} from '../helpers/story-solver.mjs';
 // Real AudioContext and real time (no Playwright clock). Skips if the
 // browser cannot run audio, unless STORY_AUDIO=required (CI and
@@ -23,12 +24,18 @@ async function open(page,cp) {
 }
 const read=page=>page.evaluate(()=>globalThis.__rapippoStoryProbe.read());
 const data=page=>page.evaluate(()=>({notes:globalThis.__rapippoStoryProbe.notes||[],events:globalThis.__rapippoStoryProbe.events||[]}));
-// In-page driver: hold FAST for the first path[i] of hop i, switched by the
-// game's own story time (frame accuracy, ≤4px at FAST).
+// In-page driver: hold FAST for the first path[i] of hop i. Edges are sent
+// by timers aimed at their exact story time (not on the next frame), so slow
+// CI frames do not shift them; the event's own timestamp is what the game uses.
 async function drive(page,path) {
   await page.evaluate(path=>{
-    let down=false;const key=on=>window.dispatchEvent(new KeyboardEvent(on?'keydown':'keyup',{code:'Space',bubbles:true}));
-    const tick=()=>{const r=globalThis.__rapippoStoryProbe.read(),k=r.s/.78,i=Math.floor(k);const want=(path[i]??0)>k-i;if(want!==down){down=want;key(want);}if(r.status!=='docked')requestAnimationFrame(tick);};
+    let down=false,pending=null;const key=on=>{if(on!==down){down=on;window.dispatchEvent(new KeyboardEvent(on?'keydown':'keyup',{code:'Space',bubbles:true}));}};
+    const edges=[];path.forEach((f,i)=>{if(f>0){edges.push([i*.78,true]);edges.push([(i+f)*.78-(f===1?0:0),false]);}});
+    edges.sort((a,b)=>a[0]-b[0]);
+    const tick=()=>{const r=globalThis.__rapippoStoryProbe.read();
+      while(edges.length&&edges[0][0]<=r.s){key(edges.shift()[1]);}
+      if(edges.length&&!pending&&edges[0][0]-r.s<.12){const [t,on]=edges[0];pending=setTimeout(()=>{pending=null;const now=globalThis.__rapippoStoryProbe.read().s;if(edges[0]&&edges[0][0]===t&&now>=t-.004){edges.shift();key(on);}},Math.max(0,(t-r.s)*1000));}
+      if(r.status!=='docked')requestAnimationFrame(tick);};
     requestAnimationFrame(tick);
   },path);
 }
@@ -58,7 +65,8 @@ test('real audio: blue parts, predicted pickup cues, bell enters, pause/resume/m
   for(const e of [...collects,assemble]) expect(notes.some(n=>n.part==='cue:'+e.type&&near(n.s,e.t)),'predicted '+e.type).toBe(true);
   const late=notes.filter(n=>n.part.startsWith('late:'));
   const bells=notes.filter(n=>n.part==='bell');
-  expect(bells.length).toBeGreaterThan(8);expect(Math.min(...bells.map(n=>n.s))).toBeGreaterThanOrEqual(assemble.t-1e-9);
+  // The song's first bar starts on the assembly touchdown; the melody breathes, so fewer notes.
+  expect(bells.length).toBeGreaterThan(4);expect(Math.min(...bells.map(n=>n.s))).toBeCloseTo(assemble.t,6);
   // Pause freezes story time and schedules nothing new.
   await page.keyboard.press('Escape');await page.waitForTimeout(150);
   const paused=await read(page),count=(await data(page)).notes.length;
@@ -112,8 +120,8 @@ test('real audio: red fetches green and their parts come back clearer with every
   const i=COURSE.checkpoints.findIndex(cp=>cp.chapter==='rescue'&&cp.x<COURSE.crane.a&&cp.x>COURSE.redConsole);
   // The page starts driving after ~0.6s, so the first hop is a plain SLOW one.
   const start=storyFrom(COURSE,i);hop(start,COURSE,0);
-  const {path}=solve(COURSE,start,{until:r=>r.together&&r.beat>=0,order:[.25,0,.5,.75,1],robust:.04});
-  const after=solve(COURSE,(()=>{const r=storyFrom(COURSE,i);for(const f of [0,...path])hop(r,COURSE,f);return r;})(),{until:r=>r.beat>=start.beat+path.length+12,order:[.25,0,.5,.75,1],robust:.04}).path;
+  const {path}=solve(COURSE,start,{until:r=>r.together&&r.beat>=0,order:[.25,0,.5,.75,1],robust:.08});
+  const after=solve(COURSE,(()=>{const r=storyFrom(COURSE,i);for(const f of [0,...path])hop(r,COURSE,f);return r;})(),{until:r=>r.beat>=start.beat+path.length+12,order:[.25,0,.5,.75,1],robust:.08}).path;
   const errors=await open(page,i);await drive(page,[0,...path,...after]);
   const samples=[];
   for(let k=0;k<160;k++){const r=await read(page);samples.push({s:r.s,red:r.red,levels:r.audio.levels,clarity:r.audio.clarity});if(r.red==='follow'&&samples.filter(x=>x.red==='follow').length>6)break;await page.waitForTimeout(250);}
@@ -148,7 +156,7 @@ test('real audio: ending hands the beat from the hero to the friends',async({pag
   const {notes}=await data(page);const r=await read(page);
   const first=part=>Math.min(...notes.filter(n=>n.part===part).map(n=>Math.round(n.s/BEAT)));
   expect(notes.filter(n=>n.part==='tick').length).toBe(0);
-  expect(first('bell')).toBe(r.dockAt+1);expect(first('bass')).toBe(r.dockAt+4);expect(first('perc')).toBe(r.dockAt+8);
+  expect(first('bell')).toBe(r.dockAt+ENDING.bell);expect(first('bass')).toBe(r.dockAt+ENDING.bass);expect(first('perc')).toBe(r.dockAt+ENDING.perc);
   // D+1 carries the low hand-off bell under the arpeggio.
   expect(notes.filter(n=>n.part==='bell'&&Math.round(n.s/BEAT*4)===(r.dockAt+1)*4).length).toBe(2);
   expect(errors).toEqual([]);

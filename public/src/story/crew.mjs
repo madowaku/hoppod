@@ -66,7 +66,7 @@ export function drawCrewParts(g, who, x, y, scale, { palette: P, form = 0, pulse
 
 // Hero transmit mode over pod.mjs's art (docked: phase 0 → head top -21).
 // k 0..1 eases it in. Ears grow 2px, the base widens 2px each side and
-// locks, a light over the head and one in the chest blink on the beat with
+// two fixed legs fold out and plant, a light over the head and one in the chest blink on the beat with
 // a ring around the head light when lit.
 export function drawTransmit(g, x, y, scale, k, on) {
   if (k <= 0) return;
@@ -78,6 +78,12 @@ export function drawTransmit(g, x, y, scale, k, on) {
     px(g, on ? '#bfe6ff' : '#ff9161', ear + 1, top - 9 - rise, 1, 3);
   }
   px(g, OUTLINE, -9, 0, 18, 2); px(g, '#ffe9be', -8, 0, 16, 1);
+  // Two fixed legs fold out from the base and plant: it will not hop again.
+  const leg = Math.round(4 * k);
+  for (const side of [-1, 1]) {
+    for (let i = 0; i <= leg; i++) px(g, '#8aa0ac', side * (8 + i) - (side < 0 ? 1 : 0), 1 + Math.floor(i / 2), 2, 2);
+    if (leg) { px(g, OUTLINE, side * (9 + leg) - (side < 0 ? 4 : 0), 2 + Math.floor(leg / 2), 5, 2); px(g, '#ffe9be', side * (9 + leg) - (side < 0 ? 3 : -1), 2 + Math.floor(leg / 2), 3, 1); }
+  }
   px(g, on ? '#e6f4ff' : '#4a5a66', -1, top - 4, 2, 2); px(g, on ? '#bfe6ff' : '#4a5a66', -1, top + 15, 2, 1);
   if (on) { g.strokeStyle = 'rgba(191,230,255,.85)'; g.lineWidth = .7; g.beginPath(); g.arc(0, top - 3, 4, 0, Math.PI * 2); g.stroke(); }
   g.restore();
