@@ -1,0 +1,436 @@
+// RAPIPPO STORY. Separate page and modules; FREE RUN code is only imported
+// read-only (physics constants, footing, pod artwork).
+import { INSET, footing } from '../engine.mjs';
+import { drawPod } from '../pod.mjs';
+import { COMPANION_PALETTE } from '../companion.mjs';
+import { BEAT, BeatClock, TimedInput, heardFromContext, beatIndex } from './beat.mjs';
+import { COURSE } from './course.mjs';
+import { newStory, storyFrom, advanceStory, craneSolid, hopLift, RANGE, FOLLOW_GAP, FALL_BEATS } from './sim.mjs';
+import { createStoryAudio, notesAt, STEP, ENDING } from './music.mjs';
+import { chooseLanguage, storyCopy } from './copy.mjs';
+
+const get = id => document.getElementById(id);
+const canvas = get('play'), ctx = canvas.getContext('2d');
+const W = 360, H = 510, FLOOR = 382, HERO_X = 130, LOOKAHEAD = .15;
+const PALETTE = { blue: COMPANION_PALETTE, green: { c: '#b4f2c8', w: '#ecfff2', s: '#73c290', a: '#3fcf7f' }, red: { c: '#ffbcae', w: '#fff1ec', s: '#d98a7a', a: '#ff6a4f' } };
+const GLOW = { blue: '#6fb6ff', green: '#5fe39a', red: '#ff7f66', hero: '#bfe6ff' };
+const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+const audio = createStoryAudio();
+const clock = new BeatClock(perf => heardFromContext(audio.context, perf));
+const input = new TimedInput();
+const pointers = new Set(), keys = new Set();
+const params = new URL(location.href).searchParams;
+function readPreference(key) { try { return localStorage.getItem(key); } catch { return null; } }
+function savePreference(key, value) { try { localStorage.setItem(key, value); } catch { /* this session only */ } }
+let language = chooseLanguage(location.href, readPreference('hoppod.pref.lang'), navigator.language);
+const tr = key => storyCopy(language, key);
+audio.setMuted(readPreference('hoppod.pref.muted') === '1');
+
+let cull = 20;
+let run, screen = 'start', s = 0, nextStep = 0, particles = [], banner = null, launched = false;
+const perfNow = () => performance.now() / 1000;
+const fast = () => pointers.size + keys.size > 0;
+const playing = () => screen === 'play';
+
+function initialRun() {
+  const cp = params.get('cp');
+  if (cp === 'end') {
+    const r = storyFrom(COURSE, COURSE.checkpoints.length - 1);
+    for (const who of ['blue', 'green', 'red']) { r[who].state = 'station'; r[who].x = COURSE.stations.find(st => st.who === who).x; }
+    Object.assign(r, { status: 'docked', dockAt: 0, x: COURSE.dockX, chapter: 'base' });
+    return r;
+  }
+  const i = Number(cp);
+  return Number.isInteger(i) && i > 0 && i < COURSE.checkpoints.length ? storyFrom(COURSE, i) : newStory(COURSE);
+}
+function begin() {
+  audio.unlock(); audio.cancel();
+  run = initialRun(); s = 0; particles = []; launched = false;
+  clock.start(0, perfNow()); input.reset(0, false); nextStep = 0;
+  releaseInput(); screen = 'play'; showBanner(run.status === 'docked' ? 'send' : run.chapter);
+  get('overlay').hidden = true; get('action').blur();
+}
+function pause() {
+  releaseInput();
+  if (!playing()) return;
+  clock.pause(perfNow()); audio.cancel(); screen = 'pause';
+  get('overlay').dataset.screen = 'pause'; refreshOverlay(); get('overlay').hidden = false;
+}
+function resume() {
+  audio.unlock(); clock.resume(perfNow());
+  s = clock.now(perfNow()); input.reset(s, false); nextStep = Math.ceil(s / STEP);
+  releaseInput(); screen = 'play'; get('overlay').hidden = true; get('action').blur();
+}
+function finish() {
+  screen = 'end'; get('overlay').dataset.screen = 'end'; refreshOverlay(); get('overlay').hidden = false;
+}
+function releaseInput() {
+  pointers.clear(); keys.clear();
+  if (playing()) input.push(clock.at(perfNow()), false);
+  updateHud();
+}
+function press(on, stamp) {
+  if (!playing() || run.status === 'docked') return;
+  // Event stamps share performance.now()'s origin; distrust any that do not.
+  const now = perfNow(), at = Math.abs(stamp / 1000 - now) < .25 ? Math.min(now, stamp / 1000) : now;
+  input.push(clock.at(at), on);
+}
+function showBanner(id) { banner = { id, at: s }; get('chapter-label').textContent = tr('chapters')[id] || ''; }
+
+function refreshOverlay() {
+  const kind = get('overlay').dataset.screen;
+  get('intro-mark').textContent = '✦ ' + tr('tag') + ' ✦';
+  get('overlay-title').textContent = kind === 'pause' ? tr('pauseTitle') : tr('title');
+  get('overlay-subtitle').textContent = kind === 'pause' ? tr('pauseText') : kind === 'end' ? tr('thanks') : tr('subtitle');
+  get('action').textContent = kind === 'pause' ? tr('resume') : tr('begin');
+  get('end-actions').hidden = kind !== 'end';
+}
+function refreshCopy() {
+  document.documentElement.lang = language;
+  get('story-tag').textContent = tr('tag'); get('to-free').textContent = tr('free'); get('end-free').textContent = tr('free');
+  get('intro-hold').textContent = tr('hold'); get('intro-release').textContent = tr('release');
+  get('headphones').textContent = tr('headphones'); get('again').textContent = tr('again');
+  get('footer-tag').textContent = tr('footer'); get('footer-keys').textContent = tr('keys');
+  get('language').textContent = language === 'ja' ? 'EN' : '日本語'; get('language').setAttribute('aria-label', tr('switchLanguage'));
+  get('sound').textContent = tr(audio.muted ? 'soundOff' : 'soundOn'); get('sound').setAttribute('aria-pressed', String(!audio.muted));
+  if (banner) get('chapter-label').textContent = tr('chapters')[banner.id] || '';
+  refreshOverlay(); updateHud();
+}
+function updateHud() {
+  const on = fast();
+  get('hold').classList.toggle('active', on); get('hold').setAttribute('aria-pressed', String(on));
+  get('hold-state').textContent = on ? 'FAST' : 'SLOW';
+  get('hold-instruction').textContent = tr(on ? 'toSlow' : 'toFast');
+}
+
+get('action').addEventListener('click', () => { if (screen === 'pause') resume(); else begin(); });
+get('again').addEventListener('click', () => { get('overlay').dataset.screen = 'start'; begin(); });
+get('sound').addEventListener('click', () => {
+  get('sound').blur(); audio.unlock(); audio.setMuted(!audio.muted);
+  savePreference('hoppod.pref.muted', audio.muted ? '1' : '0'); refreshCopy();
+});
+get('language').addEventListener('click', () => {
+  get('language').blur(); language = language === 'ja' ? 'en' : 'ja';
+  savePreference('hoppod.pref.lang', language); refreshCopy();
+});
+for (const target of [canvas, get('hold')]) {
+  target.addEventListener('pointerdown', e => {
+    if (!playing() || e.button > 0) return;
+    e.preventDefault(); audio.unlock(); pointers.add(e.pointerId); target.setPointerCapture(e.pointerId);
+    press(true, e.timeStamp); updateHud();
+  });
+  target.addEventListener('lostpointercapture', e => { if (pointers.delete(e.pointerId) && !fast()) press(false, e.timeStamp); updateHud(); });
+}
+window.addEventListener('pointerup', e => { if (pointers.delete(e.pointerId) && !fast()) press(false, e.timeStamp); updateHud(); });
+window.addEventListener('pointercancel', releaseInput);
+window.addEventListener('keydown', e => {
+  if (e.code === 'Space') {
+    if (!playing() || (document.activeElement?.tagName === 'BUTTON' && document.activeElement !== get('hold'))) return;
+    e.preventDefault();
+    if (!e.repeat && !keys.has('Space')) { audio.unlock(); const was = fast(); keys.add('Space'); if (!was) press(true, e.timeStamp); updateHud(); }
+  }
+  if (e.code === 'Escape') pause();
+});
+window.addEventListener('keyup', e => { if (e.code === 'Space' && keys.delete('Space')) { if (!fast()) press(false, e.timeStamp); updateHud(); } });
+window.addEventListener('blur', pause);
+document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
+window.addEventListener('pagehide', pause);
+
+// ---------- music ----------
+const song = {
+  get dockBeat() { return run.status === 'docked' ? run.dockAt : null; },
+  parts: new Set(),
+  // The clockwork tick sounds on every beat the hero touches down.
+  tick: beat => run.status === 'playing' || (run.status === 'falling' && beat === run.fallAt + FALL_BEATS),
+};
+const smooth = (a, b, x) => { const k = Math.max(0, Math.min(1, (x - a) / (b - a))); return k * k * (3 - 2 * k); };
+function friendLevel(friend) {
+  if (friend.state === 'dormant') return 0;
+  if (friend.state === 'station') return 1;
+  return 1 - smooth(FOLLOW_GAP * 1.5, RANGE * 1.5, Math.abs(run.x - friend.x));
+}
+const lightOpen = () => run.parts.assembledAt === null ? 0 : smooth(0, 3, run.t - run.parts.assembledAt);
+const after = () => run.status === 'docked' ? s / BEAT - run.dockAt : -1;
+function mixMusic() {
+  song.parts.clear();
+  if (run.blue.state !== 'parts') song.parts.add('bell');
+  if (run.green.state !== 'dormant') song.parts.add('bass');
+  if (run.red.state !== 'dormant') song.parts.add('perc');
+  const a = after(), levels = { tick: .9, bell: .85 * lightOpen(), bass: .9 * friendLevel(run.green), perc: .9 * friendLevel(run.red), sparkle: 0 };
+  let muffle = 1 - lightOpen();
+  if (a >= 0) {
+    // Seen from the rocket: the base's music thins with distance; a little
+    // sparkle stays until the very end.
+    const k = smooth(ENDING.away, ENDING.lights, a), out = 1 - smooth(ENDING.black - 2, ENDING.black + 2, a);
+    levels.tick = 0; levels.bell = levels.bass = levels.perc = (1 - k) ** 2 * out;
+    levels.sparkle = smooth(ENDING.away, ENDING.away + 8, a) * .7 * out; muffle = k * .85;
+    if (a >= ENDING.away) song.parts.add('sparkle');
+  }
+  audio.mix(levels, muffle);
+}
+function scheduleMusic() {
+  const c = audio.context, horizon = c && c.currentTime + LOOKAHEAD;
+  if (!audio.running || clock.domain !== 'audio') { nextStep = Math.ceil(s / STEP); return; }
+  if (nextStep * STEP < s - .5) nextStep = Math.ceil(s / STEP);
+  for (;;) {
+    const at = clock.contextTime(nextStep * STEP);
+    if (at > horizon) break;
+    if (at > c.currentTime + .003) for (const note of notesAt(nextStep, song)) audio.note(note, at);
+    nextStep += 1;
+  }
+}
+
+// ---------- events ----------
+function burst(x, y, colors, n = 8) {
+  if (reducedMotion.matches) return;
+  for (let i = 0; i < n; i++) particles.push({ x, y, vx: (i - n / 2) * 20, vy: -40 - i % 3 * 18, age: 0, color: colors[i % colors.length] });
+}
+function handle(events) {
+  for (const e of events) {
+    if (e.type === 'land') burst(run.x, FLOOR - 4, ['#efdaad', '#8ee6c4'], 6);
+    else if (e.type === 'collect') { audio.cue('collect'); burst(e.x, FLOOR - 10, ['#a9d6ff', '#4f9dff'], 10); }
+    else if (e.type === 'assemble') audio.cue('assemble');
+    else if (e.type === 'join') audio.cue('join');
+    else if (e.type === 'switch') audio.cue('switch');
+    else if (e.type === 'strand') audio.cue('strand');
+    else if (e.type === 'reunion') audio.cue('reunion');
+    else if (e.type === 'station') audio.cue('station');
+    else if (e.type === 'dock') { audio.cue('dock'); releaseInput(); showBanner('send'); }
+    else if (e.type === 'fall') audio.cue('fall');
+    else if (e.type === 'respawn') audio.cue('respawn');
+    else if (e.type === 'chapter') showBanner(e.id);
+  }
+}
+
+// ---------- drawing ----------
+const heroBlink = () => beatIndex(s) !== beatIndex(s - .12) || (s % BEAT) < .12;
+const camera = () => run.x - HERO_X;
+function friendY(who, friend) {
+  const lag = { blue: .5, green: .25, red: .75 }[who];
+  const phase = ((s / BEAT + lag) % 1 + 1) % 1;
+  if (friend.state === 'station') return FLOOR - 2 - Math.abs(Math.sin(phase * Math.PI)) * 18;
+  if (friend.state === 'dormant' || friend.state === 'lost' || friend.state === 'switch') return FLOOR - 2;
+  return FLOOR - 18 - Math.sin(phase * Math.PI) * 44;
+}
+function drawPlatforms(cam) {
+  for (const p of COURSE.platforms) {
+    const [left, right] = footing([p.a, p.b]), l = Math.round(left - cam), r = Math.round(right - cam);
+    if (r < -cull || l > W + cull || p.kind === 'crane') continue;
+    ctx.fillStyle = '#2e4850'; ctx.fillRect(l, FLOOR, r - l, H - FLOOR);
+    ctx.fillStyle = '#26404a'; ctx.fillRect(l - INSET, FLOOR + 6, INSET, H); ctx.fillRect(r, FLOOR + 6, INSET, H);
+    ctx.fillStyle = p.kind === 'station' ? '#c9d9ff' : p.kind === 'dock' ? '#ffe3ac' : '#a8b7a5'; ctx.fillRect(l, FLOOR, r - l, 6);
+    ctx.fillStyle = '#65858a'; ctx.fillRect(l, FLOOR + 6, r - l, 8);
+  }
+}
+function drawGlints(cam) {
+  // Even in the dark, each footing's lit edge stays visible: the next
+  // landing can always be judged.
+  ctx.fillStyle = 'rgba(232, 214, 170, .55)';
+  for (const p of COURSE.platforms) {
+    if (p.kind === 'crane') continue;
+    const [left, right] = footing([p.a, p.b]), l = Math.round(left - cam), r = Math.round(right - cam);
+    if (r < -cull || l > W + cull) continue;
+    ctx.fillRect(l, FLOOR, 3, 2); ctx.fillRect(r - 3, FLOOR, 3, 2);
+    for (let x = l + 10; x < r - 8; x += 18) ctx.fillRect(x, FLOOR, 2, 1);
+  }
+}
+function drawDevices(cam) {
+  // Switch and bridge.
+  const sx = COURSE.switchX - cam;
+  if (sx > -40 - cull && sx < W + 40 + cull) {
+    ctx.fillStyle = run.switchOn ? '#5fe39a' : '#3c5a55'; ctx.fillRect(sx - 18, FLOOR - 4, 36, 4);
+    ctx.fillStyle = run.switchOn ? '#c8ffdc' : '#5d7b74'; ctx.fillRect(sx - 3, FLOOR - 26, 6, 22);
+  }
+  const ba = COURSE.bridge.a - cam, bb = COURSE.bridge.b - cam;
+  if (bb > -10 - cull && ba < W + 10 + cull) {
+    if (run.switchOn) {
+      ctx.fillStyle = '#3d6b58'; ctx.fillRect(ba, FLOOR, bb - ba, 10);
+      ctx.fillStyle = '#9ff0c4'; for (let x = ba; x < bb; x += 14) ctx.fillRect(x, FLOOR, 10, 3);
+    } else {
+      ctx.strokeStyle = '#3c5a55'; ctx.setLineDash([4, 6]); ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(ba, FLOOR + 2); ctx.lineTo(bb, FLOOR + 2); ctx.stroke(); ctx.setLineDash([]);
+    }
+  }
+  // Crane: the span drops on its two solid beats of every four.
+  const crane = COURSE.crane, cx = (crane.a + crane.b) / 2 - cam;
+  if (cx > -160 - cull && cx < W + 160 + cull) {
+    const k = beatIndex(s), phase = (s - k * BEAT) / BEAT;
+    const yFor = beat => craneSolid(run, beat) ? 0 : -70;
+    const y = FLOOR + yFor(k) + (yFor(k + 1) - yFor(k)) * smooth(0, .4, phase);
+    ctx.fillStyle = '#4a3a36'; ctx.fillRect(crane.a - cam - 70, 120, 8, FLOOR - 120);
+    ctx.fillRect(crane.a - cam - 70, 120, cx - (crane.a - cam - 70) + 10, 6);
+    ctx.strokeStyle = '#8a6a60'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(cx, 126); ctx.lineTo(cx, y); ctx.stroke();
+    const [l, r] = footing([crane.a, crane.b]);
+    ctx.fillStyle = run.red.state === 'dormant' ? '#4b4a48' : '#c46f5c'; ctx.fillRect(l - cam, y, r - l, 8);
+    ctx.fillStyle = '#ffd2c4'; ctx.fillRect(l - cam, y, r - l, 2);
+  }
+  // Base: dock mast and the transport rocket on its pad.
+  const dx = COURSE.dockX - cam;
+  if (dx > -80 - cull && dx < W + 200 + cull) {
+    ctx.fillStyle = '#5b6f7a'; ctx.fillRect(dx - 3, FLOOR - 120, 6, 120);
+    ctx.fillStyle = '#ffe3ac'; ctx.fillRect(dx - 14, FLOOR - 124, 28, 4);
+    const a = after(), lift = a > ENDING.launch ? (a - ENDING.launch) ** 2 * 14 : 0, rx = COURSE.rocketX - cam, ry = FLOOR - lift;
+    ctx.fillStyle = '#3a4a52'; ctx.fillRect(rx - 26, FLOOR - 4, 52, 4);
+    ctx.fillStyle = '#e8e2d0'; ctx.fillRect(rx - 9, ry - 70, 18, 60);
+    ctx.fillStyle = '#ff9161'; ctx.beginPath(); ctx.moveTo(rx - 9, ry - 70); ctx.lineTo(rx, ry - 88); ctx.lineTo(rx + 9, ry - 70); ctx.fill();
+    ctx.fillRect(rx - 15, ry - 22, 6, 14); ctx.fillRect(rx + 9, ry - 22, 6, 14);
+    ctx.fillStyle = '#8fd0ff'; ctx.fillRect(rx - 4, ry - 56, 8, 8);
+    if (a > ENDING.launch - 2) { ctx.fillStyle = (s * 20 | 0) % 2 ? '#ffd28a' : '#ff9161'; ctx.fillRect(rx - 6, ry - 8, 12, 10 + (s * 30 | 0) % 8); }
+  }
+}
+function drawFriends(cam) {
+  for (const who of ['red', 'green', 'blue']) {
+    const f = run[who];
+    if (who === 'blue' && f.state === 'parts') continue;
+    const x = f.x - cam, y = friendY(who, f);
+    if (x < -30 - cull || x > W + 30 + cull) continue;
+    const awake = !['dormant', 'lost'].includes(f.state);
+    if (f.state === 'follow' && !run.together && who === 'green') {
+      // The link to the hero thins as green drifts; it flickers near the edge.
+      const d = run.x - f.x, k = d / RANGE, flicker = k > .75 && (s * 14 | 0) % 2;
+      ctx.strokeStyle = `rgba(95, 227, 154, ${flicker ? .1 : Math.max(.12, .7 - k * .55)})`;
+      ctx.setLineDash([2, 4]); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(HERO_X, heroY() - 56); ctx.lineTo(x, y - 30); ctx.stroke(); ctx.setLineDash([]);
+    }
+    drawPod(ctx, x, y, 1, { phase: (s / BEAT) % 1, time: s, palette: PALETTE[who], eyes: awake, idle: !awake });
+    if (f.state === 'lost') { ctx.fillStyle = '#ff9b80'; ctx.font = 'bold 9px monospace'; ctx.textAlign = 'center'; ctx.fillText('×', x, y - 44); }
+  }
+}
+function heroY() {
+  if (run.status === 'falling') { const age = s - run.fallAt * BEAT; return FLOOR - 2 + Math.min(150, age * age * 260); }
+  return FLOOR - 2 - hopLift(run) * 96;
+}
+function drawHero(cam) {
+  const x = (run.status === 'falling' ? run.fallX : run.x) - cam, docked = run.status === 'docked';
+  const phase = (s % BEAT) / BEAT;
+  drawPod(ctx, x, heroY(), 2, { phase: docked ? 0 : phase, fast: fast() && playing() && !docked, land: docked ? 0 : Math.max(0, 1 - phase / .17), time: s, signal: docked ? (heroBlink() ? 1 : 0) : 0 });
+  if (docked && heroBlink()) { ctx.fillStyle = GLOW.hero; ctx.fillRect(x - 12, heroY() - 66, 3, 3); ctx.fillRect(x + 9, heroY() - 66, 3, 3); }
+}
+function drawDarkness() {
+  const open = lightOpen();
+  if (open >= 1 || run.chapter !== 'wake') return;
+  // The hero's own glow pulses wider at each touchdown.
+  const touch = Math.max(0, 1 - (s % BEAT) / .3), r = 64 + touch * 22 + open * 600;
+  const gx = HERO_X, gy = heroY() - 20;
+  const g = ctx.createRadialGradient(gx, gy, r * .35, gx, gy, r);
+  g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, `rgba(2,4,6,${.95 * (1 - open)})`);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+}
+function drawScene() {
+  const cam = camera();
+  drawBackdrop(cam);
+  ctx.fillStyle = '#020406'; ctx.fillRect(0, FLOOR, W, H - FLOOR);
+  drawPlatforms(cam); drawDevices(cam); drawFriends(cam); drawHero(cam);
+  for (const p of particles) {
+    ctx.globalAlpha = Math.max(0, 1 - p.age / .4); ctx.fillStyle = p.color;
+    ctx.fillRect(p.x - cam + p.vx * p.age, p.y + p.vy * p.age + 120 * p.age ** 2, 3, 3);
+  }
+  ctx.globalAlpha = 1;
+  drawDarkness(); drawGlints(cam);
+  // The active blue part glows through the dark.
+  if (run.parts.got < COURSE.parts.length) {
+    const px = run.parts.x - cam, pulse = reducedMotion.matches ? .5 : .5 + .5 * Math.sin(s * 4);
+    if (px > -20 && px < W + 20) {
+      ctx.fillStyle = `rgba(79,157,255,${.25 + .2 * pulse})`; ctx.beginPath(); ctx.arc(px, FLOOR - 10, 13, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#a9d6ff'; ctx.fillRect(px - 4, FLOOR - 14, 8, 8);
+    }
+  }
+  if (run.parts.got > 0 && run.parts.got < COURSE.parts.length) for (let i = 0; i < COURSE.parts.length; i++) {
+    ctx.strokeStyle = '#2c4656'; ctx.strokeRect(16 + i * 14, 36, 10, 10);
+    if (i < run.parts.got) { ctx.fillStyle = '#a9d6ff'; ctx.fillRect(18 + i * 14, 38, 6, 6); }
+  }
+}
+function drawBackdrop(cam, alpha = 1) {
+  ctx.fillStyle = '#05080c'; ctx.fillRect(0, 0, W, H);
+  const stars = .25 + .75 * lightOpen();
+  for (let i = 0; i < 60; i++) {
+    const x = ((i * 97 - cam * .06) % 390 + 390) % 390;
+    ctx.fillStyle = i % 7 ? `rgba(82,105,118,${stars})` : `rgba(234,214,164,${stars})`;
+    ctx.fillRect(x | 0, 18 + i * 37 % 260, 2, i % 7 ? 2 : 3);
+  }
+  ctx.globalAlpha = alpha;
+  for (let layer = 0; layer < 2; layer++) {
+    ctx.fillStyle = layer ? '#14242e' : '#101d26';
+    for (let x = -28; x < W + 28; x += 28) {
+      const h = 18 + (Math.sin((x + cam * (.04 + layer * .03)) * .025) + 1) * (22 + layer * 10);
+      ctx.fillRect(x, FLOOR - h, 29, h);
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+function drawEnding() {
+  // The view settles on the whole base, then turns into the rocket's window
+  // and recedes until only four small lights remain.
+  const a = after(), fit = smooth(0, 6, a), turn = smooth(ENDING.turn, ENDING.away, a), away = smooth(ENDING.away, ENDING.lights, a);
+  const zoom = (1 - .42 * fit) * (1 - .3 * turn) * Math.exp(-2.3 * away);
+  const cam = (run.x - HERO_X) * (1 - fit) + (COURSE.baseCenter - W / 2) * fit;
+  const cy = FLOOR - 70 * fit + (H / 2 + 40 - FLOOR + 70) * turn;
+  drawBackdrop(cam, 1 - turn);
+  ctx.save(); ctx.translate(W / 2, cy); ctx.scale(zoom, zoom); ctx.translate(-W / 2, -FLOOR); cull = W / zoom;
+  ctx.fillStyle = `rgba(14,26,34,${turn})`; ctx.fillRect(-W * 30, FLOOR, W * 61, H * 30);
+  drawPlatforms(cam); drawDevices(cam); drawFriends(cam); drawHero(cam);
+  ctx.restore(); cull = 20;
+  // Four lights stay readable at any scale; the hero's blinks on the beat.
+  const glow = smooth(ENDING.away + 6, ENDING.lights - 8, a);
+  for (const [who, wx, wy] of [['blue', run.blue.x, friendY('blue', run.blue)], ['green', run.green.x, friendY('green', run.green)], ['red', run.red.x, friendY('red', run.red)], ['hero', COURSE.dockX, heroY() - 60]]) {
+    const on = who !== 'hero' || heroBlink();
+    const x = W / 2 + (wx - cam - W / 2) * zoom, y = cy + (wy - 20 - FLOOR) * zoom;
+    ctx.globalAlpha = glow * (on ? 1 : .2); ctx.fillStyle = GLOW[who];
+    ctx.beginPath(); ctx.arc(x, y, who === 'hero' && on ? 3 : 2.4, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  if (turn > 0) {
+    const r = 430 - 270 * turn;
+    ctx.fillStyle = '#000'; ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.arc(W / 2, H / 2 - 10, r, 0, Math.PI * 2, true); ctx.fill('evenodd');
+    ctx.strokeStyle = `rgba(120,140,150,${turn * .6})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(W / 2, H / 2 - 10, r, 0, Math.PI * 2); ctx.stroke();
+  }
+  const black = smooth(ENDING.black - 2, ENDING.black, a);
+  if (black > 0) { ctx.fillStyle = `rgba(0,0,0,${black})`; ctx.fillRect(0, 0, W, H); }
+  if (a >= ENDING.title) {
+    ctx.globalAlpha = smooth(ENDING.title, ENDING.title + 2, a); ctx.fillStyle = '#fff0d0'; ctx.font = 'bold 30px monospace'; ctx.textAlign = 'center';
+    ctx.fillText('RAPIPPO', W / 2, H / 2); ctx.globalAlpha = 1;
+  }
+}
+function drawHints() {
+  if (!playing() || run.hops >= 3 || run.status !== 'playing' || run.checkpoint > 0) return;
+  ctx.textAlign = 'center'; ctx.fillStyle = '#c3d1c7'; ctx.font = '11px monospace';
+  ctx.fillText(tr('hints')[run.hops], W / 2, 190);
+}
+function drawBanner() {
+  if (!banner || !playing()) return;
+  const age = (s - banner.at) / BEAT;
+  if (age > 5) return;
+  ctx.globalAlpha = smooth(0, .8, age) * (1 - smooth(4, 5, age));
+  ctx.fillStyle = '#e9d9b0'; ctx.font = 'bold 13px monospace'; ctx.textAlign = 'center';
+  ctx.fillText(tr('chapters')[banner.id] || '', W / 2, 120); ctx.globalAlpha = 1;
+}
+
+// ---------- loop ----------
+let lastS = 0;
+function frame() {
+  if (playing()) {
+    s = clock.now(perfNow());
+    if (s - lastS > .5 && lastS > 0) { lastS = s; pause(); }
+    else {
+      const events = [];
+      if (run.status === 'docked') { run.t = s; }
+      else input.advance(s, (from, to, f) => advanceStory(run, COURSE, to, f, events));
+      lastS = s;
+      handle(events);
+      mixMusic(); scheduleMusic();
+      const a = after();
+      if (a >= ENDING.launch && !launched) { launched = true; audio.rumble(clock.contextTime(s) ?? 0, 7); }
+      if (a >= ENDING.card) finish();
+    }
+  }
+  particles.forEach(p => p.age += 1 / 60); particles = particles.filter(p => p.age < .4);
+  if (run.status === 'docked' && after() >= 0) drawEnding(); else drawScene();
+  drawHints(); drawBanner();
+  requestAnimationFrame(frame);
+}
+run = initialRun(); refreshCopy(); requestAnimationFrame(frame);
+// Browser tests read (never write) the run through an injected probe.
+if (globalThis.__rapippoStoryProbe) globalThis.__rapippoStoryProbe.read = () => ({
+  screen, s, x: run.x, beat: run.beat, status: run.status, chapter: run.chapter, checkpoint: run.checkpoint,
+  parts: run.parts.got, blue: run.blue.state, green: run.green.state, red: run.red.state, switchOn: run.switchOn,
+  domain: clock.domain, dockAt: run.dockAt,
+});

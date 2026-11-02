@@ -14,6 +14,10 @@ Small bouncing space capsule with rabbit-ear antennas, a face-display, and a spr
 - **Distribution target:** Cloudflare Workers Static Assets (deploy only after device and sharing tests).
 - **Source:** Gameplay mechanics inspired by the user's earlier [HOPSCROLL](https://github.com/madowaku/hopscroll). Independent project and release lifecycle; carry over attribution and validated mechanics.
 
+## STORY (thatgamejam #02, in progress)
+
+A separate five-minute STORY page, `story.html`, is being built on `feature/story-jam-02`. Hops and original Web Audio music share one beat clock. FREE RUN only gains a link to it. See [STORY design and status](docs/STORY_JAM02.md).
+
 ## Play locally
 
 Requires Python 3. From this folder:
