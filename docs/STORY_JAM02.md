@@ -44,7 +44,7 @@ Length from the solver witnesses: dock at 167–216s depending on pace, plus a 5
 
 **Blue: out of the dark.** The third part triggers a white flash, a ring of light rolling out from the lamp, the slow wide chord under the boot chime, and over 3s the darkness lifts to reveal a horizon glow and a far mountain range with lit rims that was never visible before. Blue keeps a soft pool of light under it.
 
-**Green: you left it behind.** Range is now **150px** (was 240) so the ring, green, and the moment it drops out all fit behind the hero; the camera slides up to 50px to keep a lagging friend in view without hiding the next landing.
+**Green: you left it behind.** Range is now **150px** (was 240) so the ring, green, and the moment it drops out sit at the hero's left. The camera slides at most 11px for a lagging friend (P3: 50px could push a full FAST landing, HERO_X + 210.6px, off the 360px screen); past that the ring and the edge marker show the friend left behind.
 
 - Signal shown three ways: the dashed link line, three bars over green, and the range ring (brightens as green nears the edge). Near the edge both flicker.
 - Link break: a small spark where it snapped, a falling three-note cue, bars drop to zero, green's eyes go dark and its antenna tips turn grey, a blinking ✕. Off screen, an edge marker remembers it while its music can still be heard.
@@ -58,7 +58,7 @@ Discoverability, honestly: the valley teaches "FAST → green drops out" and "re
 
 ## P3 — red, the reunion, the stop, the rocket
 
-**Red decides by itself.** Red rides the crane's beam while it works the span, so it is in view as the hero crosses. On the far side it drops beside the hero and, for exactly one beat, pings back towards where green was left (two red arcs, a rising two-note cue). On the next beat it sets off left, slowly at first (closed-form acceleration over one beat, then 900px/s), with a streak and its own dashed signal ring, so the player sees it leave unasked. While red is off screen a small **comms window** (top left, red frame, scanlines) shows the far end: green alone and dark on its socket, red arriving, a red ring as green's eyes light again, the pair lifting off. The window closes once they are on their way; an edge marker (red with green under it) stays until they arrive. No cutscene: the hero keeps hopping throughout.
+**Red decides by itself.** Red rides the crane's beam while it works the span, so it is in view as the hero crosses. The far side is a long, plain platform (420px), so the next beats need no judging while it happens. There red drops beside the hero and, for exactly one beat, pings back towards where green was left (two red arcs, a rising two-note cue). On the next beat it sets off left, slowly at first (closed-form acceleration over one beat, then 900px/s), with a streak and its own dashed signal ring, so the player sees it leave unasked. While red is off screen a small **comms window** (top left, red frame, scanlines) shows the far end: green alone and dark on its socket, red arriving, a red ring as green's eyes light again, the pair lifting off. The window closes once they are on their way; an edge marker (red with green under it) stays until they arrive. No cutscene: the hero keeps hopping throughout.
 
 **The reunion is the music coming back.** When red leaves, its percussion fades with distance until only the tick and the bell remain. From the pickup, bass and percussion return through red's link: a faint radio (level 0.27, ~0.5kHz low-pass) that clears with every hop on a log-distance curve (0.27 → 0.71 at ~2.9kHz → 0.90 and full 12kHz when they arrive). The reunion cue and three-colour rings mark the moment, but the change is the song itself filling back in.
 
@@ -84,7 +84,12 @@ Single-burst plans that work (8 start hops × 4 holds × 1–2 hops): 4 → 9 �
 
 - **Fixed (blocked progress):** a fall after red had left the crane respawned the hero before the crane, where the span no longer moved. The span now stays down once red has gone, and a checkpoint sits on the far platform.
 - A third relay at the switch field's edge reconnects a green lost on the approach, so green never reaches the field unlinked by accident.
+- Falls forced at each moment (before the crane, red looking back, flying, carrying green, just reunited, between stations): the crew comes back consistent (a red in flight resumes carrying green from behind the checkpoint; the crane stays down once red has gone; the bridge stays open) and the dock stays reachable.
 - Noisy play test: four seeds, a look-ahead player with 12% random holds. 70 respawns; after each one the solver reaches the next checkpoint. All 9 strandings were in chapter II before the bridge (none in I, III, IV: green only follows unlinked in II).
+
+### Friends built for their jobs (P4 groundwork)
+
+Same face and pod body as the hero, plus a story-only overlay so the silhouettes differ even when small: **blue** has a mast with a light on top and hovers on a faint jet; **green** stands on wide fixed legs that spread and plant on the switch; **red** has an asymmetric folding arm on one side that reaches out when it looks back, flies, and carries green. Shared `pod.mjs` is untouched (FREE RUN unchanged). Detail and animation are P4.
 
 ## Real Web Audio verification
 
@@ -117,7 +122,7 @@ Not measurable here: real speaker/Bluetooth latency and touch latency on Android
 
 ## Tests
 
-- `tests/story.test.mjs` (18): exact beat, clock rebasing/pause/jitter/latency mapping, full-course solvability and length, frame-rate independence, the switch puzzle (SLOW-only and FAST-only fail; the assist widens the window per fall, SLOW alone only after four), the valley link break + relay on every route, respawn keeps progress, story event order (incl. notice → rescue → pickup → reunion), crane beats, music hand-off, finite notes, noisy play never stuck, a fall after red leaves the crane.
+- `tests/story.test.mjs` (19): exact beat, clock rebasing/pause/jitter/latency mapping, full-course solvability and length, frame-rate independence, the switch puzzle (SLOW-only and FAST-only fail; the assist widens the window per fall, SLOW alone only after four), the valley link break + relay on every route, respawn keeps progress, story event order (incl. notice → rescue → pickup → reunion), crane beats, music hand-off, finite notes, noisy play never stuck, a fall after red leaves the crane, falls at six rescue/base moments.
 - `tests/browser/story.spec.mjs` (3): FREE RUN link; start on the beat and pause without losing phase; a full browser playthrough with real key events to the end card, checking every story beat in order, the comms window, no touchdown after the dock, and the four lights.
 - `tests/browser/story-p2.spec.mjs` (2): blue reveal and green link/relay/switch scenes.
 - `tests/browser/story-p3.spec.mjs` (2): red's rescue scenes (red waits exactly one beat); the dock beat to black: friends hold still on D, blue lands on D+1 with the hero's first blink, green D+4, red D+8, the light on/off on beats 9–11, four lights > 14 CSS px apart on a 390px-wide screen.
