@@ -8,7 +8,7 @@ import { COURSE } from './course.mjs';
 import { newStory, storyFrom, advanceStory, craneSolid, hopLift, switchTries, switchSnap, RANGE, FOLLOW_GAP, FALL_BEATS } from './sim.mjs';
 import { createStoryAudio, notesAt, STEP, ENDING } from './music.mjs';
 import { chooseLanguage, storyCopy } from './copy.mjs';
-import { drawCrewParts, drawTransmit } from './crew.mjs';
+import { drawCrewParts, drawTransmit, TRANSMIT_LOCK } from './crew.mjs';
 
 const get = id => document.getElementById(id);
 const canvas = get('play'), ctx = canvas.getContext('2d');
@@ -286,8 +286,12 @@ function friendY(who, friend) {
   // Red sits on the crane's beam (y 120) while it works the span.
   if (friend.state === 'crane') return 119 + (FLOOR - 18 - Math.sin(phase * Math.PI) * 44 - 119) * smooth(0, 260, Math.abs(friend.x - (COURSE.crane.a + COURSE.crane.b) / 2));
   if (friend.state === 'notice') return 119 + (FLOOR - 44 - 119) * smooth(0, BEAT * .6, s - friend.noticeAt * BEAT);
-  if (friend.state === 'rescue' || friend.state === 'carry') return FLOOR - 64 + Math.sin(s * 6) * 3 + (who === 'green' ? 18 : 0);
-  if (friend.state === 'switch') return FLOOR - 6 - Math.abs(Math.sin(phase * Math.PI)) * 6;
+  // Red flies high, then dips over green so its arm can reach down; once it
+  // has hold the pair climbs back to flying height over half a second.
+  if (friend.state === 'rescue') { const near = 1 - smooth(0, 160, rescueGap()); return FLOOR - 64 + 30 * near + Math.sin(s * 6) * 3 * (1 - near); }
+  if (friend.state === 'carry') { const k = liftK(); return FLOOR - 34 - 30 * k + Math.sin(s * 6) * 3 * k + (who === 'green' ? 30 - 12 * k : 0); }
+  // Green hops onto the socket, then stands on its plate, anchored.
+  if (friend.state === 'switch') { const k = switchSlide(); return FLOOR - 4 - (k < 1 ? Math.sin(k * Math.PI) * 14 : 0); }
   // Habits: blue floats high and soft, green hops low and heavy, red is
   // brisk (sharp take-off, quick landing).
   const arc = Math.sin(phase * Math.PI);
@@ -295,6 +299,11 @@ function friendY(who, friend) {
   if (who === 'green') return FLOOR - 10 - arc * 30;
   return FLOOR - 16 - Math.pow(arc, .6) * 40;
 }
+const rescueGap = () => Math.max(0, run.red.x - run.green.x - 12);
+const liftK = () => pickupAt === null ? 1 : smooth(0, .45, s - pickupAt);
+const switchSlide = () => run.switchAt > 0 ? smooth(0, BEAT * .6, run.t - run.switchAt) : 1;
+// Seconds since green's feet met the switch plate (null while it is still hopping there).
+const switchPlant = () => { const age = run.switchAt > 0 ? run.t - run.switchAt - BEAT * .6 : 9; return age >= 0 ? age : null; };
 function drawPlatforms(cam, flat = false) {
   for (const p of COURSE.platforms) {
     const [left, right] = footing([p.a, p.b]), l = Math.round(left - cam), r = Math.round(right - cam);
@@ -412,8 +421,10 @@ function drawFriends(cam, inset = false) {
   for (const who of ['red', 'green', 'blue']) {
     const f = run[who];
     if (who === 'blue' && f.state === 'parts') continue;
-    const slide = f.state === 'switch' && run.switchAt > 0 ? smooth(0, BEAT * .6, run.t - run.switchAt) : 1;
-    const x = (f.from !== undefined && slide < 1 ? f.from + (f.x - f.from) * slide : f.x) - cam, y = friendY(who, f);
+    const slide = f.state === 'switch' ? switchSlide() : 1;
+    // Carried green hangs from red's hook: it slides from where it was caught.
+    const hang = who === 'green' && f.state === 'carry' ? 4 * (1 - liftK()) : 0;
+    const x = (f.from !== undefined && slide < 1 ? f.from + (f.x - f.from) * slide : f.x) + hang - cam, y = friendY(who, f);
     if (x < -30 - cull || x > W + 30 + cull) continue;
     const awake = !['dormant', 'lost'].includes(f.state);
     if (who === 'green' && !run.together && !inset) drawGreenSignal(f, x, y);
@@ -432,7 +443,9 @@ function drawFriends(cam, inset = false) {
       glow.addColorStop(0, `rgba(111,182,255,${.22 * lightOpen()})`); glow.addColorStop(1, 'rgba(111,182,255,0)');
       ctx.fillStyle = glow; ctx.fillRect(x - 46, FLOOR - 50, 92, 60);
     }
-    drawPod(ctx, x, y, 1, { phase: (s / BEAT) % 1, time: s, palette, eyes: awake, idle: !awake });
+    // Anchored on the switch green's spring stays pressed down: its weight is on the plate.
+    const anchored = who === 'green' && f.state === 'switch' && switchPlant() !== null;
+    drawPod(ctx, x, y, 1, anchored ? { phase: 0, land: 1, time: s, palette, eyes: awake } : { phase: (s / BEAT) % 1, time: s, palette, eyes: awake, idle: !awake });
     drawCrewParts(ctx, who, x, y, 1, crewForm(who, f));
     // In the ending each friend's touchdown on its beat leaves a small ring.
     if (f.state === 'station' && run.status === 'docked' && after() >= ENDING[PART[who]]) {
@@ -449,16 +462,28 @@ const formSince = {}, formWas = {};
 function crewForm(who, f) {
   const a = after(), beatAge = s - beatIndex(s) * BEAT, docked = run.status === 'docked';
   const plays = f.state === 'station' && (!docked || a >= ENDING[PART[who]]);
-  let target = 0, pulse = 0, dir = 'up';
+  let target = 0, pulse = 0, dir = 'up', plant = null, to = null, grip = 0;
   if (who === 'blue') {
     const dawn = run.parts.assembledAt === null ? 0 : 1 - smooth(2.5, 4, run.t - run.parts.assembledAt);
     target = Math.max(dawn, plays ? 1 : 0); pulse = plays ? Math.max(0, 1 - beatAge / .3) : 0;
-  } else if (who === 'green') target = f.state === 'switch' || plays ? 1 : 0;
-  else if (who === 'red') { target = { crane: .5, notice: .5, rescue: 1, carry: 1 }[f.state] ?? 0; dir = f.state === 'carry' ? 'down' : 'up'; }
+  } else if (who === 'green') {
+    if (f.state === 'switch') { plant = switchPlant(); target = plant === null ? 0 : 1; } else target = plays ? 1 : 0;
+  } else if (who === 'red') {
+    target = { crane: .5, notice: .5, rescue: 1, carry: 1 }[f.state] ?? 0;
+    // Going for green the arm points ahead, then reaches down to green's head
+    // as red closes in, hook open; it shuts on the pickup and holds on.
+    const top = -21, g = run.green;
+    if (f.state === 'rescue') {
+      const near = smooth(160, 0, rescueGap()), gx = -12 - rescueGap(), gy = friendY('green', g) - friendY('red', f) - 22;
+      to = [-26 + (gx + 26) * near, top + 2 + (gy - top - 2) * near]; grip = 0;
+    } else if (f.state === 'carry') {
+      to = [-16 + 4 * (1 - liftK()), friendY('green', g) - friendY('red', f) - 22]; grip = pickupAt === null ? 1 : smooth(0, .08, s - pickupAt);
+    }
+  }
   if (formWas[who] !== target) { formWas[who] = target; formSince[who] = s; }
   const age = s - (formSince[who] ?? -9), form = target ? target * smooth(0, .18, age) : 0;
   const phase = ((s / BEAT) % 1 + 1) % 1;
-  return { palette: PALETTE[who], form, pulse, dir, snap: who === 'green' && target === 1 && age > .06 && age < .12, top: -18 - Math.round(3 + Math.sin(phase * Math.PI) * 2), on: f.state !== 'lost' && f.state !== 'dormant' };
+  return { palette: PALETTE[who], form, pulse, dir, plant, to, grip, top: -18 - Math.round(3 + Math.sin(phase * Math.PI) * 2), on: f.state !== 'lost' && f.state !== 'dormant' };
 }
 // Red's trip back, seen through a small comms window while it is off
 // screen: red reaches green on the switch, green's eyes light again, and the
@@ -582,10 +607,12 @@ function heroY() {
 function drawHero(cam) {
   const x = (run.status === 'falling' ? run.fallX : run.x) - cam, docked = run.status === 'docked';
   const phase = (s % BEAT) / BEAT;
-  drawPod(ctx, x, heroY(), 2, { phase: docked ? 0 : phase, fast: fast() && playing() && !docked, land: docked ? 0 : Math.max(0, 1 - phase / .17), time: s, signal: docked ? (heroBlink() ? 1 : 0) : 0 });
-  // Docked, the hero becomes the transmitter: taller ears, a locked base,
-  // a light that blinks on every beat although it no longer hops.
-  if (docked && after() >= 0) drawTransmit(ctx, x, heroY(), 2, smooth(0, .3, after()), heroBlink());
+  // Docked, the spring presses down once as the legs lock (in the silent beat).
+  const lock = docked ? Math.max(0, 1 - Math.abs(after() - TRANSMIT_LOCK) / .12) : 0;
+  drawPod(ctx, x, heroY(), 2, { phase: docked ? 0 : phase, fast: fast() && playing() && !docked, land: docked ? lock : Math.max(0, 1 - phase / .17), time: s, signal: docked ? (heroBlink() ? 1 : 0) : 0 });
+  // Docked, the hero becomes the transmitter: legs that lock, ears that rise
+  // into an antenna, a light that blinks on every beat although it no longer hops.
+  if (docked && after() >= 0) drawTransmit(ctx, x, heroY(), 2, after(), heroBlink());
 }
 // Wind-up: a low, ragged rock ceiling presses down while the hero ticks
 // through the dark. When blue is built it lifts away over three seconds and

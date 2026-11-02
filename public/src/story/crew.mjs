@@ -7,82 +7,133 @@
 
 const OUTLINE = '#172638';
 const px = (g, c, x, y, w, h) => { g.fillStyle = c; g.fillRect(x, y, w, h); };
+const clamp01 = v => Math.max(0, Math.min(1, v));
+const smooth = (a, b, v) => { const k = clamp01((v - a) / (b - a)); return k * k * (3 - 2 * k); };
 
 // opts: { palette, form 0..1 (normal → transformed), pulse 0..1 (beat
-// flash), dir 'up'|'down' (red's arm), snap (green's one-frame overshoot),
-// top (pod head top), on (blue light lit) }
-export function drawCrewParts(g, who, x, y, scale, { palette: P, form = 0, pulse = 0, dir = 'up', snap = false, top = -21, on = true } = {}) {
+// flash), top (pod head top), on (blue light lit),
+// green: plant (seconds since its feet touched the switch, or null),
+// red: to [x, y] (where the hook reaches, pod pixels), grip 0..1 (open →
+// closed), dir 'up'|'down' when no `to` is given }
+export function drawCrewParts(g, who, x, y, scale, { palette: P, form = 0, pulse = 0, dir = 'up', top = -21, on = true, plant = null, to = null, grip = 0 } = {}) {
   g.save(); g.translate(Math.round(x), Math.round(y)); g.scale(scale, scale);
-  if (who === 'blue') {
-    // Lamp on a stem above the head; ear tips lit; a faint hover jet. In
-    // light mode the lamp opens, reflectors fold out beside the ears and a
-    // half-circle of light spreads under it.
-    const open = form > .5, glow = (on ? .3 : .1) + .35 * form + .35 * pulse, lamp = top - 15;
-    px(g, OUTLINE, -1, lamp + 3, 2, top - lamp - 2);
-    g.globalAlpha = glow; px(g, P.w, open ? -6 : -4, open ? lamp - 4 : lamp - 2, open ? 12 : 8, open ? 11 : 8); g.globalAlpha = 1;
-    px(g, OUTLINE, -3, lamp - 1, 6, 5); px(g, on || open ? '#ffffff' : P.c, -2, lamp, 4, 3);
-    if (open) { px(g, OUTLINE, -5, lamp - 2, 10, 2); px(g, '#ffffff', -4, lamp - 2, 8, 1); px(g, P.a, -2, lamp + 3, 4, 1); }
-    for (const ear of [-6, 5]) px(g, on ? '#e6f4ff' : P.a, ear + 1, top - 10, 1, 2);
-    if (open) for (const side of [-1, 1]) { px(g, OUTLINE, side < 0 ? -10 : 9, top - 9, 2, 5); px(g, P.w, side < 0 ? -10 : 10, top - 8, 1, 3); }
-    g.globalAlpha = .45; px(g, P.a, -3, 3, 6, 1); g.globalAlpha = .2; px(g, P.a, -2, 5, 4, 1); g.globalAlpha = 1;
-    if (form > 0) {
-      const light = g.createRadialGradient(0, 2, 2, 0, 2, 18 + 6 * form);
-      light.addColorStop(0, `rgba(169,214,255,${.3 * form + .15 * pulse})`); light.addColorStop(1, 'rgba(111,182,255,0)');
-      g.fillStyle = light; g.beginPath(); g.arc(0, 2, 18 + 6 * form, Math.PI, 0); g.fill();
-    }
-  } else if (who === 'green') {
-    // Wide foot pads make it the broadest pod. Deployed they swing out 3px
-    // each way (one frame of overshoot), a strut drops from the belly, the
-    // ear tips dim (head down, working) and green light runs under it.
-    const spread = Math.round(4 * form) + (snap ? 2 : 0), w = 8 + spread, l = -10 - w;
-    for (const [x0, dir] of [[l, -1], [10, 1]]) {
-      px(g, OUTLINE, x0, -5, w, 6); px(g, P.s, x0 + 1, -4, w - 2, 4); px(g, P.c, x0 + 1, -4, w - 2, 1);
-      // A short hip joint ties each pad to the body.
-      px(g, OUTLINE, dir < 0 ? -11 : 9, -8, 3, 4); px(g, P.s, dir < 0 ? -10 : 10, -7, 1, 2);
-    }
-    if (form > .5) {
-      px(g, OUTLINE, -2, 0, 4, 3); px(g, P.s, -1, 1, 2, 2);
-      for (const ear of [-6, 5]) px(g, '#2f4a3c', ear + 1, top - 8, 1, 4);
-      g.globalAlpha = form; px(g, P.a, l, 1, 10 + w - l, 1); g.globalAlpha = 1;
-    }
-  } else if (who === 'red') {
-    // Asymmetric: a folded crane arm on the left shoulder. Deployed it runs
-    // out half (5px) or fully (9px) to a bright hook, up and out or down
-    // towards what it carries; the right foot braces.
-    const reach = form >= .75 ? 9 : form >= .25 ? 5 : 0, sx = -11, sy = top + 7;
-    px(g, OUTLINE, sx - 3, sy - 1, 4, 6); px(g, '#9a5a4e', sx - 2, sy, 2, 4); px(g, P.a, sx - 2, sy, 1, 1);
-    if (!reach) { px(g, OUTLINE, sx - 4, sy - 5, 3, 6); px(g, '#c46f5c', sx - 3, sy - 4, 1, 4); }
-    else {
-      const step = dir === 'down' ? 1 : -1;
-      for (let k = 1; k <= reach; k++) { px(g, OUTLINE, sx - 2 - k, sy + 1 + step * k - 1, 2, 3); }
-      for (let k = 1; k <= reach; k++) px(g, '#c46f5c', sx - 2 - k, sy + 1 + step * k, 1, 1);
-      const hx = sx - 2 - reach, hy = sy + 1 + step * reach;
-      px(g, '#ffd2c4', hx - 1, hy, 1, 3); px(g, '#ffd2c4', hx, hy + 3, 2, 1);
-      px(g, OUTLINE, 7, -1, 6, 3); px(g, P.s, 8, 0, 4, 1);
-    }
-  }
+  if (who === 'blue') drawBlue(g, P, form, pulse, top, on);
+  else if (who === 'green') drawGreen(g, P, form, top, plant);
+  else if (who === 'red') drawRed(g, P, form, top, to ?? (form >= .75 ? (dir === 'down' ? [-24, top + 22] : [-23, top - 4]) : form >= .25 ? [-17, top + 3] : null), grip);
   g.restore();
 }
 
-// Hero transmit mode over pod.mjs's art (docked: phase 0 → head top -21).
-// k 0..1 eases it in. Ears grow 2px, the base widens 2px each side and
-// two fixed legs fold out and plant, a light over the head and one in the chest blink on the beat with
-// a ring around the head light when lit.
-export function drawTransmit(g, x, y, scale, k, on) {
-  if (k <= 0) return;
-  const top = -21, rise = Math.round(2 * k);
+// Blue: a small lamp on a stem above the ears. It does not grow into a sign:
+// in light mode the bulb brightens and the light itself fans out from it,
+// wider and longer as the form opens, breathing on each bell.
+function drawBlue(g, P, form, pulse, top, on) {
+  const lamp = top - 15, lit = on || form > 0;
+  if (form > 0) {
+    const reach = 10 + 26 * form + 6 * pulse, spread = .35 + 1.05 * form, cx = 0, cy = lamp + 1;
+    const beam = g.createRadialGradient(cx, cy, 1, cx, cy, reach);
+    beam.addColorStop(0, `rgba(230,244,255,${.55 * form + .25 * pulse})`); beam.addColorStop(.35, `rgba(169,214,255,${.22 * form + .15 * pulse})`); beam.addColorStop(1, 'rgba(111,182,255,0)');
+    g.fillStyle = beam;
+    // Five rays fanning upward and out; the outer ones open last.
+    for (let i = -2; i <= 2; i++) {
+      const open = smooth(Math.abs(i) * .18, .45 + Math.abs(i) * .18, form), a = -Math.PI / 2 + i * spread / 2 * open, w = .09 + .04 * (2 - Math.abs(i));
+      const len = reach * (1 - .12 * Math.abs(i)) * (.9 + .1 * Math.sin(i * 1.7 + pulse * 3));
+      g.beginPath(); g.moveTo(cx, cy); g.arc(cx, cy, len, a - w, a + w); g.closePath(); g.fill();
+    }
+    // A soft halo, and a ring that leaves the lamp on each bell.
+    g.beginPath(); g.arc(cx, cy, 4 + 4 * form, 0, Math.PI * 2); g.fill();
+    if (pulse > 0) { g.strokeStyle = `rgba(230,244,255,${.6 * pulse})`; g.lineWidth = 1; g.beginPath(); g.arc(cx, cy, 6 + 16 * (1 - pulse), 0, Math.PI * 2); g.stroke(); }
+  } else if (on) { g.globalAlpha = .3; px(g, P.w, -4, lamp - 2, 8, 8); g.globalAlpha = 1; }
+  px(g, OUTLINE, -1, lamp + 3, 2, top - lamp - 2);
+  px(g, OUTLINE, -3, lamp - 1, 6, 5); px(g, OUTLINE, -2, lamp - 2, 4, 1);
+  px(g, lit ? '#ffffff' : P.c, -2, lamp, 4, 3); px(g, lit ? '#ffffff' : P.c, -1, lamp - 1, 2, 1);
+  if (form > .5) px(g, P.a, -2, lamp + 3, 4, 1);
+  for (const ear of [-6, 5]) px(g, on ? '#e6f4ff' : P.a, ear + 1, top - 10, 1, 2);
+  g.globalAlpha = .45; px(g, P.a, -3, 3, 6, 1); g.globalAlpha = .2; px(g, P.a, -2, 5, 4, 1); g.globalAlpha = 1;
+}
+
+// Green: wide foot pads on hip joints make it the broadest pod. Anchored, the
+// pads swing out with an overshoot and bite the ground (small teeth and a
+// puff of dust where they land), a strut drops from the belly, the ear tips
+// dim (head down, working) and green light runs under it.
+function drawGreen(g, P, form, top, plant) {
+  // On the switch the pads swing 2px past their stop, then settle into it.
+  const age = plant ?? 9, spread = plant === null ? Math.round(4 * form) : age < .16 ? Math.round(6 * smooth(0, .1, age)) : 4;
+  const w = 8 + spread, l = -10 - w;
+  for (const [x0, side] of [[l, -1], [10, 1]]) {
+    px(g, OUTLINE, x0, -5, w, 6); px(g, P.s, x0 + 1, -4, w - 2, 4); px(g, P.c, x0 + 1, -4, w - 2, 1);
+    px(g, OUTLINE, side < 0 ? -11 : 9, -8, 3, 4); px(g, P.s, side < 0 ? -10 : 10, -7, 1, 2);
+    if (form > .5) for (let k = 1; k < w - 1; k += 3) px(g, OUTLINE, x0 + k, 1, 1, 1);
+    // Dust kicked out from under each pad as it plants.
+    if (age < .35) {
+      const t = age / .35, edge = side < 0 ? x0 : x0 + w;
+      g.globalAlpha = .7 * (1 - t);
+      for (let k = 0; k < 3; k++) px(g, '#c9e8d4', edge + side * (2 + Math.round(t * (5 + 3 * k))), -1 - Math.round(t * (1 + k)), 1, 1);
+      g.globalAlpha = 1;
+    }
+  }
+  if (form > .5) {
+    px(g, OUTLINE, -2, 0, 4, 3); px(g, P.s, -1, 1, 2, 2);
+    for (const ear of [-6, 5]) px(g, '#2f4a3c', ear + 1, top - 8, 1, 4);
+    g.globalAlpha = form * (age < .2 ? 1 : .6); px(g, P.a, l, 1, 10 + w - l, 1); g.globalAlpha = 1;
+  }
+}
+
+// Red: asymmetric, a crane arm folded on the left shoulder. Working the crane
+// it runs out a little; when it goes for green it telescopes all the way to
+// wherever the hook must reach, the hook opens, and closes on green.
+function drawRed(g, P, form, top, to, grip) {
+  const sx = -11, sy = top + 7;
+  px(g, OUTLINE, sx - 3, sy - 1, 4, 6); px(g, '#9a5a4e', sx - 2, sy, 2, 4); px(g, P.a, sx - 2, sy, 1, 1);
+  if (!to) { px(g, OUTLINE, sx - 4, sy - 5, 3, 6); px(g, '#c46f5c', sx - 3, sy - 4, 1, 4); return; }
+  const x0 = sx - 2, y0 = sy + 1, [x1, y1] = to, dx = x1 - x0, dy = y1 - y0, len = Math.max(1, Math.hypot(dx, dy)), ux = dx / len, uy = dy / len;
+  const n = Math.ceil(len), dot = (c, k, s) => px(g, c, Math.round(x0 + ux * k) - (s >> 1), Math.round(y0 + uy * k) - (s >> 1), s, s);
+  for (let k = 0; k <= n; k++) dot(OUTLINE, k, 3);
+  for (let k = 0; k <= n; k++) dot(k % 6 === 5 ? '#ffd2c4' : '#c46f5c', k, 1);
+  // The hook: two prongs, spread when open, pinched together when closed.
+  const spread = .95 - .8 * clamp01(grip), hx = x0 + ux * len, hy = y0 + uy * len;
+  for (const side of [-1, 1]) {
+    const a = Math.atan2(uy, ux) + side * spread, bx = Math.cos(a), by = Math.sin(a);
+    for (let k = 1; k <= 4; k++) { px(g, OUTLINE, Math.round(hx + bx * k) - 1, Math.round(hy + by * k) - 1, 3, 3); }
+    for (let k = 1; k <= 4; k++) px(g, '#ffd2c4', Math.round(hx + bx * k), Math.round(hy + by * k), 1, 1);
+    // Tips curl inward so it reads as a hook, not a fork.
+    const tx = Math.round(hx + bx * 4 - side * -uy * 1.5), ty = Math.round(hy + by * 4 - side * ux * 1.5);
+    px(g, '#ffd2c4', tx, ty, 1, 1);
+  }
+  px(g, OUTLINE, 7, -1, 6, 3); px(g, P.s, 8, 0, 4, 1);
+}
+
+// Hero transmit mode over pod.mjs's art (docked: phase 0 → head top -21),
+// played out across the silent beat after the dock. `a` is beats since the
+// dock (1 = done). First the spring legs fold out, overshoot and lock with a
+// spark at each foot (0–.25): it will not hop again. Then the ears rise into
+// an antenna (.35–.8). From D+1 a light over the head and one in the chest
+// blink on the beat, with a ring around the head light when lit.
+export const TRANSMIT_LOCK = .25;
+export function drawTransmit(g, x, y, scale, a, on) {
+  if (a <= 0) return;
+  const top = -21, rise = Math.round(2 * smooth(.35, .8, a)), locked = a >= TRANSMIT_LOCK;
   g.save(); g.translate(Math.round(x), Math.round(y)); g.scale(scale, scale);
-  for (const ear of [-6, 5]) {
+  if (rise) for (const ear of [-6, 5]) {
     px(g, OUTLINE, ear - 1, top - 10 - rise, 5, rise + 1);
     px(g, '#fff0d0', ear, top - 9 - rise, 3, rise + 1);
     px(g, on ? '#bfe6ff' : '#ff9161', ear + 1, top - 9 - rise, 1, 3);
   }
-  px(g, OUTLINE, -9, 0, 18, 2); px(g, '#ffe9be', -8, 0, 16, 1);
-  // Two fixed legs fold out from the base and plant: it will not hop again.
-  const leg = Math.round(4 * k);
+  // Out one pixel too far, then pulled back in as it locks.
+  const leg = a < TRANSMIT_LOCK * .7 ? Math.round(5 * smooth(0, TRANSMIT_LOCK * .7, a)) : locked ? 4 : 5;
+  if (locked) { px(g, OUTLINE, -9, 0, 18, 2); px(g, '#ffe9be', -8, 0, 16, 1); }
   for (const side of [-1, 1]) {
     for (let i = 0; i <= leg; i++) px(g, '#8aa0ac', side * (8 + i) - (side < 0 ? 1 : 0), 1 + Math.floor(i / 2), 2, 2);
-    if (leg) { px(g, OUTLINE, side * (9 + leg) - (side < 0 ? 4 : 0), 2 + Math.floor(leg / 2), 5, 2); px(g, '#ffe9be', side * (9 + leg) - (side < 0 ? 3 : -1), 2 + Math.floor(leg / 2), 3, 1); }
+    if (!leg) continue;
+    const fx = side * (9 + leg) - (side < 0 ? 4 : 0), fy = 2 + Math.floor(leg / 2);
+    px(g, OUTLINE, fx, fy, 5, 2); px(g, '#ffe9be', fx + 1, fy, 3, 1);
+    // The lock: a bright pin at each hip, and a spark at each foot as it bites.
+    if (locked) px(g, '#ffe3ac', side * 8 - (side < 0 ? 1 : 0), 0, 2, 2);
+    const spark = locked ? 1 - (a - TRANSMIT_LOCK) / .2 : 0;
+    if (spark > 0) {
+      g.globalAlpha = spark; const sx = fx + 2, sy = fy - 1, r = Math.round(2 + 3 * (1 - spark));
+      for (const [ox, oy] of [[-r, 0], [r, 0], [0, -r], [side * r, -r]]) px(g, '#fff5d8', sx + ox, sy + oy, 1, 1);
+      g.globalAlpha = 1;
+    }
   }
   px(g, on ? '#e6f4ff' : '#4a5a66', -1, top - 4, 2, 2); px(g, on ? '#bfe6ff' : '#4a5a66', -1, top + 15, 2, 1);
   if (on) { g.strokeStyle = 'rgba(191,230,255,.85)'; g.lineWidth = .7; g.beginPath(); g.arc(0, top - 3, 4, 0, Math.PI * 2); g.stroke(); }
