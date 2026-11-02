@@ -89,7 +89,7 @@ Single-burst plans that work (8 start hops × 4 holds × 1–2 hops): 4 → 9 �
 
 ### Friends built for their jobs (P4 groundwork)
 
-Same face and pod body as the hero, plus a story-only overlay so the silhouettes differ even when small: **blue** has a mast with a light on top and hovers on a faint jet; **green** stands on wide fixed legs that spread and plant on the switch; **red** has an asymmetric folding arm on one side that reaches out when it looks back, flies, and carries green. Shared `pod.mjs` is untouched (FREE RUN unchanged). Detail and animation are P4.
+Same face, different job: see [CREW_SPRITES.md](story/CREW_SPRITES.md). Blue has a lamp above its ears, green wide foot pads, red a folded side arm. Each transforms while it works (light mode, anchor, crane), and Rapippo becomes the transmit tower on the dock. Shared `pod.mjs` is untouched (FREE RUN unchanged).
 
 ## Real Web Audio verification
 
@@ -126,6 +126,7 @@ Not measurable here: real speaker/Bluetooth latency and touch latency on Android
 - `tests/browser/story.spec.mjs` (3): FREE RUN link; start on the beat and pause without losing phase; a full browser playthrough with real key events to the end card, checking every story beat in order, the comms window, no touchdown after the dock, and the four lights.
 - `tests/browser/story-p2.spec.mjs` (2): blue reveal and green link/relay/switch scenes.
 - `tests/browser/story-p3.spec.mjs` (2): red's rescue scenes (red waits exactly one beat); the dock beat to black: friends hold still on D, blue lands on D+1 with the hero's first blink, green D+4, red D+8, the light on/off on beats 9–11, four lights > 14 CSS px apart on a 390px-wide screen.
+- `tests/browser/story-crew.spec.mjs` (1): crew silhouettes in both forms, measured from pixels.
 - `tests/browser/story-audio.spec.mjs` (6): real Web Audio checks above.
 - All 72 existing Node tests and 38 existing browser tests still pass.
 

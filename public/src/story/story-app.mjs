@@ -8,6 +8,7 @@ import { COURSE } from './course.mjs';
 import { newStory, storyFrom, advanceStory, craneSolid, hopLift, switchTries, switchSnap, RANGE, FOLLOW_GAP, FALL_BEATS } from './sim.mjs';
 import { createStoryAudio, notesAt, STEP, ENDING } from './music.mjs';
 import { chooseLanguage, storyCopy } from './copy.mjs';
+import { drawCrewParts, drawTransmit } from './crew.mjs';
 
 const get = id => document.getElementById(id);
 const canvas = get('play'), ctx = canvas.getContext('2d');
@@ -284,7 +285,12 @@ function friendY(who, friend) {
   if (friend.state === 'notice') return 119 + (FLOOR - 44 - 119) * smooth(0, BEAT * .6, s - friend.noticeAt * BEAT);
   if (friend.state === 'rescue' || friend.state === 'carry') return FLOOR - 64 + Math.sin(s * 6) * 3 + (who === 'green' ? 18 : 0);
   if (friend.state === 'switch') return FLOOR - 6 - Math.abs(Math.sin(phase * Math.PI)) * 6;
-  return FLOOR - 18 - Math.sin(phase * Math.PI) * 44;
+  // Habits: blue floats high and soft, green hops low and heavy, red is
+  // brisk (sharp take-off, quick landing).
+  const arc = Math.sin(phase * Math.PI);
+  if (who === 'blue') return FLOOR - 30 - arc * 30;
+  if (who === 'green') return FLOOR - 10 - arc * 30;
+  return FLOOR - 16 - Math.pow(arc, .6) * 40;
 }
 function drawPlatforms(cam, flat = false) {
   for (const p of COURSE.platforms) {
@@ -424,7 +430,7 @@ function drawFriends(cam, inset = false) {
       ctx.fillStyle = glow; ctx.fillRect(x - 46, FLOOR - 50, 92, 60);
     }
     drawPod(ctx, x, y, 1, { phase: (s / BEAT) % 1, time: s, palette, eyes: awake, idle: !awake });
-    drawRole(who, f, x, y, palette, awake);
+    drawCrewParts(ctx, who, x, y, 1, crewForm(who, f));
     // In the ending each friend's touchdown on its beat leaves a small ring.
     if (f.state === 'station' && run.status === 'docked' && after() >= ENDING[PART[who]]) {
       const age = s - beatIndex(s) * BEAT;
@@ -432,41 +438,24 @@ function drawFriends(cam, inset = false) {
     }
   }
 }
-// Each friend shares the hero's face but is built for its job, so the three
-// read apart as silhouettes even when small (story-only overlay on the
-// shared pod art; details are for P4).
-//   blue  — the lamp: a mast with a light on top, floating on a soft jet
-//   green — the anchor: wide fixed legs that spread and plant on the switch
-//   red   — the crane: an asymmetric folding arm that reaches out to rescue
-function drawRole(who, f, x, y, palette, awake) {
-  const phase = ((s / BEAT) % 1 + 1) % 1, top = -18 - Math.round(3 + Math.sin(phase * Math.PI) * 2);
-  ctx.save(); ctx.translate(Math.round(x), Math.round(y));
-  const px = (c, a, b, w, h) => { ctx.fillStyle = c; ctx.fillRect(a, b, w, h); };
+// Same face, different job: each friend's transformed form while it works.
+// blue opens its light for the dawn and on its bell beats at the base; green
+// plants its legs on the switch and at its station; red half-opens its arm
+// while it works the crane and looks back, fully while it fetches and carries.
+const formSince = {}, formWas = {};
+function crewForm(who, f) {
+  const a = after(), beatAge = s - beatIndex(s) * BEAT, docked = run.status === 'docked';
+  const plays = f.state === 'station' && (!docked || a >= ENDING[PART[who]]);
+  let target = 0, pulse = 0, dir = 'up';
   if (who === 'blue') {
-    px(palette.s, -1, top - 17, 2, 7);
-    const on = awake ? .6 + .4 * Math.sin(s * 5) : .2;
-    ctx.globalAlpha = on * .35; px(GLOW.blue, -4, top - 22, 8, 7); ctx.globalAlpha = 1;
-    px(on > .5 ? '#e6f4ff' : '#6fb6ff', -2, top - 20, 4, 4);
-    if (awake) { ctx.globalAlpha = .45; px(GLOW.blue, -5, 3, 10, 1); px(GLOW.blue, -3, 5 + Math.round(Math.sin(s * 9)), 6, 1); ctx.globalAlpha = 1; }
-  } else if (who === 'green') {
-    const planted = f.state === 'switch', spread = planted ? 15 : 11, drop = planted ? 3 : 1;
-    for (const side of [-1, 1]) {
-      for (let k = 0; k < 6; k++) px(palette.s, side * (8 + (spread - 8) * k / 5) - (side < 0 ? 1 : 0), -6 + k * (6 + drop) / 6, 2, 2);
-      px(palette.c, side * spread - (side < 0 ? 4 : 0), drop, 5, 2);
-    }
-  } else if (who === 'red') {
-    // Folded at its side; reaching out and down while it fetches or carries.
-    const reach = f.state === 'rescue' || f.state === 'carry' || f.state === 'notice';
-    const sx = -10, sy = top + 9;
-    px(palette.s, sx - 2, sy - 1, 3, 3);
-    if (!reach) { px(palette.a, sx - 4, sy - 7, 2, 8); px(palette.a, sx - 4, sy - 7, 5, 2); px(palette.c, sx - 1, sy - 6, 2, 3); }
-    else {
-      const ex = f.state === 'carry' ? -16 : -22, ey = f.state === 'carry' ? -4 : sy + 4;
-      for (let k = 0; k <= 8; k++) px(palette.a, Math.round(sx + (ex - sx) * k / 8) - 1, Math.round(sy + (ey - 6 - sy) * k / 8), 2, 2);
-      px(palette.a, ex - 1, ey - 6, 2, 6); px(palette.c, ex - 3, ey, 6, 2);
-    }
-  }
-  ctx.restore();
+    const dawn = run.parts.assembledAt === null ? 0 : 1 - smooth(2.5, 4, run.t - run.parts.assembledAt);
+    target = Math.max(dawn, plays ? 1 : 0); pulse = plays ? Math.max(0, 1 - beatAge / .3) : 0;
+  } else if (who === 'green') target = f.state === 'switch' || plays ? 1 : 0;
+  else if (who === 'red') { target = { crane: .5, notice: .5, rescue: 1, carry: 1 }[f.state] ?? 0; dir = f.state === 'carry' ? 'down' : 'up'; }
+  if (formWas[who] !== target) { formWas[who] = target; formSince[who] = s; }
+  const age = s - (formSince[who] ?? -9), form = target ? target * smooth(0, .18, age) : 0;
+  const phase = ((s / BEAT) % 1 + 1) % 1;
+  return { palette: PALETTE[who], form, pulse, dir, snap: who === 'green' && target === 1 && age > .06 && age < .12, top: -18 - Math.round(3 + Math.sin(phase * Math.PI) * 2), on: f.state !== 'lost' && f.state !== 'dormant' };
 }
 // Red's trip back, seen through a small comms window while it is off
 // screen: red reaches green on the switch, green's eyes light again, and the
@@ -591,7 +580,9 @@ function drawHero(cam) {
   const x = (run.status === 'falling' ? run.fallX : run.x) - cam, docked = run.status === 'docked';
   const phase = (s % BEAT) / BEAT;
   drawPod(ctx, x, heroY(), 2, { phase: docked ? 0 : phase, fast: fast() && playing() && !docked, land: docked ? 0 : Math.max(0, 1 - phase / .17), time: s, signal: docked ? (heroBlink() ? 1 : 0) : 0 });
-  if (docked && heroBlink()) { ctx.fillStyle = GLOW.hero; ctx.fillRect(x - 12, heroY() - 66, 3, 3); ctx.fillRect(x + 9, heroY() - 66, 3, 3); }
+  // Docked, the hero becomes the transmitter: taller ears, a locked base,
+  // a light that blinks on every beat although it no longer hops.
+  if (docked && after() >= 0) drawTransmit(ctx, x, heroY(), 2, smooth(0, .3, after()), heroBlink());
 }
 function drawDarkness() {
   const open = lightOpen();
