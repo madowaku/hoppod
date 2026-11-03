@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { PERIOD, SLOW_SPEED, FAST_SPEED } from '../public/src/engine.mjs';
 import { BEAT, BPM, BeatClock, TimedInput, beatIndex, heardFromContext } from '../public/src/story/beat.mjs';
 import { COURSE, platformAt } from '../public/src/story/course.mjs';
-import { newStory, storyFrom, advanceStory, craneDown, craneSolid, bridgeFront, RANGE, GREEN_SPEED, BRIDGE_LEGS, BRIDGE_SPEED } from '../public/src/story/sim.mjs';
+import { newStory, storyFrom, advanceStory, craneDown, craneSolid, bridgeFront, bridgeSegmentAt, craneWorking, RANGE, GREEN_SPEED, BRIDGE_LEGS, BRIDGE_SEGMENTS, CRANE_CALL, CRANE_CLIMB } from '../public/src/story/sim.mjs';
 import { notesAt, STEP, ENDING } from '../public/src/story/music.mjs';
 import { solve, hop } from './helpers/story-solver.mjs';
 
@@ -159,10 +159,17 @@ test('green socket: the arrival and the bridge do not depend on the frame rate',
     assert.ok(Math.abs(r.switchAt - results[0].switchAt) < 1e-9, JSON.stringify(results));
     assert.ok(Math.abs(r.socket - results[0].socket) < 1e-9, JSON.stringify(results));
   }
-  // The bridge grows from the socket at a fixed speed once green's legs are down.
+  // The bridge is laid in four pieces, one per sixteenth note, from the
+  // first sixteenth after green's legs are down.
   const run = storyFrom(COURSE, fieldCheckpoint); run.switchOn = true; run.switchAt = 10;
-  run.t = 10 + BRIDGE_LEGS; assert.equal(bridgeFront(run, COURSE), COURSE.switchX);
-  run.t = 10 + BRIDGE_LEGS + .2; assert.ok(Math.abs(bridgeFront(run, COURSE) - (COURSE.switchX + .2 * BRIDGE_SPEED)) < 1e-9);
+  const first = bridgeSegmentAt(run, 0), len = COURSE.bridge.b - COURSE.switchX;
+  assert.ok(first >= 10 + BRIDGE_LEGS - 1e-9 && first < 10 + BRIDGE_LEGS + STEP);
+  assert.ok(Math.abs(first / STEP - Math.round(first / STEP)) < 1e-9, 'on the sixteenth grid');
+  run.t = first - 1e-6; assert.equal(bridgeFront(run, COURSE), COURSE.switchX);
+  for (let k = 0; k < BRIDGE_SEGMENTS; k++) {
+    run.t = bridgeSegmentAt(run, k); const want = k === BRIDGE_SEGMENTS - 1 ? Infinity : COURSE.switchX + len * (k + 1) / BRIDGE_SEGMENTS;
+    assert.ok(bridgeFront(run, COURSE) === want || Math.abs(bridgeFront(run, COURSE) - want) < 1e-9, 'piece ' + k);
+  }
   assert.equal(platformAt(COURSE, COURSE.bridge.b - 20, 0, { bridgeTo: COURSE.bridge.b - 40 }), null, 'not solid beyond its tip');
   assert.ok(platformAt(COURSE, COURSE.bridge.b - 20, 0, { bridgeTo: Infinity }));
 });
@@ -293,6 +300,40 @@ test('noisy play never gets stuck', () => {
     assert.equal(run.status, 'docked', 'seed ' + seed + ' reached the dock');
   }
   assert.ok(respawns >= 8, 'noise caused falls: ' + respawns);
+});
+
+test('red walks with the hero, flies to the boom, and only then works the span on the beat', () => {
+  const i = COURSE.checkpoints.findIndex(cp => cp.chapter === 'rescue');
+  const m = solve(COURSE, storyFrom(COURSE, i), { until: r => r.x > COURSE.crane.b + 20 });
+  const run = storyFrom(COURSE, i); let woke = false, called = null, atCall = null;
+  for (const f of m.path) {
+    for (const e of hop(run, COURSE, f)) { if (e.type === 'join' && e.who === 'red') woke = true; if (e.type === 'crane') { called = run.x; atCall = structuredClone(run); } }
+    if (run.red.state === 'escort') assert.ok(run.x - run.red.x <= 46 * 1.6 + 1e-6 && run.x - run.red.x > 0, 'red stays beside the hero');
+  }
+  assert.ok((woke || storyFrom(COURSE, i).red.state === 'escort') && called !== null, 'red woke (or starts awake here), walked along, then was called to the crane');
+  assert.ok(called >= COURSE.crane.a - CRANE_CALL - 1e-9 && called < COURSE.crane.a, 'called with the crane in view');
+  const r = atCall, climbEnd = r.red.craneAt + CRANE_CLIMB;
+  for (let b = Math.floor(r.red.craneAt / BEAT); b < Math.floor(r.red.craneAt / BEAT) + 12; b++) {
+    if (b * BEAT < climbEnd - 1e-9) assert.ok(!craneSolid(r, b) && !craneWorking(r, b), 'the span stays up until red is on the boom (beat ' + b + ')');
+    else assert.equal(craneSolid(r, b), craneDown(b), 'then down on two beats of four (beat ' + b + ')');
+  }
+});
+
+test('falls at the crane: red keeps working it, the beat holds, and a restart there is consistent', () => {
+  const i = COURSE.checkpoints.findIndex(cp => cp.chapter === 'rescue' && cp.x < COURSE.crane.a && cp.x > COURSE.redConsole);
+  // Into the crane gap on a beat the span is up: SLOW from the checkpoint until it falls.
+  const run = storyFrom(COURSE, i); let fell = false;
+  for (let k = 0; k < 30 && !fell; k++) fell = hop(run, COURSE, k < 6 ? 0 : 1).some(e => e.type === 'fall');
+  assert.ok(fell, 'fell at the crane');
+  const state = run.red.state;
+  for (let k = 0; k < 3; k++) hop(run, COURSE, 0);
+  assert.equal(run.status, 'playing'); assert.equal(run.red.state, state, 'red is where it was');
+  if (state === 'crane') for (let b = run.beat; b < run.beat + 8; b++) assert.equal(craneSolid(run, b), craneDown(b) || (run.fails[run.checkpoint] || 0) >= 2);
+  assert.ok(solve(COURSE, run, { until: r => r.x > COURSE.craneFar + 20, limit: 80000 }).end, 'still crossable');
+  // A developer start at this checkpoint: red beside the hero, the crane not yet working.
+  const fresh = storyFrom(COURSE, i);
+  assert.equal(fresh.red.state, 'escort'); assert.ok(!craneSolid(fresh, 0));
+  assert.ok(solve(COURSE, fresh, { until: r => r.x > COURSE.craneFar + 20, limit: 80000 }).end);
 });
 
 test('a fall after red has left the crane never strands the hero behind it', () => {

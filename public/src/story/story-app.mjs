@@ -6,7 +6,7 @@ import { drawEarth } from '../earth.mjs';
 import { COMPANION_PALETTE } from '../companion.mjs';
 import { BEAT, BeatClock, TimedInput, heardFromContext, beatIndex } from './beat.mjs';
 import { COURSE } from './course.mjs';
-import { newStory, storyFrom, advanceStory, craneSolid, hopLift, bridgeFront, RANGE, FOLLOW_GAP, FALL_BEATS, SOCKET_NEAR } from './sim.mjs';
+import { newStory, storyFrom, advanceStory, craneSolid, craneWorking, hopLift, bridgeFront, bridgeSegmentAt, RANGE, FOLLOW_GAP, FALL_BEATS, SOCKET_NEAR, BRIDGE_SEGMENTS, CRANE_CLIMB } from './sim.mjs';
 import { createStoryAudio, notesAt, STEP, ENDING } from './music.mjs';
 import { chooseLanguage, storyCopy } from './copy.mjs';
 import { drawCrewParts, drawTransmit, TRANSMIT_LOCK } from './crew.mjs';
@@ -58,7 +58,7 @@ function initialRun() {
 }
 function begin() {
   audio.unlock(); audio.cancel();
-  run = initialRun(); ahead = structuredClone(run); cued.clear(); fallGap = null; s = 0; heroX = HERO_X; cameraS = 0; particles = []; flashes = []; launched = false; inset = 0; pickupAt = null;
+  run = initialRun(); ahead = structuredClone(run); cued.clear(); fallGap = null; zoom = 1; s = 0; heroX = HERO_X; cameraS = 0; particles = []; flashes = []; launched = false; inset = 0; pickupAt = null;
   clock.start(0, perfNow()); input.reset(0, false); nextStep = 0;
   releaseInput(); screen = 'play'; showBanner(run.status === 'docked' ? 'send' : run.chapter);
   get('overlay').hidden = true; get('action').blur();
@@ -164,7 +164,7 @@ window.addEventListener('pagehide', pause);
 // was not predicted still sounds, just late.
 let ahead = null;
 const cued = new Map();
-const CUES = new Set(['collect', 'assemble', 'join', 'socket', 'switch', 'relink', 'notice', 'rescue', 'pickup', 'reunion', 'station', 'dock', 'fall', 'respawn']);
+const CUES = new Set(['collect', 'assemble', 'join', 'socket', 'switch', 'plank0', 'plank1', 'plank2', 'plank3', 'relink', 'notice', 'rescue', 'pickup', 'reunion', 'station', 'dock', 'fall', 'respawn']);
 const eventKey = e => e.type + ':' + e.beat + ':' + (e.who ?? e.index ?? '');
 function predict() {
   ahead = structuredClone(run);
@@ -172,7 +172,9 @@ function predict() {
   const front = audio.context.currentTime + LOOKAHEAD - clock.offset, events = [];
   if (front > run.t) advanceStory(ahead, COURSE, front, input.fast, events);
   for (const e of events) {
-    if (!CUES.has(e.type) || cued.has(eventKey(e))) continue;
+    // The reunion's moment depends on the player's speed right up to it (a
+    // key change inside the lookahead moves it), so it sounds when it happens.
+    if (!CUES.has(e.type) || e.type === 'reunion' || cued.has(eventKey(e))) continue;
     const at = clock.contextTime(e.t);
     if (at > audio.context.currentTime + .003) { audio.cue(e.type, at); cued.set(eventKey(e), e.t); probeNote('cue:' + e.type, at, e.t); }
   }
@@ -254,7 +256,7 @@ function burst(x, y, colors, n = 8) {
 }
 function handle(events) {
   for (const e of events) {
-    if (CUES.has(e.type) && !cued.has(eventKey(e))) { audio.cue(e.type); probeNote('late:' + e.type, audio.context?.currentTime ?? 0, e.t); }
+    if (CUES.has(e.type) && !cued.has(eventKey(e))) { audio.cue(e.type, e.t > s + .01 ? clock.contextTime(e.t) : null); probeNote('late:' + e.type, audio.context?.currentTime ?? 0, e.t); }
     probeEvent(e); buzz(e.type);
     if (e.type === 'land') burst(run.x, FLOOR - 4, ['#efdaad', '#8ee6c4'], 6);
     else if (e.type === 'collect') burst(e.x, FLOOR - 10, ['#a9d6ff', '#4f9dff'], 10);
@@ -267,7 +269,7 @@ function handle(events) {
     else if (e.type === 'dock') { releaseInput(); showBanner('send'); flashes.push({ kind: 'dock', x: COURSE.dockX, at: e.t }); }
     else if (e.type === 'chapter') showBanner(e.id);
     else if (e.type === 'fall') fallGap = gapAt(run.fallX);
-    else if (e.type === 'respawn') heroX = HERO_X;
+    else if (e.type === 'respawn') { heroX = HERO_X; zoom = 1; }
     else if (e.type === 'checkpoint') flashes.push({ kind: 'lantern', x: COURSE.checkpoints[e.index].x, at: s });
   }
 }
@@ -299,10 +301,24 @@ function steerCamera() {
   // the player sees green arrive and the bridge run out, too late.
   let target = HERO_X + Math.max(0, lag);
   if (run.status === 'falling' && run.fallX > COURSE.bridge.a && run.fallX < COURSE.bridge.b && run.chapter === 'apart') target = Math.min(W - 30, Math.max(target, run.fallX - COURSE.switchX + 70));
+  // Approaching green's socket before the bridge exists, the view pulls back
+  // (zoom .75) and leans ahead, then holds on socket, chasm and far bank: the
+  // missing bridge is seen for a few hops, then green builds it in view. The
+  // hero stays at least 50px from the left; everything ahead is visible, so
+  // a landing is never hidden. It lets go once the bridge is laid.
+  const framing = socketFraming();
+  if (framing) target = Math.max(50, Math.min(target, run.x - (COURSE.switchX - 50)));
   const dt = Math.max(0, Math.min(.1, s - cameraS)); cameraS = s;
   heroX += (target - heroX) * (1 - Math.exp(-dt * 5));
+  zoom += ((framing ? .75 : 1) - zoom) * (1 - Math.exp(-dt * 4));
+  if (Math.abs(zoom - 1) < 1e-3) zoom = 1;
 }
 const camera = () => run.x - heroX;
+let zoom = 1;
+function socketFraming() {
+  if (run.chapter !== 'apart' || run.x < COURSE.bridge.a - 560 || run.x > COURSE.bridge.b) return false;
+  return !run.switchOn || run.t < bridgeSegmentAt(run, BRIDGE_SEGMENTS - 1) + .5;
+}
 function friendY(who, friend) {
   const lag = { blue: .5, green: .25, red: .75 }[who];
   const phase = ((s / BEAT + lag) % 1 + 1) % 1;
@@ -426,30 +442,40 @@ function drawDevices(cam) {
   const sx = COURSE.switchX - cam, g = run.green, ba = COURSE.bridge.a - cam, bb = COURSE.bridge.b - cam;
   const near = !run.switchOn && (g.state === 'follow' || g.state === 'catch') && g.x >= COURSE.switchX - SOCKET_NEAR && g.x < COURSE.switchX;
   if (bb > -40 - cull && sx < W + 40 + cull) {
-    const front = Math.min(bb, bridgeFront(run, COURSE) - cam), grown = front > sx;
-    // The rail on the ground from socket to edge, then the deck over the chasm.
+    // Laid piece by piece: each eases out over a few frames from its sixteenth.
+    const len = bb - sx, seg = len / BRIDGE_SEGMENTS;
+    let front = sx;
+    if (run.switchOn) for (let k = 0; k < BRIDGE_SEGMENTS; k++) { const age = run.t - bridgeSegmentAt(run, k); if (age >= 0) front = sx + seg * (k + smooth(0, .07, age)); }
+    const grown = front > sx + .5, done = front >= bb - .5;
+    // The rail from socket to edge, then the deck over the chasm.
     ctx.fillStyle = grown ? '#3d6b58' : '#1f3a33'; ctx.fillRect(sx, FLOOR - 2, ba - sx, 3);
     if (grown) {
       ctx.fillStyle = '#5fe39a'; ctx.fillRect(sx, FLOOR - 2, Math.min(front, ba) - sx, 1);
       if (front > ba) {
         ctx.fillStyle = '#3d6b58'; ctx.fillRect(ba, FLOOR, front - ba, 10);
         ctx.fillStyle = '#9ff0c4'; for (let x = ba; x < front - 10; x += 14) ctx.fillRect(x, FLOOR, 10, 3);
-        // Struts under the deck, every 60px, as it passes.
         ctx.fillStyle = '#2d4a44'; for (let x = ba + 50; x < front - 4; x += 60) ctx.fillRect(x, FLOOR + 10, 2, 16);
+        // A joint where each piece meets the next.
+        ctx.fillStyle = '#c8ffdc'; for (let k = 1; k < BRIDGE_SEGMENTS; k++) { const jx = sx + seg * k; if (jx > ba && jx < front) ctx.fillRect(jx - 1, FLOOR - 1, 2, 5); }
       }
-      // The growing tip.
-      if (front < bb) { ctx.fillStyle = '#e6fff0'; ctx.fillRect(front - 3, FLOOR - 3, 4, front > ba ? 8 : 4); }
-    } else if (near) {
-      // The rail shivers towards the chasm while green approaches.
-      const k = (s * 2.4) % 1; ctx.fillStyle = 'rgba(159,240,196,.7)'; ctx.fillRect(sx + (ba - sx) * k - 5, FLOOR - 2, 10, 3);
+      if (!done) { ctx.fillStyle = '#e6fff0'; ctx.fillRect(front - 3, FLOOR - 3, 4, front > ba ? 8 : 4); }
+    } else {
+      // Not built yet: the pieces lie folded at the near edge, and a dashed
+      // outline marks where the bridge should be.
+      ctx.fillStyle = '#27403c'; for (let k = 0; k < BRIDGE_SEGMENTS; k++) ctx.fillRect(ba - 22, FLOOR - 4 - k * 3, 18, 2);
+      if (near) { const k = (s * 2.4) % 1; ctx.fillStyle = 'rgba(159,240,196,.7)'; ctx.fillRect(sx + (ba - sx) * k - 5, FLOOR - 2, 10, 3); }
     }
-    // The far anchor waits on the other side; the gap shows where it would go.
-    ctx.fillStyle = '#2d4a44'; ctx.fillRect(bb - 2, FLOOR - 2, 6, 14);
-    ctx.fillStyle = front >= bb ? '#5fe39a' : '#27503c'; ctx.fillRect(bb - 1, FLOOR - 6, 4, 4);
-    if (front < bb) {
-      ctx.strokeStyle = '#27403c'; ctx.setLineDash([3, 7]); ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(Math.max(ba, front), FLOOR + 2); ctx.lineTo(bb, FLOOR + 2); ctx.stroke(); ctx.setLineDash([]);
+    if (!done) {
+      ctx.strokeStyle = near ? '#3f6f5c' : '#2c4842'; ctx.setLineDash([4, 6]); ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(Math.max(ba, front), FLOOR + 1); ctx.lineTo(bb, FLOOR + 1); ctx.moveTo(Math.max(ba, front), FLOOR + 9); ctx.lineTo(bb, FLOOR + 9); ctx.stroke(); ctx.setLineDash([]);
     }
+    // The far bank: a short broken stub and an anchor post with a small light
+    // that waits for the bridge.
+    ctx.fillStyle = '#2d4a44'; ctx.fillRect(bb - 2, FLOOR - 22, 5, 34);
+    if (!done) { ctx.fillStyle = '#26403a'; ctx.fillRect(bb - 14, FLOOR, 12, 4); ctx.fillRect(bb - 18, FLOOR + 2, 4, 2); }
+    ctx.fillStyle = done ? '#5fe39a' : (s * 1.2 | 0) % 2 ? '#3f8f66' : '#1f3a33'; ctx.fillRect(bb - 2, FLOOR - 26, 5, 4);
+    // Once green has been carried off, two bright pins hold the bridge's root.
+    if (run.switchOn && g.state !== 'switch') { ctx.fillStyle = '#c8ffdc'; ctx.fillRect(sx - 12, FLOOR - 6, 4, 4); ctx.fillRect(sx + 8, FLOOR - 6, 4, 4); }
     // The socket plate and its green-shaped outline.
     ctx.fillStyle = run.switchOn ? '#5fe39a' : near ? '#3f8f66' : '#2d4a44'; ctx.fillRect(sx - 16, FLOOR - 4, 32, 4);
     if (!run.switchOn) {
@@ -465,12 +491,12 @@ function drawDevices(cam) {
   // Crane: the span drops on its two solid beats of every four.
   const crane = COURSE.crane, cx = (crane.a + crane.b) / 2 - cam;
   if (cx > -160 - cull && cx < W + 160 + cull) {
-    const k = beatIndex(s), phase = (s - k * BEAT) / BEAT;
-    const yFor = beat => craneSolid(run, beat) ? 0 : -70;
-    const y = FLOOR + yFor(k) + (yFor(k + 1) - yFor(k)) * smooth(0, .4, phase);
+    const y = craneSpanY();
     ctx.fillStyle = '#4a3a36'; ctx.fillRect(crane.a - cam - 70, 120, 8, FLOOR - 120);
     ctx.fillRect(crane.a - cam - 70, 120, cx - (crane.a - cam - 70) + 10, 6);
-    ctx.strokeStyle = '#8a6a60'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(cx, 126); ctx.lineTo(cx, y); ctx.stroke();
+    // Until red is on the boom the span hangs up out of reach on a slack
+    // chain; while red works it, red's own arm is the cable (drawn with red).
+    if (!redOnBoom()) { ctx.strokeStyle = '#5a4a46'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(cx, 126); ctx.lineTo(cx, y); ctx.stroke(); }
     const [l, r] = footing([crane.a, crane.b]);
     ctx.fillStyle = run.red.state === 'dormant' ? '#4b4a48' : '#c46f5c'; ctx.fillRect(l - cam, y, r - l, 8);
     ctx.fillStyle = '#ffd2c4'; ctx.fillRect(l - cam, y, r - l, 2);
@@ -521,6 +547,12 @@ function drawDevices(cam) {
     }
   }
 }
+// The crane span's screen y now: up (-70) or down, easing over each beat's start.
+function craneSpanY() {
+  const k = beatIndex(s), phase = (s - k * BEAT) / BEAT, yFor = beat => craneSolid(run, beat) ? 0 : -70;
+  return FLOOR + yFor(k) + (yFor(k + 1) - yFor(k)) * smooth(0, .4, phase);
+}
+const redOnBoom = () => run.red.state === 'crane' && run.t >= run.red.craneAt + CRANE_CLIMB;
 const rocketLift = a => a > ENDING.launch ? (a - ENDING.launch) ** 2 * 14 : 0;
 function drawFriends(cam, inset = false) {
   for (const who of ['red', 'green', 'blue']) {
@@ -598,7 +630,12 @@ function crewForm(who, f) {
     // Going for green the arm points ahead, then reaches down to green's head
     // as red closes in, hook open; it shuts on the pickup and holds on.
     const top = -21, g = run.green;
-    if (f.state === 'rescue') {
+    if (f.state === 'crane' && redOnBoom()) {
+      // On the boom, red's arm runs down to the span and holds it: as the
+      // span drops the arm pays out, and on the way up red hauls it in.
+      const cx = (COURSE.crane.a + COURSE.crane.b) / 2;
+      to = [cx - f.x - 1, craneSpanY() - friendY('red', f) + 2]; grip = 1; target = 1;
+    } else if (f.state === 'rescue') {
       const near = smooth(160, 0, rescueGap()), gx = -12 - rescueGap(), gy = friendY('green', g) - friendY('red', f) - 22;
       to = [-26 + (gx + 26) * near, top + 2 + (gy - top - 2) * near]; grip = 0;
     } else if (f.state === 'carry') {
@@ -786,25 +823,47 @@ function drawScene() {
   const cam = camera();
   drawBackdrop(cam);
   ctx.fillStyle = '#020406'; ctx.fillRect(0, FLOOR, W, H - FLOOR);
+  ctx.save();
+  if (zoom < 1) { ctx.translate(0, FLOOR); ctx.scale(zoom, zoom); ctx.translate(0, -FLOOR); cull = W / zoom - W + 20; }
   drawRange(); drawPlatforms(cam); drawDevices(cam); drawFriends(cam); drawHero(cam);
   for (const p of particles) {
     ctx.globalAlpha = Math.max(0, 1 - p.age / .4); ctx.fillStyle = p.color;
     ctx.fillRect(p.x - cam + p.vx * p.age, p.y + p.vy * p.age + 120 * p.age ** 2, 3, 3);
   }
   ctx.globalAlpha = 1;
-  drawDarkness(); drawCeiling(cam); drawGlints(cam); drawLanterns(cam); drawFallHint(cam); drawFlashes(cam); drawBehind(cam); drawInset();
+  drawDarkness(); drawCeiling(cam); drawGlints(cam); drawLanterns(cam); drawFallHint(cam); drawFlashes(cam);
+  ctx.restore(); cull = 20;
+  drawBehind(cam); drawInset();
   // The active blue part glows through the dark.
   if (run.parts.got < COURSE.parts.length) {
     const px = run.parts.x - cam, pulse = reducedMotion.matches ? .5 : .5 + .5 * Math.sin(s * 4);
     if (px > -20 && px < W + 20) {
       ctx.fillStyle = `rgba(79,157,255,${.25 + .2 * pulse})`; ctx.beginPath(); ctx.arc(px, FLOOR - 10, 13, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#a9d6ff'; ctx.fillRect(px - 4, FLOOR - 14, 8, 8);
+      drawBluePart(run.parts.got, px, FLOOR - 10, 1);
     }
   }
   if (run.parts.got > 0 && run.parts.got < COURSE.parts.length) for (let i = 0; i < COURSE.parts.length; i++) {
     ctx.strokeStyle = '#2c4656'; ctx.strokeRect(16 + i * 14, 36, 10, 10);
-    if (i < run.parts.got) { ctx.fillStyle = '#a9d6ff'; ctx.fillRect(18 + i * 14, 38, 6, 6); }
+    if (i < run.parts.got) drawBluePart(i, 21 + i * 14, 41, .55);
   }
+}
+// Blue's three parts, each shaped by what it does: the lens, the emitter
+// (the lamp that will light the moon) and the antenna. Centred on x, y.
+function drawBluePart(i, x, y, k) {
+  ctx.save(); ctx.translate(Math.round(x), Math.round(y)); ctx.scale(k, k);
+  const px = (c, a, b, w, h) => { ctx.fillStyle = c; ctx.fillRect(a, b, w, h); };
+  if (i === 0) {
+    // Lens: a round frame, glass, a glint.
+    px('#172638', -5, -5, 10, 10); px('#6fa4d0', -4, -4, 8, 8); px('#cfeaff', -3, -3, 6, 6); px('#8fc3f0', -1, -1, 4, 4); px('#ffffff', -3, -3, 2, 2);
+  } else if (i === 1) {
+    // Emitter: a bulb on a socket, three short rays.
+    px('#172638', -4, -6, 8, 8); px('#e6f4ff', -3, -5, 6, 6); px('#ffffff', -2, -4, 2, 2); px('#4f7a96', -3, 2, 6, 3); px('#2c4656', -2, 5, 4, 1);
+    px('#a9d6ff', -1, -9, 2, 2); px('#a9d6ff', -7, -5, 2, 2); px('#a9d6ff', 5, -5, 2, 2);
+  } else {
+    // Antenna: a mast with a tip ball and a small dish.
+    px('#4f7a96', -1, -6, 2, 11); px('#a9d6ff', -2, -9, 4, 4); px('#ffffff', -1, -8, 1, 1); px('#6fa4d0', -5, 0, 4, 2); px('#6fa4d0', 1, 1, 4, 2); px('#2c4656', -3, 5, 6, 1);
+  }
+  ctx.restore();
 }
 function drawBackdrop(cam, alpha = 1) {
   ctx.fillStyle = '#05080c'; ctx.fillRect(0, 0, W, H);

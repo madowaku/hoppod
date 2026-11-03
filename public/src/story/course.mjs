@@ -66,7 +66,8 @@ export function buildCourse() {
   // A last relay at the field's edge: a green far behind on the approach is
   // boosted back before the socket is in reach.
   c.marks.relays.push(p.a + 40);
-  const chasm = c.plat(300, 320); c.marks.bridge = { a: p.b, b: chasm.a };
+  // 220px: both banks fit the framing view; still beyond a FAST hop (210px + footing).
+  const chasm = c.plat(220, 320); c.marks.bridge = { a: p.b, b: chasm.a };
   c.filler(14, r, [44, 90], [130, 200]);
 
   // ③ RESCUE: red wakes at the crane; crossing leaves green far behind and red

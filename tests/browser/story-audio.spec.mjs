@@ -145,14 +145,12 @@ test('real audio: red fetches green and their parts come back clearer with every
   const together=at('follow').at(-1);expect(together.levels.bass).toBeGreaterThan(.8);expect(together.levels.perc).toBeGreaterThan(.8);expect(together.clarity.bass).toBeGreaterThan(8000);
   for(const type of ['notice','rescue','pickup','reunion']) {
     const e=events.find(e=>e.type===type);expect(e,type).toBeTruthy();
-    // The reunion's time depends on the hero's speed; a key change inside the
-    // lookahead window after it was scheduled moves it a few ms (inaudible).
-    const eps=type==='reunion'?.03:1e-6;
-    expect(notes.some(n=>n.part==='cue:'+type&&near(n.s,e.t,eps))||notes.some(n=>n.part==='late:'+type),'cue '+type+' at '+e.t+'; cued at '+notes.filter(n=>n.part==='cue:'+type).map(n=>n.s)).toBe(true);
+    expect(notes.some(n=>n.part==='cue:'+type&&near(n.s,e.t))||notes.some(n=>n.part==='late:'+type),'cue '+type+' at '+e.t+'; cued at '+notes.filter(n=>n.part==='cue:'+type).map(n=>n.s)).toBe(true);
   }
   const late=notes.filter(n=>n.part.startsWith('late:')).map(n=>n.part);
   await writeFile(dir+'/rescue.json',JSON.stringify({samples:samples.map(x=>({s:+x.s.toFixed(2),red:x.red,bass:+x.levels.bass.toFixed(3),perc:+x.levels.perc.toFixed(3),bassHz:Math.round(x.clarity.bass)})),late},null,2));
-  expect(late).toEqual([]);
+  // Only the reunion sounds when it happens (its time depends on the player's speed).
+  expect(late.filter(p=>p!=='late:reunion')).toEqual([]);
   expect(errors).toEqual([]);
 });
 

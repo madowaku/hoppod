@@ -115,6 +115,11 @@ const CUES = {
   switch: [[0, 392, .1, .06], [.08, 587, .1, .05], [.16, 784, .35, .05]],
   relink: [[0, 523, .1, .04], [.08, 784, .12, .045], [.16, 1047, .3, .045]],
   socket: [[0, 1568, .06, .025], [.08, 2093, .12, .02]],
+  // Green lays the bridge: four plucks up the G chord, one per piece.
+  plank0: [[0, 196, .22, .07], [0, 392, .12, .03]],
+  plank1: [[0, 247, .22, .07], [0, 494, .12, .03]],
+  plank2: [[0, 294, .22, .07], [0, 587, .12, .03]],
+  plank3: [[0, 392, .4, .07], [0, 784, .2, .035]],
   notice: [[0, 880, .08, .04], [.14, 1175, .16, .04]],
   rescue: [[0, 587, .1, .045], [.05, 880, .1, .045], [.1, 1319, .3, .04]],
   pickup: [[0, 523, .1, .045], [.08, 784, .12, .05], [.16, 1047, .2, .05], [.3, 1568, .4, .03]],
@@ -227,7 +232,8 @@ export function createStoryAudio() {
     cue(name, at = null) {
       if (!ctx || ctx.state !== 'running') return;
       const start = at ?? ctx.currentTime + .005;
-      for (const [delay, f, decay, peak] of CUES[name] || []) tone(buses.cue, name === 'dock' || name === 'fall' ? 'triangle' : 'sine', f, start + delay, decay, peak, name === 'fall' ? .5 : 0);
+      const wave = name === 'dock' || name === 'fall' || name.startsWith('plank') ? 'triangle' : 'sine';
+      for (const [delay, f, decay, peak] of CUES[name] || []) tone(buses.cue, wave, f, start + delay, decay, peak, name === 'fall' ? .5 : 0);
       if (name === 'dock') hiss(buses.cue, 900, start, .25, .06, 'bandpass');
       // Out of the dark: a slow, wide chord under the boot chime.
       if (name === 'assemble') for (const [i, f] of [196, 293.66, 392, 493.88, 587.33].entries()) tone(buses.cue, 'sine', f, start + .25 + i * .05, 4.5, .022, 0, .9);

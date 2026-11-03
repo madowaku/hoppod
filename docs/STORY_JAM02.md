@@ -121,6 +121,17 @@ Findings from the first complete playthrough, and what changed. No new systems; 
 
 The real-audio test that failed on CI for both P4 commits was the test driver, not the game: a release and the next press at the same instant made the press wait a frame. Under load the old driver failed 1/6, the fixed one 9/9.
 
+## Seeing the friends work (2026-11-03)
+
+Playtest: the bridge was usually finished before the player saw there was none, and red went off screen to the crane, so neither friend's work read as theirs. Measured before the change: in calm play the chasm's near edge was on screen 1.3s before green arrived, and the far bank only 1.9s after the bridge was done.
+
+- **The missing bridge, then green building it.** The chasm is 220px (was 300; still beyond a FAST hop with footing, 236px effective). Approaching the socket before the bridge exists, the view pulls back to 0.75 and leans ahead, holding socket, chasm and far bank together: about 2s of "no bridge" (folded pieces at the near edge, a dashed outline, a broken stub and a waiting light on the far bank) before green arrives. The hero stays at least 50px from the left and everything ahead is in view, so no landing is hidden. It lets go once the bridge is laid.
+- **Four pieces on the beat.** Green's legs go down (0.08s), then the bridge is laid in four pieces, one per sixteenth note from the next sixteenth, each with a pluck up the G chord (`plank0`–`plank3`). Solid only as far as it is laid; the last piece meets the far bank without a seam. Three SLOW hops before the edge still always succeed. When red carries green off, two bright pins hold the bridge's root: it stays.
+- **Red works the crane in view.** After waking red walks beside the hero; 300px before the crane it flies up to the boom (0.6s) and only then does the span move, its arm being the cable: it pays out as the span drops and hauls in as it rises, two beats down of four. Before red is on the boom the span hangs up out of reach. Falls at the crane keep red working; a restart there has red beside the hero again.
+- **Reunion cue** now sounds when the reunion happens (its time depends on the player's speed up to that moment; predicting it drifted up to 52ms).
+- **Blue's parts** are drawn as what they are: a lens, an emitter with rays, an antenna with a dish (also in the tray).
+- **Before/after:** `node tests/browser/record-p6.mjs` (BEFORE_URL/BEFORE_ROOT for the old checkout).
+
 ## Green's socket (2026-11-03)
 
 The switch rule changed from "the link breaks near the switch" to **green steps on its socket, plants its legs and becomes the bridge's root**. Chosen after simulating alternatives on the real course (4,096 input patterns from the field's checkpoint, plus arrivals from the valley):
