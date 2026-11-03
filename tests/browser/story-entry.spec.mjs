@@ -24,6 +24,12 @@ test('the top address opens STORY in English, before any game code loads',async(
   expect(await lang(page)).toBe('ja');
   await expect(page.locator('#auto-hop')).toHaveText('自動でジャンプ。押し続けると遠くへ。');
   await page.goto('/?lang=zz');await expect(page).toHaveURL(/\/story\.html$/);expect(await lang(page)).toBe('en');
+  // Parameters that are not ours (itch.io's build stamp, trackers) never mean FREE RUN.
+  for(const [query,to] of [['?v=1785088796','/story.html'],['?v=1785088796&lang=ja','/story.html?lang=ja'],['?utm_source=itch&ref=abc','/story.html'],['?v=4','/story.html']]) {
+    await page.goto('/'+query);
+    expect(new URL(page.url()).pathname+new URL(page.url()).search,query).toBe(to);
+    await expect(page.locator('#title-free')).toBeVisible();
+  }
   expect(errors).toEqual([]);
 });
 
@@ -50,6 +56,9 @@ test('old FREE RUN and DAILY addresses stay on FREE RUN with the same course',as
     ['?seed=7','daily','date','2026-11-01'],
     ['?date=2026-10-29','daily','date','2026-10-29'],
     ['?mode=daily','daily','date','2026-11-01'],
+    // The same links with itch.io's stamp added still open FREE RUN.
+    ['?mode=free&seed=42&v=1785088796','free','seed','42'],
+    ['?mode=daily&date=2026-10-30&v=1785088796','daily','date','2026-10-30'],
   ]) {
     await page.goto('/'+query);
     await expect(page.locator('#daily')).toBeVisible();

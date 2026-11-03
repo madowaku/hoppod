@@ -7,12 +7,14 @@
 <meta name="description" content="ONE MORE HOP! A tiny capsule, an endless moon. It hops. You set the pace. Play RAPIPPO and share your best.">
 <title>RAPIPPO | ONE MORE HOP!</title>
 <script>
-// Entry, before any game code loads: the bare address (or one with only
-// ?lang=) opens STORY. Every FREE RUN address (mode, date, seed, shared
-// replay links) stays here. Relative, so it also works inside an itch.io ZIP.
+// Entry, before any game code loads: STORY, unless the address names FREE
+// RUN (mode, date, seed: every shared replay link has them; marker, compare,
+// sfx: developer links). Anything else is not ours and is ignored: itch.io
+// loads the game as index.html?v=<build stamp>, and `v` alone is not a
+// course. Relative, so it also works inside an itch.io ZIP.
 (function () {
-  var query = new URLSearchParams(location.search), lang = query.get('lang'), freeRun = false;
-  query.forEach(function (value, key) { if (key !== 'lang') freeRun = true; });
+  var query = new URLSearchParams(location.search), lang = query.get('lang');
+  var freeRun = ['mode', 'date', 'seed', 'marker', 'compare', 'sfx'].some(function (key) { return query.has(key); });
   if (!freeRun) { location.replace('story.html' + (lang === 'ja' || lang === 'en' ? '?lang=' + lang : '')); return; }
   document.addEventListener('DOMContentLoaded', function () {
     var game = document.createElement('script'); game.type = 'module'; game.src = './src/app.mjs'; document.body.appendChild(game);

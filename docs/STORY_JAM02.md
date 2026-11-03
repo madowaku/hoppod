@@ -233,7 +233,7 @@ Not measurable here: real speaker/Bluetooth latency and touch latency on Android
 
 ## itch.io build
 
-`npm run build:itch` writes `output/itch/rapippo.zip`: every file under `public/` except `dev/` (the sound bench) and dotfiles, with `index.html` at the root (22 files, about 80 KiB, no build step). `tests/browser/itch-zip.spec.mjs` reads that ZIP back and plays it from a sub-folder of another origin inside an embed iframe: title, play, the touch PAUSE, FREE RUN and back, with every request answered from the ZIP.
+`npm run build:itch` writes `output/itch/rapippo-<commit>.zip` (the full SHA is also in the ZIP comment; `-dirty` if `public/` has uncommitted changes): every file under `public/` except `dev/` (the sound bench) and dotfiles, with `index.html` at the root (22 files, about 80 KiB, no build step). `tests/browser/itch-zip.spec.mjs` reads that ZIP back and plays it from a sub-folder of another origin inside an embed iframe: title, play, the touch PAUSE, FREE RUN and back, with every request answered from the ZIP. itch.io loads the game as `index.html?v=<build stamp>`: the entry opens FREE RUN only for its own keys (`mode`, `date`, `seed`, and the developer `marker`, `compare`, `sfx`), so the stamp, or any other foreign parameter, still opens the STORY title.
 
 On touch screens PAUSE is a 44px button in the header while playing (hidden on the title and the end card); it releases a FAST held by another finger. From the dock on, the FAST/SLOW control is disabled and a held FAST is released.
 
