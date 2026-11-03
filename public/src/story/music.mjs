@@ -69,8 +69,9 @@ export function notesAt(n, song) {
   const barN = Math.floor(b / 4), inBar = b % 4, chord = chordAt(b), loop = Math.floor(barN / 16), phrase = Math.floor(barN / 4) % 4;
   if (on('bell')) {
     // On the second pass through the first half the melody thins to its
-    // downbeats: the same tune, with more air.
-    const sparse = loop % 2 === 1 && phrase < 2;
+    // downbeats: the same tune, with more air. While green is away it thins
+    // everywhere: the tune misses its friend.
+    const sparse = (loop % 2 === 1 && phrase < 2) || (!docked && song.apart);
     for (const note of MELODY[barN % 16]) if (note.slot === inBar * 2 + sub / 2 && (!sparse || note.slot % 2 === 0)) {
       out.push({ part: 'bell', kind: 'bell', f: hz(note.m), d: Math.min(2.4, .5 + note.len * BEAT / 2), v: note.slot % 2 ? .75 : 1 });
     }
@@ -190,7 +191,13 @@ export function createStoryAudio() {
     if (note.kind === 'tick') { hiss(bus, 4000, at, .035, .09 * v); tone(bus, 'square', note.f, at, .03, .025 * v); }
     else if (note.kind === 'wind') hiss(bus, note.f, at, note.d, .03 * v, 'bandpass');
     else if (note.kind === 'bell') { tone(bus, 'sine', note.f, at, note.d, .1 * v); tone(bus, 'sine', note.f * 2.76, at, note.d * .25, .02 * v); tone(bus, 'triangle', note.f * .5, at, note.d * .6, .015 * v, 0, .02); }
-    else if (note.kind === 'bass') { tone(bus, 'triangle', note.f, at, note.d, .13 * v, 0, .012); tone(bus, 'sine', note.f / 2, at, note.d, .07 * v, 0, .012); tone(bus, 'sine', note.f * 2, at, .12, .02 * v); }
+    else if (note.kind === 'bass') {
+      tone(bus, 'triangle', note.f, at, note.d, .13 * v, 0, .012); tone(bus, 'sine', note.f / 2, at, note.d, .07 * v, 0, .012);
+      // The same line plucked two octaves up: phone speakers cannot play the
+      // bass itself, so this is the green a phone hears. A far green's radio
+      // filter (down to 350Hz) takes it away first.
+      tone(bus, 'triangle', note.f * 4, at, Math.min(.5, note.d * .5), .1 * v, 0, .006); tone(bus, 'triangle', note.f * 2, at, Math.min(.35, note.d * .4), .05 * v, 0, .006);
+    }
     else if (note.kind === 'pad') { tone(bus, 'sine', note.f, at, note.d, .018 * v, 0, .5); tone(bus, 'triangle', note.f * 1.003, at, note.d, .008 * v, 0, .7); }
     else if (note.kind === 'glint') { tone(bus, 'sine', note.f, at, note.d, .03 * v); tone(bus, 'sine', note.f * 2.01, at, note.d * .4, .008 * v); }
     else if (note.kind === 'thump') tone(bus, 'sine', note.f, at, note.d, .12 * v, .5);

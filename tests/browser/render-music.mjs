@@ -38,7 +38,7 @@ const clips = await page.evaluate(async () => {
     let b = ''; const bytes = new Uint8Array(buf); for (let i = 0; i < bytes.length; i += 32768) b += String.fromCharCode(...bytes.subarray(i, i + 32768));
     return { wav: btoa(b), peak: +peak.toFixed(3), rms };
   }
-  const parts = list => ({ dockBeat: null, parts: new Set(list), tick: () => true, origin: 0 });
+  const parts = (list, apart = false) => ({ dockBeat: null, parts: new Set(list), tick: () => true, origin: 0, apart });
   const full = { tick: .9, bell: .85, bass: .9, perc: .9, pad: 0, sparkle: 0 };
   const result = {};
   // Wind-up: the hero's clockwork alone, in the dark.
@@ -58,10 +58,24 @@ const clips = await page.evaluate(async () => {
   // with every hop (the game's own curve), then the reunion cue.
   const back = 14;
   result['07-reunion'] = await render(back + 6, {
-    song: () => parts(['bell', 'bass', 'perc']),
+    song: t => parts(['bell', 'bass', 'perc'], t < back),
     mix: t => { const near = smooth(0, back, t) ** 1.5, lv = .3 + .6 * near, cl = .12 + .6 * near, done = t >= back;
       return { levels: { ...full, bass: .9 * (done ? 1 : lv), perc: .9 * (done ? 1 : lv) }, clarity: { bass: done ? 1 : cl, perc: done ? 1 : cl } }; },
     cues: [[back, 'reunion']],
+  });
+  // Apart: together for 8 beats, then green is left behind (its part fades to
+  // a radio and blue's tune thins), then red carries it back (07's curve).
+  const split = 8 * BEAT, away = split + 16 * BEAT;
+  result['09-apart-and-back'] = await render(away + back + 8, {
+    song: t => parts(['bell', 'bass', 'perc'], t >= split && t < away + back),
+    mix: t => {
+      if (t < split) return { levels: full };
+      const gone = smooth(split, split + 3 * BEAT, t), near = smooth(away, away + back, t) ** 1.5, done = t >= away + back;
+      const lv = t < away ? .9 - .9 * gone : done ? .9 : .9 * (.3 + .6 * near), cl = t < away ? 1 - .88 * gone : done ? 1 : .12 + .6 * near;
+      const perc = t < away ? .9 : lv;
+      return { levels: { ...full, bass: lv, perc }, clarity: { bass: cl, perc: t < away ? 1 : cl } };
+    },
+    cues: [[split, 'strand'], [away, 'pickup'], [away + back, 'reunion']],
   });
   // Ending: the last touchdown (dock), one silent beat, blue, green, red,
   // the pad, the launch, then the base receding from the rocket to black.

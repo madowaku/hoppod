@@ -55,7 +55,9 @@ export function buildCourse() {
   p = c.plat(44, 300); c.marks.relays.push(Math.round(p.a + 170));
   c.filler(3, r, [40, 70], [150, 200]);
   // Switch field: one long ground, the switch, then a chasm only the bridge spans.
-  p = c.plat(50, 1060); c.checkpoint({ a: p.a, b: p.a + 160 }, 'apart');
+  // The chasm starts 220px past the switch, so while green is near the socket
+  // the hero already sees the edge (and, from the socket, the cable to it).
+  p = c.plat(50, 840); c.checkpoint({ a: p.a, b: p.a + 160 }, 'apart');
   c.marks.switchX = p.a + 620; c.marks.fieldStart = p.a;
   // A last relay at the field's edge: a green lost on the approach is never
   // carried onto the switch field without its link.

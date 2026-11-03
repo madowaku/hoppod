@@ -168,6 +168,9 @@ const song = {
   parts: new Set(),
   // Bar 1 of the song falls on the beat blue is assembled.
   get origin() { return ahead.parts.assembledAt === null ? 0 : Math.round(ahead.parts.assembledAt / BEAT); },
+  // Green is away (lost, holding the switch, or being carried back): blue's
+  // tune thins to its downbeats until they are together again.
+  get apart() { return ['lost', 'switch', 'carry'].includes(ahead.green.state); },
   // The clockwork tick sounds on every beat the hero touches down; a beat
   // predicted to be a fall stays silent.
   tick: beat => ahead.status === 'playing' || (ahead.status === 'falling' && beat === ahead.fallAt + FALL_BEATS) || (ahead.status === 'docked' && beat <= ahead.dockAt),
@@ -327,6 +330,24 @@ function drawGlints(cam) {
     ctx.fillRect(l, FLOOR, 3, 2); ctx.fillRect(r - 3, FLOOR, 3, 2);
     for (let x = l + 10; x < r - 8; x += 18) ctx.fillRect(x, FLOOR, 2, 1);
   }
+  // In the dark before blue's light, only what a landing needs: a faint line
+  // along each top and the cliff edges catching the hero's glow, brighter
+  // near it and on each touchdown. Everything else stays black.
+  const dark = run.chapter === 'wake' ? 1 - lightOpen() : 0;
+  if (dark <= 0) return;
+  const touch = Math.max(0, 1 - (s % BEAT) / .3);
+  for (const p of COURSE.platforms) {
+    if (p.kind === 'crane') continue;
+    const [left, right] = footing([p.a, p.b]), l = Math.round(left - cam), r = Math.round(right - cam);
+    if (r < -cull || l > W + cull) continue;
+    const near = x => 1 - smooth(60, 300, Math.abs(x - heroX)) * .55;
+    ctx.fillStyle = `rgba(232,214,170,${dark * (.22 + .1 * touch)})`; ctx.fillRect(l, FLOOR, r - l, 1);
+    for (const x of [l, r - 2]) {
+      const edge = ctx.createLinearGradient(0, FLOOR, 0, FLOOR + 26);
+      edge.addColorStop(0, `rgba(232,214,170,${dark * near(x) * (.75 + .25 * touch)})`); edge.addColorStop(1, 'rgba(232,214,170,0)');
+      ctx.fillStyle = edge; ctx.fillRect(x, FLOOR, 2, 26);
+    }
+  }
 }
 function drawDevices(cam) {
   // Relay antennas: they carry the signal to a stranded friend.
@@ -351,6 +372,15 @@ function drawDevices(cam) {
         ctx.strokeStyle = `rgba(159,240,196,${.5 * (1 - age / BEAT)})`; ctx.lineWidth = 1;
         ctx.beginPath(); ctx.arc(sx, FLOOR - 14, 12 + age * 30, Math.PI, 0); ctx.stroke();
       }
+    }
+    // A cable runs from the socket along the ground to the bridge's anchor:
+    // dark at rest, a pulse runs down it on each beat while green is over the
+    // socket, and it lights all the way when the switch holds.
+    const ca = COURSE.bridge.a - cam, cableY = FLOOR + 3;
+    ctx.fillStyle = run.switchOn ? '#5fe39a' : '#1f3a33'; ctx.fillRect(sx + 16, cableY, ca - 4 - sx - 16, 2); ctx.fillRect(ca - 5, FLOOR - 2, 2, 7);
+    if (over || (run.switchOn && run.t - run.switchAt < BEAT)) {
+      const k = run.switchOn ? smooth(0, BEAT, run.t - run.switchAt) : (s - beatIndex(s) * BEAT) / BEAT, len = ca - 4 - sx - 16;
+      for (const lag of [0, .12]) { const at = sx + 16 + len * Math.max(0, k - lag); ctx.fillStyle = lag ? 'rgba(159,240,196,.5)' : '#c8ffdc'; ctx.fillRect(at - 6, cableY - 1, 12, 4); }
     }
     ctx.fillStyle = run.switchOn ? '#5fe39a' : over ? '#3f8f66' : '#2d4a44'; ctx.fillRect(sx - 16, FLOOR - 4, 32, 4);
     ctx.strokeStyle = run.switchOn ? '#c8ffdc' : over ? '#9ff0c4' : '#4f7a6c'; ctx.lineWidth = 1; ctx.setLineDash(run.switchOn ? [] : [2, 2]);
