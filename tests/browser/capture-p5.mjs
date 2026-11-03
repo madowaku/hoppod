@@ -60,5 +60,20 @@ await (await play(field, sw, r => {
   }
   await page.close();
 }
+// Falls in chapter II with blue and green along, SLOW only: the friends'
+// glance during each fall, then after the second respawn the hole's edges.
+{
+  const cp = COURSE.checkpoints.findIndex(c => c.chapter === 'apart');
+  const page = await open(cp), read = () => page.evaluate(() => globalThis.__rapippoStoryProbe.read());
+  let falls = 0, was = 'playing';
+  for (let k = 0; k < 200 && falls < 2; k++) {
+    await page.clock.runFor(130); const r = await read();
+    if (r.status === 'falling' && was !== 'falling') { falls++; await page.clock.runFor(300); await shot(page, 'fall-glance-' + falls); }
+    was = r.status;
+  }
+  for (let k = 0; k < 40; k++) { await page.clock.runFor(130); if ((await read()).status === 'playing') break; }
+  await page.clock.runFor(400); await shot(page, 'fall-hint');
+  await page.close();
+}
 await browser.close();
 console.log('done', out);

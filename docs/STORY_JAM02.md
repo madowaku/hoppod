@@ -119,6 +119,20 @@ Findings from the first complete playthrough, and what changed. No new systems; 
 
 The real-audio test that failed on CI for both P4 commits was the test driver, not the game: a release and the next press at the same instant made the press wait a frame. Under load the old driver failed 1/6, the fixed one 9/9.
 
+## Proposals round (2026-11-03)
+
+Chosen with the owner: shorter ①, checkpoint lights, friends reacting to falls, a beat mark; fall hints and vibration as optional. Not adopted this round: taller canvas, chapter bar, final tick; the "reply from Earth" is out (the ending stays the four lights receding).
+
+- **① shorter and taught by the ground.** Hand-placed in three lessons, a blue part after each: narrow gaps (SLOW alone can do it: find the rhythm), wide gaps (SLOW cannot cross: FAST), short landings after wide gaps (FAST alone or SLOW alone falls: SLOW is the control). To the third part: 5055 → 3982px; without falls 20–28s instead of 20–39s. Blue's awakening unchanged.
+- **Blue's bell steps back** when green or red play (×0.7; in the ending from green's entry, D+1 stays full). Phone band (300Hz high-pass): bell to bass was 24dB apart before P5, now 7dB (bass pluck .12).
+- **Checkpoints:** a small lantern where a fall brings the hero back; it catches with one soft ring as the hero passes and stays lit; drawn over the dark. No sound.
+- **Friends see a fall:** ear tips flash for 0.3s, then the eyes turn towards where the hero went down and drop, until the respawn. Drawn over the shared face; nothing waits.
+- **Beat mark:** a tiny antenna in the control's corner whose tip lights for 0.1s on each beat (the clock the hops run on, not a cue to press). With `prefers-reduced-motion` it stays still.
+- **Fall hint:** only after a second fall from the same checkpoint, the edges of that hole glow softly until the hero is past it. Never a landing marker.
+![Chapter I lessons in the dark; a fall in chapter II (the friends look); after the second fall the hole's edges glow, lantern lit](story/p5-lessons-falls.png)
+
+- **Vibration:** only where `navigator.vibrate` exists (the button is hidden elsewhere); blue built, switch, pickup, reunion, dock (one pulse, then the silent beat). Never on landings. A BUZZ ON/OFF button, remembered.
+
 ## Real Web Audio verification
 
 `tests/browser/story-audio.spec.mjs` runs a real `AudioContext` in Chromium (headless, real time, no clock mocking). With `STORY_AUDIO=required` (set in CI, and by `npm run test:story-audio`) a browser without running audio **fails** instead of skipping.

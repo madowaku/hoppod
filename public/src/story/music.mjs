@@ -196,7 +196,7 @@ export function createStoryAudio() {
       // The same line plucked two octaves up: phone speakers cannot play the
       // bass itself, so this is the green a phone hears. A far green's radio
       // filter (down to 350Hz) takes it away first.
-      tone(bus, 'triangle', note.f * 4, at, Math.min(.5, note.d * .5), .1 * v, 0, .006); tone(bus, 'triangle', note.f * 2, at, Math.min(.35, note.d * .4), .05 * v, 0, .006);
+      tone(bus, 'triangle', note.f * 4, at, Math.min(.5, note.d * .5), .12 * v, 0, .006); tone(bus, 'triangle', note.f * 2, at, Math.min(.35, note.d * .4), .05 * v, 0, .006);
     }
     else if (note.kind === 'pad') { tone(bus, 'sine', note.f, at, note.d, .018 * v, 0, .5); tone(bus, 'triangle', note.f * 1.003, at, note.d, .008 * v, 0, .7); }
     else if (note.kind === 'glint') { tone(bus, 'sine', note.f, at, note.d, .03 * v); tone(bus, 'sine', note.f * 2.01, at, note.d * .4, .008 * v); }

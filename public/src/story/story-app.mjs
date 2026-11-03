@@ -30,6 +30,13 @@ function savePreference(key, value) { try { localStorage.setItem(key, value); } 
 let language = chooseLanguage(location.href, readPreference('hoppod.pref.lang'), navigator.language);
 const tr = key => storyCopy(language, key);
 audio.setMuted(readPreference('hoppod.pref.muted') === '1');
+// Short vibrations at the story's turns, only where the device has them
+// (Android); elsewhere the button stays hidden and nothing happens. Never
+// on landings, and never in the silent beat after the dock.
+const canBuzz = typeof navigator.vibrate === 'function';
+let buzzOn = canBuzz && readPreference('hoppod.pref.buzz') !== '0';
+const BUZZ = { assemble: [18], switch: [24], pickup: [14, 60, 14], reunion: [20, 80, 20], dock: [70] };
+function buzz(type) { if (buzzOn && BUZZ[type]) try { navigator.vibrate(BUZZ[type]); } catch { /* ignored */ } }
 
 let cull = 20;
 let flashes = [];
@@ -51,7 +58,7 @@ function initialRun() {
 }
 function begin() {
   audio.unlock(); audio.cancel();
-  run = initialRun(); ahead = structuredClone(run); cued.clear(); s = 0; heroX = HERO_X; cameraS = 0; particles = []; flashes = []; launched = false; inset = 0; pickupAt = null;
+  run = initialRun(); ahead = structuredClone(run); cued.clear(); fallGap = null; s = 0; heroX = HERO_X; cameraS = 0; particles = []; flashes = []; launched = false; inset = 0; pickupAt = null;
   clock.start(0, perfNow()); input.reset(0, false); nextStep = 0;
   releaseInput(); screen = 'play'; showBanner(run.status === 'docked' ? 'send' : run.chapter);
   get('overlay').hidden = true; get('action').blur();
@@ -98,6 +105,7 @@ function refreshCopy() {
   get('headphones').textContent = tr('headphones'); get('again').textContent = tr('again');
   get('footer-tag').textContent = tr('footer'); get('footer-keys').textContent = tr('keys');
   get('language').textContent = language === 'ja' ? 'EN' : '日本語'; get('language').setAttribute('aria-label', tr('switchLanguage'));
+  get('buzz').textContent = tr(buzzOn ? 'buzzOn' : 'buzzOff'); get('buzz').setAttribute('aria-pressed', String(buzzOn));
   get('sound').textContent = tr(audio.muted ? 'soundOff' : 'soundOn'); get('sound').setAttribute('aria-pressed', String(!audio.muted));
   if (banner) get('chapter-label').textContent = tr('chapters')[banner.id] || '';
   refreshOverlay(); updateHud();
@@ -114,6 +122,12 @@ get('again').addEventListener('click', () => { get('overlay').dataset.screen = '
 get('sound').addEventListener('click', () => {
   get('sound').blur(); audio.unlock(); audio.setMuted(!audio.muted);
   savePreference('hoppod.pref.muted', audio.muted ? '1' : '0'); refreshCopy();
+});
+get('buzz').hidden = !canBuzz;
+get('buzz').addEventListener('click', () => {
+  get('buzz').blur(); buzzOn = !buzzOn; savePreference('hoppod.pref.buzz', buzzOn ? '1' : '0');
+  if (buzzOn) buzz('assemble');
+  refreshCopy();
 });
 get('language').addEventListener('click', () => {
   get('language').blur(); language = language === 'ja' ? 'en' : 'ja';
@@ -202,7 +216,10 @@ function mixMusic() {
   if (ahead.green.state !== 'dormant') song.parts.add('bass');
   if (ahead.red.state !== 'dormant') song.parts.add('perc');
   const green = friendSound(run.green), red = friendSound(run.red), clarity = { bass: green.clarity, perc: red.clarity, bell: 1 };
-  const a = after(), levels = { tick: .9, bell: .85 * lightOpen(), bass: .9 * green.level, perc: .9 * red.level, sparkle: 0 };
+  // Blue's bell carries the tune alone in the dark; once green or red play
+  // with it, it steps back so their parts can be heard (phones especially).
+  const others = Math.max(green.level, red.level);
+  const a = after(), levels = { tick: .9, bell: .85 * lightOpen() * (1 - .3 * others), bass: .9 * green.level, perc: .9 * red.level, sparkle: 0 };
   let muffle = 1 - lightOpen();
   if (a >= 0) {
     // Seen from the rocket: the base's music thins with distance; a little
@@ -211,6 +228,8 @@ function mixMusic() {
     // The base keeps playing to the very end; only the distance grows.
     // The pad exists only here: the four of them, finally all together.
     levels.tick = 0; levels.bell = levels.bass = levels.perc = levels.pad = (.12 + .88 * (1 - k) ** 2) * out;
+    // D+1 is blue's alone, at full voice; from green's entry it steps back.
+    levels.bell *= 1 - .3 * smooth(ENDING.bass - .5, ENDING.bass + 1, a);
     levels.sparkle = smooth(ENDING.away, ENDING.away + 8, a) * .7 * out; muffle = k * .85;
     if (a >= ENDING.away) song.parts.add('sparkle');
   }
@@ -236,7 +255,7 @@ function burst(x, y, colors, n = 8) {
 function handle(events) {
   for (const e of events) {
     if (CUES.has(e.type) && !cued.has(eventKey(e))) { audio.cue(e.type); probeNote('late:' + e.type, audio.context?.currentTime ?? 0, e.t); }
-    probeEvent(e);
+    probeEvent(e); buzz(e.type);
     if (e.type === 'land') burst(run.x, FLOOR - 4, ['#efdaad', '#8ee6c4'], 6);
     else if (e.type === 'collect') burst(e.x, FLOOR - 10, ['#a9d6ff', '#4f9dff'], 10);
     else if (e.type === 'strand') flashes.push({ kind: 'snap', x: e.x, at: e.t });
@@ -248,6 +267,8 @@ function handle(events) {
     else if (e.type === 'reunion') flashes.push({ kind: 'reunion', x: run.x, at: e.t });
     else if (e.type === 'dock') { releaseInput(); showBanner('send'); flashes.push({ kind: 'dock', x: COURSE.dockX, at: e.t }); }
     else if (e.type === 'chapter') showBanner(e.id);
+    else if (e.type === 'fall') fallGap = gapAt(run.fallX);
+    else if (e.type === 'checkpoint') flashes.push({ kind: 'lantern', x: COURSE.checkpoints[e.index].x, at: s });
   }
 }
 // Test probe: scheduled notes and events (only when a probe is injected).
@@ -349,6 +370,42 @@ function drawGlints(cam) {
       ctx.fillStyle = edge; ctx.fillRect(x, FLOOR, 2, 26);
     }
   }
+}
+// After a second fall from the same checkpoint, the edges of the hole the
+// hero fell into glow softly until it is behind: where to look, not where
+// to land. Nothing is shown the first time.
+let fallGap = null;
+function gapAt(x) {
+  let a = -Infinity, b = Infinity;
+  for (const p of COURSE.platforms) { if (p.kind === 'crane') continue; if (p.b <= x) a = Math.max(a, p.b); else if (p.a >= x) b = Math.min(b, p.a); }
+  return Number.isFinite(a) && Number.isFinite(b) ? { a, b, checkpoint: run.checkpoint } : null;
+}
+function drawFallHint(cam) {
+  const g = fallGap;
+  if (!g || run.status !== 'playing' || g.checkpoint !== run.checkpoint || (run.fails[run.checkpoint] || 0) < 2 || run.x > g.b) return;
+  const glow = reducedMotion.matches ? .6 : .45 + .25 * Math.sin(s * 3);
+  for (const x of [g.a - cam, g.b - cam]) {
+    const edge = ctx.createLinearGradient(0, FLOOR - 4, 0, FLOOR + 40);
+    edge.addColorStop(0, `rgba(255,214,150,${glow})`); edge.addColorStop(1, 'rgba(255,214,150,0)');
+    ctx.fillStyle = edge; ctx.fillRect(Math.round(x) - 1, FLOOR - 4, 3, 44);
+  }
+  ctx.fillStyle = `rgba(255,214,150,${glow * .5})`; ctx.fillRect(Math.round(g.a - cam) - 8, FLOOR, 8, 2); ctx.fillRect(Math.round(g.b - cam), FLOOR, 8, 2);
+}
+// Checkpoints: a small lantern where a fall brings the hero back. It lights
+// as the hero passes and stays lit, so a fall never feels like losing much.
+// Drawn after the darkness, so a lit one glows through it. No sound.
+function drawLanterns(cam) {
+  COURSE.checkpoints.forEach((cp, i) => {
+    const x = Math.round(cp.x - cam) - 22; if (x < -20 || x > W + 20) return;
+    const lit = i <= run.checkpoint;
+    ctx.fillStyle = lit ? '#6a5a40' : '#25303a'; ctx.fillRect(x, FLOOR - 13, 2, 13);
+    if (lit) {
+      const glow = ctx.createRadialGradient(x + 1, FLOOR - 15, 1, x + 1, FLOOR - 15, 14);
+      glow.addColorStop(0, 'rgba(255,227,172,.35)'); glow.addColorStop(1, 'rgba(255,227,172,0)');
+      ctx.fillStyle = glow; ctx.fillRect(x - 13, FLOOR - 29, 28, 28);
+    }
+    ctx.fillStyle = lit ? '#ffe3ac' : '#33404a'; ctx.fillRect(x - 1, FLOOR - 17, 4, 4);
+  });
 }
 function drawDevices(cam) {
   // Relay antennas: they carry the signal to a stranded friend.
@@ -499,7 +556,9 @@ function drawFriends(cam, inset = false) {
       const age = s - beatIndex(s) * BEAT;
       if (age < .6) { ctx.strokeStyle = `rgba(95,227,154,${.8 * (1 - age / .6)})`; ctx.lineWidth = inset ? 2.5 : 1.5; ctx.beginPath(); ctx.arc(x, y - 34, 6 + age * 50, Math.PI * 1.2, Math.PI * 1.8); ctx.stroke(); }
     }
-    drawPod(ctx, x, y, 1, anchored ? { phase: 0, land: 1, time: s, palette, eyes: awake } : { phase: (s / BEAT) % 1, time: s, palette, eyes: awake, idle: !awake });
+    const podPhase = anchored ? 0 : (s / BEAT) % 1;
+    drawPod(ctx, x, y, 1, anchored ? { phase: 0, land: 1, time: s, palette, eyes: awake } : { phase: podPhase, time: s, palette, eyes: awake, idle: !awake });
+    if (awake && f.state !== 'lost' && run.status === 'falling') drawGlance(x, y, podPhase, anchored ? 1 : 0, run.fallX - cam, s - run.fallAt * BEAT);
     drawCrewParts(ctx, who, x, y, 1, crewForm(who, f));
     // In the ending each friend's touchdown on its beat leaves a small ring.
     if (f.state === 'station' && run.status === 'docked' && after() >= ENDING[PART[who]]) {
@@ -507,6 +566,18 @@ function drawFriends(cam, inset = false) {
       if (age < .35) { ctx.strokeStyle = GLOW[who]; ctx.globalAlpha = 1 - age / .35; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.ellipse(x, FLOOR - 1, 10 + age * 50, 3 + age * 8, 0, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1; }
     }
   }
+}
+// A friend sees the hero fall: its ear tips flash for a moment, then its eyes
+// turn towards where the hero went down and drop, until the respawn. Drawn
+// over pod.mjs's face (FREE RUN art untouched); nothing stops or waits.
+function drawGlance(x, y, phase, land, toX, age) {
+  const spring = Math.round(3 + Math.sin(phase * Math.PI) * 2 - land * 2), top = -18 - spring, bend = Math.round(Math.sin(phase * Math.PI * 2));
+  const dx = Math.abs(toX - x) < 6 ? 0 : Math.sign(toX - x), dy = age > .3 ? 1 : 0;
+  ctx.save(); ctx.translate(Math.round(x), Math.round(y));
+  ctx.fillStyle = '#172638'; ctx.fillRect(-5, top + 8, 10, 4);
+  ctx.fillStyle = '#ffe38e'; for (const eye of [-4, 3]) ctx.fillRect(eye + dx, top + 8 + dy, 2, 3);
+  if (age < .3 && !reducedMotion.matches) { ctx.fillStyle = '#ffffff'; for (const ear of [-6, 5]) ctx.fillRect(ear + 1 + bend, top - 8, 1, 4); }
+  ctx.restore();
 }
 // Same face, different job: each friend's transformed form while it works.
 // blue opens its light for the dawn and on its bell beats at the base; green
@@ -653,6 +724,10 @@ function drawFlashes(cam) {
         ctx.beginPath(); ctx.arc(heroX, heroY() - 30, r, 0, Math.PI * 2); ctx.stroke();
       }
       ctx.globalAlpha = 1;
+    } else if (f.kind === 'lantern' && age < .9) {
+      // The lantern catches: one soft ring, once.
+      ctx.strokeStyle = `rgba(255,227,172,${.7 * (1 - age / .9)})`; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(x - 21, FLOOR - 15, 4 + age * 34, 0, Math.PI * 2); ctx.stroke();
     } else if (f.kind === 'dock' && age < 1) {
       ctx.strokeStyle = `rgba(255,227,172,${1 - age})`; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.ellipse(x, FLOOR - 1, 12 + age * 70, 4 + age * 10, 0, 0, Math.PI * 2); ctx.stroke();
@@ -723,7 +798,7 @@ function drawScene() {
     ctx.fillRect(p.x - cam + p.vx * p.age, p.y + p.vy * p.age + 120 * p.age ** 2, 3, 3);
   }
   ctx.globalAlpha = 1;
-  drawDarkness(); drawCeiling(cam); drawGlints(cam); drawFlashes(cam); drawBehind(cam); drawInset();
+  drawDarkness(); drawCeiling(cam); drawGlints(cam); drawLanterns(cam); drawFallHint(cam); drawFlashes(cam); drawBehind(cam); drawInset();
   // The active blue part glows through the dark.
   if (run.parts.got < COURSE.parts.length) {
     const px = run.parts.x - cam, pulse = reducedMotion.matches ? .5 : .5 + .5 * Math.sin(s * 4);
@@ -882,6 +957,8 @@ function frame() {
   particles.forEach(p => p.age += 1 / 60); particles = particles.filter(p => p.age < .4);
   if (run.status === 'docked' && after() >= 0) drawEnding(); else drawScene();
   drawHints(); drawBanner();
+  // The control's antenna tip lights for a moment on every beat while playing.
+  get('beat-mark').classList.toggle('on', playing() && run.status !== 'docked' && s - beatIndex(s) * BEAT < .1);
   requestAnimationFrame(frame);
 }
 run = initialRun(); ahead = structuredClone(run); refreshCopy(); requestAnimationFrame(frame);

@@ -29,14 +29,17 @@ export function buildCourse() {
   const c = new Builder(), r = rng(0x5ba9);
   // ① WAKE: dark, narrow. Only the hero's clockwork tick. Three blue parts.
   c.chapter('wake');
-  c.plat(0, 620); c.checkpoint({ a: 0, b: 140 }, 'wake');
-  const parts = [];
-  c.filler(5, r, [34, 60], [140, 190]);
-  let p = c.plat(50, 190); parts.push(Math.round((p.a + p.b) / 2));
-  c.filler(7, r, [36, 66], [130, 180]);
-  p = c.plat(48, 190); parts.push(Math.round((p.a + p.b) / 2)); c.checkpoint(p, 'wake');
-  c.filler(7, r, [40, 70], [120, 170]);
-  p = c.plat(50, 200); parts.push(Math.round((p.a + p.b) / 2));
+  // Hand-placed, three short lessons in the dark, one blue part after each:
+  // narrow gaps to find the rhythm, wide gaps that need FAST, then short
+  // landings after wide gaps where SLOW is the control. ~4000px to the light.
+  c.plat(0, 420); c.checkpoint({ a: 0, b: 140 }, 'wake');
+  const parts = [], run = list => { for (const [gap, width] of list) c.plat(gap, width); };
+  run([[30, 200], [32, 190], [36, 180], [34, 170]]);
+  let p = c.plat(38, 190); parts.push(Math.round((p.a + p.b) / 2));
+  run([[70, 170], [78, 160], [84, 170], [76, 160]]);
+  p = c.plat(82, 190); parts.push(Math.round((p.a + p.b) / 2)); c.checkpoint(p, 'wake');
+  run([[60, 180], [92, 100], [40, 140], [96, 100], [44, 170]]);
+  p = c.plat(60, 200); parts.push(Math.round((p.a + p.b) / 2));
   // The light opens: a wide, generous plain to feel how large the moon is.
   c.filler(12, r, [40, 64], [190, 260]);
 

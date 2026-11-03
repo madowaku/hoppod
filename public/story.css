@@ -12,3 +12,12 @@ body.story{background:radial-gradient(ellipse at top,#16242c 0%,#05080c 75%)}
 .story .overlay[data-screen=end] .action{display:none}
 .end-free{font-size:10px}
 #chapter-label{letter-spacing:1px;font-size:9px}
+/* Rapippo's clock: a tiny antenna in the control's corner whose tip lights on
+   every beat. It shows the clock the hops run on, not a moment to press. */
+.story .hold{position:relative}
+.beat-mark{position:absolute;top:7px;right:9px;width:4px;height:11px;pointer-events:none}
+.beat-mark::before{content:"";position:absolute;left:1px;top:4px;width:2px;height:7px;background:#4f6f70}
+.beat-mark i{position:absolute;left:0;top:0;width:4px;height:4px;background:#355b5c;border-radius:1px}
+.beat-mark.on i{background:#fff0d0;box-shadow:0 0 5px #ffc38e}
+.hold.active .beat-mark::before{background:#aa6647}.hold.active .beat-mark i{background:#d98a5c}.hold.active .beat-mark.on i{background:#fffbea}
+@media(prefers-reduced-motion:reduce){.beat-mark.on i{background:#355b5c;box-shadow:none}.hold.active .beat-mark.on i{background:#d98a5c}}

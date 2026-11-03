@@ -39,7 +39,8 @@ const clips = await page.evaluate(async () => {
     return { wav: btoa(b), peak: +peak.toFixed(3), rms };
   }
   const parts = (list, apart = false) => ({ dockBeat: null, parts: new Set(list), tick: () => true, origin: 0, apart });
-  const full = { tick: .9, bell: .85, bass: .9, perc: .9, pad: 0, sparkle: 0 };
+  // The game's mix with green and red near: blue's bell steps back (.85 × .7).
+  const full = { tick: .9, bell: .6, bass: .9, perc: .9, pad: 0, sparkle: 0 };
   const result = {};
   // Wind-up: the hero's clockwork alone, in the dark.
   result['01-windup'] = await render(8 * BEAT, { song: () => parts([]), mix: () => ({ levels: { tick: .9 }, muffle: 1 }) });
@@ -52,7 +53,7 @@ const clips = await page.evaluate(async () => {
     cues: [[wake, 'assemble']],
   });
   for (const [name, part] of [['03-bell-solo', 'bell'], ['04-bass-solo', 'bass'], ['05-perc-solo', 'perc']])
-    result[name] = await render(32 * BEAT, { song: () => parts([part]), mix: () => ({ levels: { [part]: full[part] } }) });
+    result[name] = await render(32 * BEAT, { song: () => parts([part]), mix: () => ({ levels: { [part]: part === 'bell' ? .85 : full[part] } }) });
   result['06-together'] = await render(64 * BEAT, { song: () => parts(['bell', 'bass', 'perc']), mix: () => ({ levels: full }) });
   // Reunion: red has green; their parts come back faint and thin, clearer
   // with every hop (the game's own curve), then the reunion cue.
@@ -86,7 +87,7 @@ const clips = await page.evaluate(async () => {
       const a = t / BEAT - D;
       if (a < 0) return { levels: full };
       const k = smooth(ENDING.away, ENDING.lights, a), outv = 1 - smooth(ENDING.black - 2, ENDING.black + 2, a), lv = (.12 + .88 * (1 - k) ** 2) * outv;
-      return { levels: { tick: 0, bell: lv, bass: lv, perc: lv, pad: lv, sparkle: smooth(ENDING.away, ENDING.away + 8, a) * .7 * outv }, muffle: k * .85 };
+      return { levels: { tick: 0, bell: lv * (1 - .3 * smooth(ENDING.bass - .5, ENDING.bass + 1, a)), bass: lv, perc: lv, pad: lv, sparkle: smooth(ENDING.away, ENDING.away + 8, a) * .7 * outv }, muffle: k * .85 };
     },
     cues: [[D * BEAT, 'dock'], [(D + ENDING.launch) * BEAT, 'rumble']],
   });
