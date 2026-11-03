@@ -76,7 +76,12 @@ test('STORY → FREE RUN → STORY keeps the language even where nothing can be 
   await expect(page.locator('#free')).toHaveAttribute('aria-pressed','true');
   expect(new URL(page.url()).searchParams.get('mode')).toBe('free');
   expect(await lang(page)).toBe('ja');
+  // A reload keeps it too, while the address stays the exact replay link (no ?lang=).
+  const replay=page.url();expect(new URL(replay).searchParams.has('lang')).toBe(false);
+  await page.reload();expect(await lang(page)).toBe('ja');expect(page.url()).toBe(replay);
   await page.locator('#language').click();expect(await lang(page)).toBe('en');
+  expect(page.url()).toBe(replay);
+  await page.reload();expect(await lang(page)).toBe('en');
   await page.locator('#story').click();
   await expect(page).toHaveURL(/\/story\.html\?lang=en$/);expect(await lang(page)).toBe('en');
   // Switching back in STORY never leaves a stale ?lang= that would win on reload.

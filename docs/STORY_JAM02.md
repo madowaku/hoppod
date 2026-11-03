@@ -2,9 +2,9 @@
 
 **Draft; not merged or deployed.** Branch `feature/story-jam-02` from `main` (53b6642). Deadline: 2026-11-08 16:59 JST.
 
-STORY is a separate page (`public/story.html`) and module set (`public/src/story/`). FREE RUN, DAILY, BEST keys, course v4 and physics are untouched; the only FREE RUN change is a `STORY ›` link in the mode row. STORY imports the engine's constants, `footing` and the pod artwork read-only. The v0.5 mastery lab was used as reference only (its timestamped-input idea); no lab code or gates were brought in.
+STORY is a separate page (`public/story.html`) and module set (`public/src/story/`). FREE RUN, DAILY, BEST keys, course v4 and physics are untouched. FREE RUN changes: a `STORY ›` link in the mode row, the entry rule and the language rule (see *Release entry and language*). STORY imports the engine's constants, `footing` and the pod artwork read-only. The v0.5 mastery lab was used as reference only (its timestamped-input idea); no lab code or gates were brought in.
 
-Play locally: `npm run dev`, then open `http://127.0.0.1:8000/story.html`. Developer start points: `?cp=N` (checkpoint N), `?cp=end` (ending only), `?lang=ja`.
+Play locally: `npm run dev`, then open `http://127.0.0.1:8000/` (the bare address opens STORY). Developer start points: `?cp=N` (checkpoint N), `?cp=end` (ending only), `?lang=ja`.
 
 ## P0 — one clock for hops and music
 
@@ -222,6 +222,14 @@ Not measurable here: real speaker/Bluetooth latency and touch latency on Android
 ![Red: looks back, leaves, comms window, pickup, coming back, reunion](story/p3-red.png)
 ![Dock: stop, still, blue takes D+1, green D+4, red D+8 (P3 gates), launch](story/p3-dock.png)
 ![Rocket window: base below, receding, four lights, black](story/p3-end.png)
+
+## Release entry and language (2026-11-03, PR #16 review)
+
+- **Entry.** `index.html` decides before any game code loads: the bare address, or one with only `?lang=`, goes to `story.html` (carrying a valid `lang`). Any other parameter (`mode`, `date`, `seed`, `v`, `marker`, …) stays on FREE RUN, so every old shared or replay link opens exactly as before. All paths are relative (`story.html`, `index.html?mode=free`), so the same files work inside an itch.io ZIP folder and on Cloudflare.
+- **Language.** A valid `?lang=ja|en`, then the player's saved choice, then English. The browser language is not consulted. Switching saves the choice; STORY also rewrites its own `?lang=` (a stale one would win on reload). Links between the pages always carry `lang=`, so the language survives page moves even where storage is blocked. FREE RUN keeps its address the exact replay link (no `lang`; the share link equals the address) and keeps the language in its history entry (`history.state`), so a reload keeps it without storage too.
+- **Known limit.** Without storage, a *new* tab or a typed address starts in English (nothing is remembered outside the tab).
+- **Long stalls.** A frame later than 0.5s pauses the story on the last instant it simulated and drew; nothing is simulated unseen. RESUME is always at SLOW. Cue predictions cancelled by PAUSE are forgotten and scheduled again; a launch paused mid-way resumes its rumble from where it was.
+- **Lesson one** is cleared by SLOW alone (each touchdown at least 13px inside its footing); lessons two and three still need FAST, and both speeds.
 
 ## Open items (next)
 

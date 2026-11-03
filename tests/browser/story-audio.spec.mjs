@@ -2,6 +2,8 @@ import {test,expect} from '@playwright/test';
 import {mkdir,writeFile} from 'node:fs/promises';
 import {COURSE} from '../../public/src/story/course.mjs';
 import {storyFrom} from '../../public/src/story/sim.mjs';
+import {platformAt} from '../../public/src/story/course.mjs';
+import {SLOW_SPEED} from '../../public/src/engine.mjs';
 import {BEAT} from '../../public/src/story/beat.mjs';
 import {ENDING} from '../../public/src/story/music.mjs';
 import {solve,hop} from '../helpers/story-solver.mjs';
@@ -204,40 +206,58 @@ function offsetOf(notes) {
   return offsets[0];
 }
 
-test('real audio: a 30s frame stall pauses on the last drawn beat; nothing happens unseen',async({page})=>{
+// Freeze the page two and a half beats in, inside the page so CI speed cannot
+// move it: just after the second touchdown (1.56s), optionally holding FAST
+// from 1.65s, the stall starts at 1.95s, before the next touchdown (2.34s).
+function stallAt(page,fast,ms) {
+  return page.evaluate(({fast,ms})=>new Promise(done=>{
+    const p=globalThis.__rapippoStoryProbe;let pressed=false;
+    const tick=()=>{const r=p.read();
+      if(fast&&!pressed&&r.s>=1.65){pressed=true;window.dispatchEvent(new KeyboardEvent('keydown',{code:'Space',bubbles:true}));}
+      if(r.s>=1.95){const hud=document.getElementById('hold-state').textContent,end=performance.now()+ms;while(performance.now()<end){}done({...r,hud});}
+      else requestAnimationFrame(tick);};
+    requestAnimationFrame(tick);}),{fast,ms});
+}
+// Story seconds and wall seconds read together, to compare their rates.
+const clocked=page=>page.evaluate(()=>({...globalThis.__rapippoStoryProbe.read(),wall:performance.now()/1000}));
+for(const [fast,ms] of [[false,30000],[true,3000]]) test(`real audio: a ${ms/1000}s frame stall${fast?' while holding FAST':''} pauses on the last drawn beat; nothing happens unseen`,async({page})=>{
   test.setTimeout(120000);
   const errors=await open(page,0);
-  // Hold FAST, then freeze the page for 30s two seconds in (a frozen tab, a debugger).
-  await page.keyboard.down('Space');
-  await expect.poll(async()=>(await read(page)).s,{timeout:5000}).toBeGreaterThan(2);
-  const before=await read(page);
-  expect(before.screen).toBe('play');
-  await page.evaluate(()=>{const end=performance.now()+30000;while(performance.now()<end){}});
+  const before=await stallAt(page,fast,ms);
+  expect(before.screen).toBe('play');expect(before.hud).toBe(fast?'FAST':'SLOW');
   await page.waitForTimeout(400);
   const stalled=await read(page),{events,notes}=await data(page);
+  // Stopped on the last drawn instant: no time passed, nothing happened unseen.
   expect(stalled.screen).toBe('pause');
-  expect(stalled.s,'story time did not run during the stall').toBeLessThan(before.s+.2);
-  expect(stalled.beat-before.beat).toBeLessThanOrEqual(1);
-  expect(stalled.status).toBe('playing');
+  expect(stalled.s,'story time did not run during the stall').toBeLessThan(before.s+.1);
+  expect(stalled.beat).toBe(before.beat);expect(stalled.status).toBe('playing');
   expect(events.filter(e=>e.type==='fall'),'no unseen falls').toEqual([]);
   expect(Math.max(...events.map(e=>e.t??0))).toBeLessThanOrEqual(stalled.s+1e-9);
-  // Input is released (RESUME is always at SLOW) while the key stays down.
+  // Input is released (RESUME is always at SLOW) even with the key still down.
   await expect(page.locator('#hold-state')).toHaveText('SLOW');
-  await page.keyboard.up('Space');
+  if(fast) await page.evaluate(()=>window.dispatchEvent(new KeyboardEvent('keyup',{code:'Space',bubbles:true})));
   const count=notes.length;
-  await page.locator('#action').click();await page.waitForTimeout(1600);
-  const resumed=await read(page),after=await data(page);
-  expect(resumed.screen).toBe('play');
-  expect(resumed.s-stalled.s).toBeGreaterThan(1.2);expect(resumed.s-stalled.s).toBeLessThan(2.2);
-  // The beat continues from where it stopped, on one grid, with fresh notes.
+  await page.locator('#action').click();
+  const r0=await clocked(page);expect(r0.screen).toBe('play');
+  // The next touchdown is where SLOW from the stopped position takes the hero.
+  const k=stalled.beat+1,x=stalled.x+(k*BEAT-stalled.s)*SLOW_SPEED,expected=platformAt(COURSE,x,k)?'land':'fall';
+  await expect.poll(async()=>(await data(page)).events.filter(e=>e.t>stalled.s&&['land','fall'].includes(e.type)).length,{timeout:4000}).toBeGreaterThan(0);
+  await expect.poll(async()=>(await read(page)).s,{timeout:3000}).toBeGreaterThan(k*BEAT+.3);
+  const r1=await clocked(page),after=await data(page);
+  // Story time runs at the rate of real time again.
+  expect(Math.abs((r1.s-r0.s)-(r1.wall-r0.wall))).toBeLessThan(.1);
+  const first=after.events.find(e=>e.t>stalled.s&&['land','fall'].includes(e.type));
+  expect(first.beat).toBe(k);expect(near(first.t,k*BEAT)).toBe(true);
+  expect(first.type,`touchdown at x ${x.toFixed(1)}`).toBe(expected);
+  // Sound and beat stay locked: one offset; a tick on a landing, none on a fall.
   const fresh=since(after.notes,count);offsetOf(fresh);
   expect(Math.min(...fresh.map(n=>n.s))).toBeGreaterThanOrEqual(stalled.s-1e-9);
   for(const n of fresh.filter(n=>!n.part.includes(':'))) expect(near(n.s/(BEAT/4),Math.round(n.s/(BEAT/4)))).toBe(true);
-  const lands=after.events.filter(e=>e.type==='land'&&e.t>stalled.s);
-  expect(lands.length).toBeGreaterThan(0);
-  for(const e of lands) expect(near(e.t,e.beat*BEAT)).toBe(true);
-  expect(after.events.filter(e=>e.type==='fall')).toEqual([]);
-  await writeFile(dir+'/stall.json',JSON.stringify({before:before.s,stalled:stalled.s,resumed:resumed.s,beat:[before.beat,stalled.beat,resumed.beat]},null,2));
+  expect(fresh.some(n=>n.part==='tick'&&near(n.s,k*BEAT))).toBe(expected==='land');
+  // And it goes on: a landing follows (after a respawn, if that was a fall).
+  await expect.poll(async()=>(await data(page)).events.filter(e=>e.type==='land'&&e.t>stalled.s).length,{timeout:8000}).toBeGreaterThan(0);
+  for(const e of (await data(page)).events.filter(e=>e.t>stalled.s&&['land','fall'].includes(e.type))) expect(near(e.t,e.beat*BEAT)).toBe(true);
+  await writeFile(dir+`/stall-${ms}.json`,JSON.stringify({fast,before:before.s,stalled:stalled.s,x:stalled.x,next:{beat:k,x,expected,got:first.type}},null,2));
   expect(errors).toEqual([]);
 });
 

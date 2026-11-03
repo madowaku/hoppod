@@ -16,7 +16,7 @@ Small bouncing space capsule with rabbit-ear antennas, a face-display, and a spr
 
 ## STORY (thatgamejam #02, in progress)
 
-A separate five-minute STORY page, `story.html`, is being built on `feature/story-jam-02`. Hops and original Web Audio music share one beat clock. FREE RUN only gains a link to it. See [STORY design and status](docs/STORY_JAM02.md).
+A separate five-minute STORY page, `story.html`, is being built on `feature/story-jam-02`. Hops and original Web Audio music share one beat clock. On that branch the bare top address opens STORY in English; every FREE RUN and DAILY address (mode, date, seed, shared replay links) still opens FREE RUN unchanged. See [STORY design and status](docs/STORY_JAM02.md).
 
 ## Play locally
 
