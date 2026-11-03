@@ -57,7 +57,7 @@ test('the whole STORY plays through with real key events to the end card',async(
   let r=await read(page);expect(r.status).toBe('docked');
   // Every story beat happened, in order, and red's trip was shown in its window.
   const types=(await page.evaluate(()=>globalThis.__rapippoStoryProbe.events)).map(e=>e.type);
-  const order=['collect','assemble','join','socket','switch','join','notice','rescue','pickup','reunion','station','station','station','dock'];
+  const order=['collect','assemble','kit','fit','join','socket','switch','kit','fit','join','notice','rescue','pickup','reunion','station','station','station','dock'];
   let at=0;for(const t of types)if(t===order[at])at++;
   expect(order.slice(at),'missing story beats').toEqual([]);
   expect(inset).toBeGreaterThan(.9);

@@ -121,6 +121,21 @@ Findings from the first complete playthrough, and what changed. No new systems; 
 
 The real-audio test that failed on CI for both P4 commits was the test driver, not the game: a release and the next press at the same instant made the press wait a frame. Under load the old driver failed 1/6, the fixed one 9/9.
 
+## Fitting green and red (2026-11-03)
+
+Not a second collection like blue's three parts: each friend is met unfinished and the hero completes it on the spot, and the part it was given is the one it later works with. No detour, no new chapter; the last STORY feature before first-time playtests and release prep.
+
+- **Met missing a part.** Green lies with bare hip sockets and a dotted outline where its foot pads go; red sits with a bare shoulder socket and the outline of its folded arm. Eyes dark, no music from them yet.
+- **The part on the road, 300px before the friend**, glowing in its colour: green's magnetic leg unit (two pads on a bar under a horseshoe magnet whose field flickers), red's telescopic hook (three nested tubes and a curled hook). Drawn at 1.5× the friends' own parts so they read on a phone.
+- **Pickup → fit → boot, on the beat.** A landing within 110px picks it up (`kit`, its own chime). That's wider than any hop, so it cannot be hopped over; landed past it anyway, it jumps after the hero. It rises over the hero's head and arcs ahead to the friend, clicking in on the next beat (`fit`: green's a magnetic clamp with sparks; red's a ratchet). Green's pads swing out with the same overshoot and dust as on the socket; red tries the hook once, up over its head towards the hero, snap, snap, home. Eyes flicker on half a beat later, and on the beat after the click the friend boots (`join`, two rings): its part joins the song on that beat.
+- **Seen even at FAST.** The meeting uses the socket's pull-back (0.75): leaning ahead to show friend and part, then the view stops on the friend while it boots, the hero hopping on (friend ≥40px from the left, a full FAST hop's landing still on screen). Then green follows at its own pace, red dashes to the hero's side and walks along.
+- **Never stuck.** The part cannot be missed. A fall while a friend boots (not reachable on this ground) has it ready at the checkpoint. A restart before the part has the friend waiting unfinished, one past it has the friend along.
+- **Different from blue's:** blue's parts go into a tray and assemble with the dawn; these fly straight to their friend and are installed in view, and each is used later. Green's legs anchor the bridge's root; red's hook works the crane's span and lifts green home.
+- Course: the meeting grounds of ② and ③ are 540px (were 420/380); the checkpoint is their first 80px.
+- Review captures and clips: `node tests/browser/capture-p7.mjs`, `node tests/browser/record-p7.mjs` (phone viewport).
+
+![Green (top) and red: the part on the road, picked up, flying in, clicked in, booted](story/p7-fit.png)
+
 ## Seeing the friends work (2026-11-03)
 
 Playtest: the bridge was usually finished before the player saw there was none, and red went off screen to the crane, so neither friend's work read as theirs. Measured before the change: in calm play the chasm's near edge was on screen 1.3s before green arrived, and the far bank only 1.9s after the bridge was done.
@@ -194,7 +209,7 @@ Not measurable here: real speaker/Bluetooth latency and touch latency on Android
 
 ## Tests
 
-- `tests/story.test.mjs`: exact beat, clock rebasing/pause/jitter/latency mapping, full-course solvability and length, frame-rate independence, green's socket (SLOW brings green and the bridge forms; FAST alone falls and the bridge forms behind and stays; three SLOW hops before the edge always work, none never; arrival and bridge independent of frame size; a far green is boosted by a relay), green never stops in the valley, respawn keeps progress, story event order (incl. notice → rescue → pickup → reunion), crane beats, music hand-off, finite notes, noisy play never stuck, a fall after red leaves the crane, falls at six rescue/base moments.
+- `tests/story.test.mjs`: green's and red's parts (met missing, picked up and never hopped over at any rhythm, clicked in one beat later and booted on the next, before the hero is past the friend; a fall while booting), exact beat, clock rebasing/pause/jitter/latency mapping, full-course solvability and length, frame-rate independence, green's socket (SLOW brings green and the bridge forms; FAST alone falls and the bridge forms behind and stays; three SLOW hops before the edge always work, none never; arrival and bridge independent of frame size; a far green is boosted by a relay), green never stops in the valley, respawn keeps progress, story event order (incl. notice → rescue → pickup → reunion), crane beats, music hand-off, finite notes, noisy play never stuck, a fall after red leaves the crane, falls at six rescue/base moments.
 - `tests/browser/story.spec.mjs` (3): FREE RUN link; start on the beat and pause without losing phase; a full browser playthrough with real key events to the end card, checking every story beat in order, the comms window, no touchdown after the dock, and the four lights.
 - `tests/browser/story-p2.spec.mjs` (2): blue reveal and green link/relay/switch scenes.
 - `tests/browser/story-p3.spec.mjs` (2): red's rescue scenes (red waits exactly one beat); the dock beat to black: friends hold still on D, blue lands on D+1 with the hero's first blink, green D+5, red D+9, the light on/off on the three beats after, four lights > 14 CSS px apart on a 390px-wide screen.
@@ -209,6 +224,8 @@ Not measurable here: real speaker/Bluetooth latency and touch latency on Android
 ![Rocket window: base below, receding, four lights, black](story/p3-end.png)
 
 ## Open items (next)
+
+- From here (2026-11-03) no new STORY features as a rule: first-time playtests and release prep.
 
 - Feel: crane look, the comms window's art, reunion polish, friends overlapping while following.
 - P4: real composition and mix, light/space art, moon curvature in the rocket view, chapter pacing (① runs ~70s at a slow pace; target 50s).

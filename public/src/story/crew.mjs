@@ -14,10 +14,13 @@ const smooth = (a, b, v) => { const k = clamp01((v - a) / (b - a)); return k * k
 // flash), top (pod head top), on (blue light lit),
 // green: plant (seconds since its feet touched the switch, or null),
 // red: to [x, y] (where the hook reaches, pod pixels), grip 0..1 (open →
-// closed), dir 'up'|'down' when no `to` is given }
-export function drawCrewParts(g, who, x, y, scale, { palette: P, form = 0, pulse = 0, dir = 'up', top = -21, on = true, plant = null, to = null, grip = 0 } = {}) {
+// closed), dir 'up'|'down' when no `to` is given;
+// missing: green or red before its part is fitted: only the bare joint and
+// a dotted outline of what should be there }
+export function drawCrewParts(g, who, x, y, scale, { palette: P, form = 0, pulse = 0, dir = 'up', top = -21, on = true, plant = null, to = null, grip = 0, missing = false } = {}) {
   g.save(); g.translate(Math.round(x), Math.round(y)); g.scale(scale, scale);
-  if (who === 'blue') drawBlue(g, P, form, pulse, top, on);
+  if (missing) drawMissing(g, who, P, top);
+  else if (who === 'blue') drawBlue(g, P, form, pulse, top, on);
   else if (who === 'green') drawGreen(g, P, form, top, plant);
   else if (who === 'red') drawRed(g, P, form, top, to ?? (form >= .75 ? (dir === 'down' ? [-24, top + 22] : [-23, top - 4]) : form >= .25 ? [-17, top + 3] : null), grip);
   g.restore();
@@ -100,6 +103,46 @@ function drawRed(g, P, form, top, to, grip) {
     px(g, '#ffd2c4', tx, ty, 1, 1);
   }
   px(g, OUTLINE, 7, -1, 6, 3); px(g, P.s, 8, 0, 4, 1);
+}
+
+// Before its part is fitted: green has bare hip sockets where the pads go,
+// red a bare shoulder socket; a dotted outline shows the missing part.
+function drawMissing(g, who, P, top) {
+  const dots = (x, y, w, h) => { for (let i = 0; i < w; i += 2) { px(g, P.s, x + i, y, 1, 1); px(g, P.s, x + i, y + h - 1, 1, 1); } for (let j = 2; j < h - 1; j += 2) { px(g, P.s, x, y + j, 1, 1); px(g, P.s, x + w - 1, y + j, 1, 1); } };
+  if (who === 'green') {
+    for (const side of [-1, 1]) { px(g, OUTLINE, side < 0 ? -11 : 9, -6, 3, 3); px(g, '#4a5a52', side < 0 ? -10 : 10, -5, 1, 1); }
+    g.globalAlpha = .8; dots(-18, -5, 8, 6); dots(10, -5, 8, 6);
+  } else if (who === 'red') {
+    // The bare socket on the left shoulder and where the folded arm should be.
+    const sx = -11, sy = top + 7;
+    px(g, OUTLINE, sx - 3, sy - 1, 4, 6); px(g, '#5a4a46', sx - 2, sy, 2, 4);
+    g.globalAlpha = .85; dots(sx - 6, sy - 7, 5, 9);
+  }
+  g.globalAlpha = 1;
+}
+
+// Green's and red's parts, as they lie on the road and fly to their friend.
+// Green: the magnetic leg unit, two foot pads on a bar with a magnet whose
+// field flickers. Red: the telescopic hook, three nested tubes and the hook.
+// Centred on x, y (pod pixels at `scale`); t is seconds, for the flicker.
+export function drawKit(g, who, x, y, scale, t = 0) {
+  g.save(); g.translate(Math.round(x), Math.round(y)); g.scale(scale, scale);
+  if (who === 'green') {
+    for (const x0 of [-11, 3]) { px(g, OUTLINE, x0, -1, 8, 6); px(g, '#73c290', x0 + 1, 0, 6, 4); px(g, '#b4f2c8', x0 + 1, 0, 6, 1); for (let k = 1; k < 7; k += 3) px(g, OUTLINE, x0 + k, 5, 1, 1); }
+    px(g, OUTLINE, -4, -2, 8, 3); px(g, '#4f7a6c', -3, -1, 6, 1);
+    // The magnet: a horseshoe over the bar, poles lit.
+    px(g, OUTLINE, -4, -8, 8, 7); px(g, '#c9d4d0', -3, -7, 6, 2); px(g, OUTLINE, -1, -5, 2, 4); px(g, '#ff6a4f', -3, -5, 2, 3); px(g, '#6fb6ff', 1, -5, 2, 3);
+    if ((t * 6 | 0) % 2) { g.globalAlpha = .8; px(g, '#9ff0c4', -7, -9, 1, 2); px(g, '#9ff0c4', 6, -9, 1, 2); px(g, '#9ff0c4', -6, -11, 1, 1); px(g, '#9ff0c4', 5, -11, 1, 1); g.globalAlpha = 1; }
+  } else {
+    // Tubes rising diagonally, each a little thinner, then the hook.
+    const tube = (x0, y0, n, w, c) => { for (let k = 0; k < n; k++) { px(g, OUTLINE, x0 + k - 1, y0 - k - 1, w + 2, w + 2); } for (let k = 0; k < n; k++) px(g, c, x0 + k, y0 - k, w, w); };
+    tube(-8, 4, 5, 3, '#9a5a4e'); tube(-3, -1, 4, 2, '#c46f5c'); tube(1, -5, 3, 1, '#ffbcae');
+    px(g, '#ffd2c4', -7, 4, 1, 1); px(g, '#ffd2c4', -2, -1, 1, 1);
+    // The hook: two curled prongs.
+    px(g, OUTLINE, 3, -10, 3, 3); px(g, OUTLINE, 5, -8, 4, 3); px(g, OUTLINE, 7, -11, 3, 3);
+    px(g, '#ffd2c4', 4, -9, 1, 1); px(g, '#ffd2c4', 6, -7, 2, 1); px(g, '#ffd2c4', 8, -10, 1, 1); px(g, '#ffd2c4', 8, -8, 1, 1);
+  }
+  g.restore();
 }
 
 // Hero transmit mode over pod.mjs's art (docked: phase 0 → head top -21),

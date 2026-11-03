@@ -14,7 +14,13 @@ export const FOLLOW_GAP = 46;
 export const GREEN_SPEED = 160;
 // Red's trip back for green is short enough to stay one musical phrase.
 export const RESCUE_SPEED = 900, CARRY_SPEED = 700, TEAM_SPEED = 320;
-export const PART_REACH = 36, JOIN_REACH = 130, WAKE_REACH = 150;
+export const PART_REACH = 36;
+// Green and red are met missing a part (green its magnetic legs, red its
+// hook), which lies before them. A landing within KIT_REACH picks it up
+// (wider than any hop, so it cannot be hopped over; landed past it anyway,
+// it jumps after the hero). It flies to its friend and clicks on one beat
+// later; the friend boots on the beat after.
+export const KIT_REACH = 110, FIT_BEATS = 1, BOOT_BEATS = 2;
 // Red walks with the hero from its console; CRANE_CALL px before the crane
 // it flies up to the boom (CRANE_CLIMB s) and only then starts moving the
 // span with its arm, two beats down of every four.
@@ -37,6 +43,7 @@ export function newStory(course) {
     t: 0, beat: 0, hops: 0, x: course.start, hopStartX: course.start, status: 'playing',
     chapter: 'wake', checkpoint: 0, fallAt: null, fallX: 0, dockAt: null, together: false,
     parts: { got: 0, skips: 0, x: course.parts[0], assembledAt: null },
+    kits: { green: { x: course.greenKit, at: null }, red: { x: course.redKit, at: null } },
     blue: { state: 'parts', x: course.start - 30 },
     green: { state: 'dormant', x: course.greenMeet },
     red: { state: 'dormant', x: course.redConsole },
@@ -51,9 +58,10 @@ export function storyFrom(course, i) {
   const got = course.parts.filter(x => x < cp.from).length;
   run.parts.got = got; run.parts.x = course.parts[got] ?? 0;
   if (got === course.parts.length) { run.blue.state = 'follow'; run.blue.x = cp.x - FOLLOW_GAP; run.parts.assembledAt = -10; }
-  if (cp.x >= course.greenMeet - JOIN_REACH) { run.green.state = 'follow'; run.green.x = cp.x - FOLLOW_GAP; }
+  for (const who of ['green', 'red']) if (cp.x >= course[who + 'Kit'] - KIT_REACH) run.kits[who].at = -10;
+  if (run.kits.green.at !== null) { run.green.state = 'follow'; run.green.x = cp.x - FOLLOW_GAP; }
   if (cp.x > course.switchX) { run.green.state = 'switch'; run.green.x = course.switchX; run.switchOn = true; run.switchAt = -10; }
-  if (cp.x >= course.redConsole - WAKE_REACH) { run.red.state = 'escort'; run.red.x = cp.x - FOLLOW_GAP * 1.6; }
+  if (run.kits.red.at !== null) { run.red.state = 'escort'; run.red.x = cp.x - FOLLOW_GAP * 1.6; }
   if (cp.x >= course.crane.a - CRANE_CALL) { run.red.state = 'crane'; run.red.craneAt = -10; run.red.fromX = run.red.x = (course.crane.a + course.crane.b) / 2; }
   if (cp.x >= course.craneFar) { run.red.state = run.green.state = 'carry'; run.red.x = cp.x - 700; run.green.x = run.red.x - 16; }
   if (cp.chapter === 'base') {
@@ -99,6 +107,13 @@ function touchdown(run, course, events) {
   if (run.red.state === 'notice' && k >= run.red.noticeAt + 1) {
     run.red.state = 'rescue'; run.red.rescueAt = run.t; run.red.rescueX = run.red.x; events.push({ type: 'rescue', x: run.red.x });
   }
+  // A part in flight clicks on and its friend boots on the beat, falling or not.
+  for (const who of ['green', 'red']) {
+    const f = run[who];
+    if (f.state !== 'fit') continue;
+    if (k === f.fitAt + FIT_BEATS) events.push({ type: 'fit', who });
+    if (k >= f.fitAt + BOOT_BEATS) boot(run, who, events);
+  }
   if (run.status === 'falling') { if (k >= run.fallAt + FALL_BEATS) respawn(run, course, events); return; }
   if (run.status !== 'playing') return;
   const p = platformAt(course, run.x, k, { craneDown: b => craneSolid(run, b), bridgeTo: bridgeFront(run, course) });
@@ -120,16 +135,17 @@ function land(run, course, p, events) {
   const chapter = chapterAt(course, run.x);
   if (chapter !== run.chapter) { run.chapter = chapter; events.push({ type: 'chapter', id: chapter }); }
   collectPart(run, course, events);
-  if (run.green.state === 'dormant' && run.x >= course.greenMeet - JOIN_REACH) {
-    run.green.state = 'follow'; events.push({ type: 'join', who: 'green' });
+  for (const who of ['green', 'red']) {
+    const kit = run.kits[who];
+    if (kit.at !== null || run.x < kit.x - KIT_REACH) continue;
+    kit.at = run.t; kit.from = run.x; kit.chased = run.x > kit.x + KIT_REACH;
+    run[who].state = 'fit'; run[who].fitAt = run.beat;
+    events.push({ type: 'kit', who, x: kit.x, chased: kit.chased });
   }
   // A relay antenna between the hero and a green out of range boosts the
   // signal: green hurries (TEAM_SPEED) until it is beside the hero again.
   if (run.green.state === 'follow' && run.x - run.green.x > RANGE && course.relays.some(r => r > run.green.x && r <= run.x)) {
     run.green.state = 'catch'; events.push({ type: 'relink', who: 'green' });
-  }
-  if (run.red.state === 'dormant' && run.x >= course.redConsole - WAKE_REACH) {
-    run.red.state = 'escort'; events.push({ type: 'join', who: 'red' });
   }
   if (run.red.state === 'escort' && run.x >= course.crane.a - CRANE_CALL) {
     run.red.state = 'crane'; run.red.craneAt = run.t; run.red.fromX = run.red.x; events.push({ type: 'crane' });
@@ -148,6 +164,13 @@ function land(run, course, p, events) {
     run.status = 'docked'; run.dockAt = run.beat; run.x = course.dockX;
     events.push({ type: 'dock', beat: run.beat });
   }
+}
+
+// Booted, green follows at its own pace; red dashes to the hero's side and
+// walks beside it.
+function boot(run, who, events) {
+  run[who].state = who === 'green' ? 'follow' : 'escort'; run[who].bootAt = run.t;
+  events.push({ type: 'join', who });
 }
 
 function collectPart(run, course, events) {
@@ -192,7 +215,8 @@ function moveCrew(run, course, dt, speed, events) {
       // The four pieces' times are known now, so their notes can be scheduled.
       for (let k = 0; k < BRIDGE_SEGMENTS; k++) events.push({ type: 'plank' + k, t: bridgeSegmentAt(run, k), beat: Math.floor(bridgeSegmentAt(run, k) / BEAT + 1e-9) });
     } else {
-      green.x = Math.min(x1 - FOLLOW_GAP, green.x + vg * dt);
+      // Booted ahead of the hero, it waits where it is until the hero comes by.
+      green.x = Math.max(Math.min(green.x, x1), Math.min(x1 - FOLLOW_GAP, green.x + vg * dt));
       if (green.state === 'catch' && x1 - green.x <= FOLLOW_GAP + 1e-6) green.state = 'follow';
     }
   }
@@ -214,7 +238,8 @@ function moveCrew(run, course, dt, speed, events) {
   } else if (red.state === 'follow') red.x = Math.min(x1 - FOLLOW_GAP * 1.6, red.x + TEAM_SPEED * dt);
   // Red rides the crane's beam while it works it; when it notices green is
   // missing it drops beside the hero for one beat before leaving.
-  else if (red.state === 'escort') red.x = Math.min(x1 - FOLLOW_GAP * 1.6, red.x + TEAM_SPEED * dt);
+  // Booted behind the hero, red dashes (CARRY_SPEED) to its side first.
+  else if (red.state === 'escort') red.x = Math.max(Math.min(red.x, x1), Math.min(x1 - FOLLOW_GAP * 1.6, red.x + (x1 - red.x > FOLLOW_GAP * 3 ? CARRY_SPEED : TEAM_SPEED) * dt));
   // Up to the boom over CRANE_CLIMB s (a closed form of time, not of frames).
   else if (red.state === 'crane') { const k = Math.min(1, (run.t + dt - red.craneAt) / CRANE_CLIMB); red.x = red.fromX + ((course.crane.a + course.crane.b) / 2 - red.fromX) * k * k * (3 - 2 * k); }
   else if (red.state === 'notice') red.x += (x1 - 70 - red.x) * (1 - Math.exp(-8 * dt));
@@ -242,6 +267,8 @@ function respawn(run, course, events) {
   run.status = 'playing'; run.x = cp.x; run.hopStartX = cp.x; run.fallAt = null;
   // Progress with friends is never lost; only positions are restored.
   for (const friend of [blue, green, red]) if (friend.state === 'station') friend.state = 'follow';
+  // A friend still booting when the hero fell is ready when it is back.
+  for (const who of ['green', 'red']) if (run[who].state === 'fit') { boot(run, who, events); run[who].bootAt = -10; }
   if (blue.state === 'follow') blue.x = cp.x - FOLLOW_GAP;
   // Once green holds the bridge it stays: a fall never undoes its work.
   if (green.state === 'catch') green.state = 'follow';

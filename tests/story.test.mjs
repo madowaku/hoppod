@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { PERIOD, SLOW_SPEED, FAST_SPEED } from '../public/src/engine.mjs';
 import { BEAT, BPM, BeatClock, TimedInput, beatIndex, heardFromContext } from '../public/src/story/beat.mjs';
 import { COURSE, platformAt } from '../public/src/story/course.mjs';
-import { newStory, storyFrom, advanceStory, craneDown, craneSolid, bridgeFront, bridgeSegmentAt, craneWorking, RANGE, GREEN_SPEED, BRIDGE_LEGS, BRIDGE_SEGMENTS, CRANE_CALL, CRANE_CLIMB } from '../public/src/story/sim.mjs';
+import { newStory, storyFrom, advanceStory, craneDown, craneSolid, bridgeFront, bridgeSegmentAt, craneWorking, RANGE, FOLLOW_GAP, GREEN_SPEED, KIT_REACH, FIT_BEATS, BOOT_BEATS, BRIDGE_LEGS, BRIDGE_SEGMENTS, CRANE_CALL, CRANE_CLIMB } from '../public/src/story/sim.mjs';
 import { notesAt, STEP, ENDING } from '../public/src/story/music.mjs';
 import { solve, hop } from './helpers/story-solver.mjs';
 
@@ -187,6 +187,8 @@ test('green floats between SLOW and FAST: FAST pulls away, SLOW lets it catch up
   assert.ok(SLOW_SPEED < GREEN_SPEED && GREEN_SPEED < FAST_SPEED);
   const i = COURSE.checkpoints.findIndex(cp => cp.chapter === 'apart');
   const run = storyFrom(COURSE, i);
+  // Fit green with its legs first, SLOW, until it is beside the hero.
+  while (run.green.state !== 'follow' || Math.abs(run.x - run.green.x - FOLLOW_GAP) > 1) hop(run, COURSE, 0);
   hop(run, COURSE, 1);
   const apart = run.x - run.green.x;
   hop(run, COURSE, 0); hop(run, COURSE, 0);
@@ -209,10 +211,51 @@ test('falling returns to the checkpoint on a beat and keeps friends and parts', 
 test('red rescues green beyond the range rule, then the three travel together', () => {
   const run = structuredClone(newStory(COURSE)), types = [];
   for (const f of witness.path) for (const e of hop(run, COURSE, f)) types.push(e.type);
-  const order = ['assemble', 'join', 'switch', 'join', 'notice', 'rescue', 'pickup', 'reunion', 'station', 'station', 'station', 'dock'];
+  const order = ['assemble', 'kit', 'fit', 'join', 'switch', 'kit', 'fit', 'join', 'notice', 'rescue', 'pickup', 'reunion', 'station', 'station', 'station', 'dock'];
   let at = 0;
   for (const t of types) if (t === order[at]) at++;
   assert.equal(at, order.length, 'story beats happen in order: ' + types.filter(t => order.includes(t)).join(','));
+});
+
+test('green and red are met missing a part; picked up, it clicks in on the next beat and they boot on the one after', () => {
+  for (const who of ['green', 'red']) {
+    const i = COURSE.checkpoints.findIndex(cp => cp.chapter === (who === 'green' ? 'apart' : 'rescue'));
+    const fresh = storyFrom(COURSE, i);
+    assert.equal(fresh[who].state, 'dormant', who + ' waits, missing its part, at the checkpoint before it');
+    assert.equal(fresh.kits[who].at, null);
+    assert.ok(COURSE[who + 'Kit'] < (who === 'green' ? COURSE.greenMeet : COURSE.redConsole) && fresh.x < COURSE[who + 'Kit'] - KIT_REACH, 'its part lies ahead, before it');
+    // Any rhythm: all SLOW, all FAST, mixed. The part is always picked up
+    // (never hopped over) and fitted before the hero is far past the friend.
+    for (const seed of [0, 1, 2, 3]) {
+      const run = storyFrom(COURSE, i), seen = {};
+      for (let k = 0; k < 14 && !seen.join; k++) {
+        const f = seed === 0 ? 0 : seed === 1 ? 1 : (k * 7 + seed) % 3 / 2;
+        for (const e of hop(run, COURSE, f)) if (e.who === who && ['kit', 'fit', 'join'].includes(e.type)) seen[e.type] = { ...e, x: run.x, friend: run[who].x };
+        if (!seen.kit) assert.equal(run[who].state, 'dormant');
+      }
+      assert.ok(seen.kit && seen.fit && seen.join, who + ' was fitted and booted (seed ' + seed + ')');
+      assert.equal(seen.kit.chased, false, 'picked up, not hopped over');
+      assert.equal(seen.fit.beat, seen.kit.beat + FIT_BEATS); assert.equal(seen.join.beat, seen.kit.beat + BOOT_BEATS);
+      assert.ok(seen.fit.x - seen.fit.friend < 60, 'the part clicks in before the hero is past the friend (seed ' + seed + ')');
+      assert.equal(run[who].state, who === 'green' ? 'follow' : 'escort');
+    }
+    // A restart past the part: the friend is already with the hero.
+    const later = storyFrom(COURSE, i + 1);
+    assert.notEqual(later[who].state, 'dormant'); assert.notEqual(later[who].state, 'fit');
+  }
+});
+
+test('a friend still booting when the hero falls is ready when the hero is back', () => {
+  const i = COURSE.checkpoints.findIndex(cp => cp.chapter === 'apart');
+  const run = storyFrom(COURSE, i);
+  while (run.green.state !== 'fit') hop(run, COURSE, 0);
+  // A fall that respawns on the beat the legs click in (not reachable on this
+  // ground, but the rule must hold anywhere).
+  run.status = 'falling'; run.fallAt = run.beat + 1 - 2; run.fallX = run.x;
+  const events = hop(run, COURSE, 0);
+  assert.ok(events.some(e => e.type === 'respawn') && events.some(e => e.type === 'join' && e.who === 'green'));
+  assert.equal(run.green.state, 'follow'); assert.equal(run.green.x, COURSE.checkpoints[run.checkpoint].x - FOLLOW_GAP);
+  assert.ok(solve(COURSE, run, { until: r => r.switchOn && r.x > COURSE.bridge.b, limit: 80000 }).end, 'and the story goes on');
 });
 
 test('the crane span is solid on two of every four beats', () => {
@@ -308,7 +351,8 @@ test('red walks with the hero, flies to the boom, and only then works the span o
   const run = storyFrom(COURSE, i); let woke = false, called = null, atCall = null;
   for (const f of m.path) {
     for (const e of hop(run, COURSE, f)) { if (e.type === 'join' && e.who === 'red') woke = true; if (e.type === 'crane') { called = run.x; atCall = structuredClone(run); } }
-    if (run.red.state === 'escort') assert.ok(run.x - run.red.x <= 46 * 1.6 + 1e-6 && run.x - run.red.x > 0, 'red stays beside the hero');
+    // Once at the hero's side (it boots behind it), red stays there.
+    if (run.red.state === 'escort' && run.t - run.red.bootAt > 1.5) assert.ok(run.x - run.red.x <= 46 * 1.6 + 1e-6 && run.x - run.red.x > 0, 'red stays beside the hero');
   }
   assert.ok((woke || storyFrom(COURSE, i).red.state === 'escort') && called !== null, 'red woke (or starts awake here), walked along, then was called to the crane');
   assert.ok(called >= COURSE.crane.a - CRANE_CALL - 1e-9 && called < COURSE.crane.a, 'called with the crane in view');

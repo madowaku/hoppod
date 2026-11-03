@@ -6,10 +6,10 @@ import { drawEarth } from '../earth.mjs';
 import { COMPANION_PALETTE } from '../companion.mjs';
 import { BEAT, BeatClock, TimedInput, heardFromContext, beatIndex } from './beat.mjs';
 import { COURSE } from './course.mjs';
-import { newStory, storyFrom, advanceStory, craneSolid, craneWorking, hopLift, bridgeFront, bridgeSegmentAt, RANGE, FOLLOW_GAP, FALL_BEATS, SOCKET_NEAR, BRIDGE_SEGMENTS, CRANE_CLIMB } from './sim.mjs';
+import { newStory, storyFrom, advanceStory, craneSolid, craneWorking, hopLift, bridgeFront, bridgeSegmentAt, RANGE, FOLLOW_GAP, FALL_BEATS, SOCKET_NEAR, BRIDGE_SEGMENTS, CRANE_CLIMB, FIT_BEATS } from './sim.mjs';
 import { createStoryAudio, notesAt, STEP, ENDING } from './music.mjs';
 import { chooseLanguage, storyCopy } from './copy.mjs';
-import { drawCrewParts, drawTransmit, TRANSMIT_LOCK } from './crew.mjs';
+import { drawCrewParts, drawKit, drawTransmit, TRANSMIT_LOCK } from './crew.mjs';
 
 const get = id => document.getElementById(id);
 const canvas = get('play'), ctx = canvas.getContext('2d');
@@ -35,7 +35,7 @@ audio.setMuted(readPreference('hoppod.pref.muted') === '1');
 // on landings, and never in the silent beat after the dock.
 const canBuzz = typeof navigator.vibrate === 'function';
 let buzzOn = canBuzz && readPreference('hoppod.pref.buzz') !== '0';
-const BUZZ = { assemble: [18], switch: [24], pickup: [14, 60, 14], reunion: [20, 80, 20], dock: [70] };
+const BUZZ = { kit: [12], fit: [10, 40, 16], assemble: [18], switch: [24], pickup: [14, 60, 14], reunion: [20, 80, 20], dock: [70] };
 function buzz(type) { if (buzzOn && BUZZ[type]) try { navigator.vibrate(BUZZ[type]); } catch { /* ignored */ } }
 
 let cull = 20;
@@ -164,8 +164,10 @@ window.addEventListener('pagehide', pause);
 // was not predicted still sounds, just late.
 let ahead = null;
 const cued = new Map();
-const CUES = new Set(['collect', 'assemble', 'join', 'socket', 'switch', 'plank0', 'plank1', 'plank2', 'plank3', 'relink', 'notice', 'rescue', 'pickup', 'reunion', 'station', 'dock', 'fall', 'respawn']);
+const CUES = new Set(['collect', 'kit', 'fit', 'assemble', 'join', 'socket', 'switch', 'plank0', 'plank1', 'plank2', 'plank3', 'relink', 'notice', 'rescue', 'pickup', 'reunion', 'station', 'dock', 'fall', 'respawn']);
 const eventKey = e => e.type + ':' + e.beat + ':' + (e.who ?? e.index ?? '');
+// Green's legs clamp on with a magnet; red's hook ratchets in.
+const cueName = e => e.type === 'fit' ? 'fit-' + e.who : e.type;
 function predict() {
   ahead = structuredClone(run);
   if (!audio.running || clock.domain !== 'audio' || run.status === 'docked') return;
@@ -176,7 +178,7 @@ function predict() {
     // key change inside the lookahead moves it), so it sounds when it happens.
     if (!CUES.has(e.type) || e.type === 'reunion' || cued.has(eventKey(e))) continue;
     const at = clock.contextTime(e.t);
-    if (at > audio.context.currentTime + .003) { audio.cue(e.type, at); cued.set(eventKey(e), e.t); probeNote('cue:' + e.type, at, e.t); }
+    if (at > audio.context.currentTime + .003) { audio.cue(cueName(e), at); cued.set(eventKey(e), e.t); probeNote('cue:' + e.type, at, e.t); }
   }
   for (const [key, t] of cued) if (t < s - 8) cued.delete(key);
 }
@@ -196,8 +198,9 @@ const smooth = (a, b, x) => { const k = Math.max(0, Math.min(1, (x - a) / (b - a
 // A friend's part by distance: inside the range it is full and clear, at
 // the edge it thins; beyond it, it turns into a faint, muffled radio that
 // fades out over a few hops.
+const awake = f => f.state !== 'dormant' && f.state !== 'fit';
 function friendSound(friend) {
-  if (friend.state === 'dormant') return { level: 0, clarity: 1 };
+  if (!awake(friend)) return { level: 0, clarity: 1 };
   if (friend.state === 'station') return { level: 1, clarity: 1 };
   const d = Math.abs(run.x - friend.x);
   if (d <= RANGE && friend.state !== 'switch') return { level: 1 - .3 * smooth(RANGE * .4, RANGE, d), clarity: 1 - .45 * smooth(RANGE * .6, RANGE, d) };
@@ -215,8 +218,9 @@ const after = () => run.status === 'docked' ? s / BEAT - run.dockAt : -1;
 function mixMusic() {
   song.parts.clear();
   if (ahead.blue.state !== 'parts') song.parts.add('bell');
-  if (ahead.green.state !== 'dormant') song.parts.add('bass');
-  if (ahead.red.state !== 'dormant') song.parts.add('perc');
+  // A friend's part joins the song on the beat it boots.
+  if (awake(ahead.green)) song.parts.add('bass');
+  if (awake(ahead.red)) song.parts.add('perc');
   const green = friendSound(run.green), red = friendSound(run.red), clarity = { bass: green.clarity, perc: red.clarity, bell: 1 };
   // Blue's bell carries the tune alone in the dark; once green or red play
   // with it, it steps back so their parts can be heard (phones especially).
@@ -256,10 +260,12 @@ function burst(x, y, colors, n = 8) {
 }
 function handle(events) {
   for (const e of events) {
-    if (CUES.has(e.type) && !cued.has(eventKey(e))) { audio.cue(e.type, e.t > s + .01 ? clock.contextTime(e.t) : null); probeNote('late:' + e.type, audio.context?.currentTime ?? 0, e.t); }
+    if (CUES.has(e.type) && !cued.has(eventKey(e))) { audio.cue(cueName(e), e.t > s + .01 ? clock.contextTime(e.t) : null); probeNote('late:' + e.type, audio.context?.currentTime ?? 0, e.t); }
     probeEvent(e); buzz(e.type);
     if (e.type === 'land') burst(run.x, FLOOR - 4, ['#efdaad', '#8ee6c4'], 6);
     else if (e.type === 'collect') burst(e.x, FLOOR - 10, ['#a9d6ff', '#4f9dff'], 10);
+    else if (e.type === 'kit') burst(e.x, FLOOR - 8, e.who === 'green' ? ['#9ff0c4', '#5fe39a'] : ['#ffd2c4', '#ff7f66'], 10);
+    else if (e.type === 'fit' || e.type === 'join') flashes.push({ kind: e.type, who: e.who, x: run[e.who].x, at: e.t });
     else if (e.type === 'relink') flashes.push({ kind: 'relink', x: COURSE.relays.filter(r => r <= run.x).at(-1), at: s });
     else if (e.type === 'switch') flashes.push({ kind: 'switch', x: COURSE.switchX, at: e.t });
     else if (e.type === 'assemble') flashes.push({ kind: 'dawn', x: run.x, at: s });
@@ -308,13 +314,29 @@ function steerCamera() {
   // a landing is never hidden. It lets go once the bridge is laid.
   const framing = socketFraming();
   if (framing) target = Math.max(50, Math.min(target, run.x - (COURSE.switchX - 50)));
+  // Meeting green or red: the same pull-back, leaning ahead to show the
+  // friend and its part on the road, then holding the friend in view (40px
+  // from the left) while its part flies in and it boots, even at FAST; the
+  // landing of a full FAST hop stays on screen.
+  const meet = meetFraming(), hold = meet && Math.min(MEET_MAX, run.x - meet.x + 40);
+  if (meet) target = Math.max(100, hold);
   const dt = Math.max(0, Math.min(.1, s - cameraS)); cameraS = s;
   heroX += (target - heroX) * (1 - Math.exp(-dt * 5));
-  zoom += ((framing ? .75 : 1) - zoom) * (1 - Math.exp(-dt * 4));
+  // The view stops on a booting friend while the hero hops on ahead.
+  if (meet) heroX = Math.max(heroX, hold);
+  zoom += ((framing || meet ? .75 : 1) - zoom) * (1 - Math.exp(-dt * 4));
   if (Math.abs(zoom - 1) < 1e-3) zoom = 1;
 }
 const camera = () => run.x - heroX;
 let zoom = 1;
+const MEET_MAX = W / .75 - FAST_SPEED * BEAT - 20;
+function meetFraming() {
+  for (const who of ['green', 'red']) {
+    const f = run[who], kit = run.kits[who];
+    if ((f.state === 'dormant' && run.x >= kit.x - 420 && run.x <= f.x + 200) || f.state === 'fit' || (run.t - f.bootAt < .8 && run.x - f.x < 260)) return f;
+  }
+  return null;
+}
 function socketFraming() {
   if (run.chapter !== 'apart' || run.x < COURSE.bridge.a - 560 || run.x > COURSE.bridge.b) return false;
   return !run.switchOn || run.t < bridgeSegmentAt(run, BRIDGE_SEGMENTS - 1) + .5;
@@ -328,7 +350,7 @@ function friendY(who, friend) {
     if (run.status === 'docked' && after() < ENDING[PART[who]]) return FLOOR - 4;
     return FLOOR - 2 - Math.sin((((s / BEAT) % 1) + 1) % 1 * Math.PI) * 18;
   }
-  if (friend.state === 'dormant') return FLOOR - 2;
+  if (friend.state === 'dormant' || friend.state === 'fit') return FLOOR - 2;
   // Red sits on the crane's beam (y 120) while it works the span.
   if (friend.state === 'crane') return 119 + (FLOOR - 18 - Math.sin(phase * Math.PI) * 44 - 119) * smooth(0, 260, Math.abs(friend.x - (COURSE.crane.a + COURSE.crane.b) / 2));
   if (friend.state === 'notice') return 119 + (FLOOR - 44 - 119) * smooth(0, BEAT * .6, s - friend.noticeAt * BEAT);
@@ -562,7 +584,8 @@ function drawFriends(cam, inset = false) {
     const hang = who === 'green' && f.state === 'carry' ? 4 * (1 - liftK()) : 0;
     const x = f.x + hang - cam, y = friendY(who, f);
     if (x < -30 - cull || x > W + 30 + cull) continue;
-    const awake = f.state !== 'dormant';
+    // Booting, its eyes flicker on half a beat after the part clicks in.
+    const eyes = awake(f) || (f.state === 'fit' && s >= fitClick(f) + BEAT * .4 && (s >= fitClick(f) + BEAT * .7 || (s * 24 | 0) % 2 === 0));
     if (who === 'green' && !run.together && !inset) drawGreenSignal(f, x, y);
     // Boosted by a relay, green dashes to catch up: a streak behind it.
     if (who === 'green' && f.state === 'catch') { ctx.fillStyle = 'rgba(95,227,154,.35)'; ctx.fillRect(x - 60, y - 20, 48, 2); ctx.fillRect(x - 44, y - 12, 30, 1); }
@@ -589,8 +612,8 @@ function drawFriends(cam, inset = false) {
       if (age < .6) { ctx.strokeStyle = `rgba(95,227,154,${.8 * (1 - age / .6)})`; ctx.lineWidth = inset ? 2.5 : 1.5; ctx.beginPath(); ctx.arc(x, y - 34, 6 + age * 50, Math.PI * 1.2, Math.PI * 1.8); ctx.stroke(); }
     }
     const podPhase = anchored ? 0 : (s / BEAT) % 1;
-    drawPod(ctx, x, y, 1, anchored ? { phase: 0, land: 1, time: s, palette, eyes: awake } : { phase: podPhase, time: s, palette, eyes: awake, idle: !awake });
-    if (awake && run.status === 'falling') drawGlance(x, y, podPhase, anchored ? 1 : 0, run.fallX - cam, s - run.fallAt * BEAT);
+    drawPod(ctx, x, y, 1, anchored ? { phase: 0, land: 1, time: s, palette, eyes } : { phase: podPhase, time: s, palette, eyes, idle: !awake(f) });
+    if (awake(f) && run.status === 'falling') drawGlance(x, y, podPhase, anchored ? 1 : 0, run.fallX - cam, s - run.fallAt * BEAT);
     drawCrewParts(ctx, who, x, y, 1, crewForm(who, f));
     // In the ending each friend's touchdown on its beat leaves a small ring.
     if (f.state === 'station' && run.status === 'docked' && after() >= ENDING[PART[who]]) {
@@ -624,13 +647,19 @@ function crewForm(who, f) {
     const dawn = run.parts.assembledAt === null ? 0 : 1 - smooth(2.5, 4, run.t - run.parts.assembledAt);
     target = Math.max(dawn, plays ? 1 : 0); pulse = plays ? Math.max(0, 1 - beatAge / .3) : 0;
   } else if (who === 'green') {
-    if (f.state === 'switch') { plant = switchPlant(); target = 1; } else target = plays ? 1 : 0;
+    // Fitted, the pads clamp on with the same overshoot as on the socket.
+    if (f.state === 'switch') { plant = switchPlant(); target = 1; } else if (f.state === 'fit' && s >= fitClick(f)) { plant = s - fitClick(f); target = 1; } else target = plays ? 1 : 0;
   } else if (who === 'red') {
     target = { crane: .5, notice: .5, rescue: 1, carry: 1 }[f.state] ?? 0;
     // Going for green the arm points ahead, then reaches down to green's head
     // as red closes in, hook open; it shuts on the pickup and holds on.
     const top = -21, g = run.green;
-    if (f.state === 'crane' && redOnBoom()) {
+    if (f.state === 'fit' && s >= fitClick(f)) {
+      // Fitted, red tries the hook once: up over its head towards the hero,
+      // snap, snap, then home.
+      const u = (s - fitClick(f)) / BEAT, ext = smooth(.08, .38, u) * (1 - smooth(.72, .95, u));
+      to = [-15 + 34 * ext, top + 2 - 16 * ext]; grip = (u > .42 && u < .52) || (u > .6 && u < .68) ? 1 : 0; target = 1;
+    } else if (f.state === 'crane' && redOnBoom()) {
       // On the boom, red's arm runs down to the span and holds it: as the
       // span drops the arm pays out, and on the way up red hauls it in.
       const cx = (COURSE.crane.a + COURSE.crane.b) / 2;
@@ -645,7 +674,33 @@ function crewForm(who, f) {
   if (formWas[who] !== target) { formWas[who] = target; formSince[who] = s; }
   const age = s - (formSince[who] ?? -9), form = target ? target * smooth(0, .18, age) : 0;
   const phase = ((s / BEAT) % 1 + 1) % 1;
-  return { palette: PALETTE[who], form, pulse, dir, plant, to, grip, top: -18 - Math.round(3 + Math.sin(phase * Math.PI) * 2), on: f.state !== 'dormant' };
+  const missing = who !== 'blue' && (f.state === 'dormant' || (f.state === 'fit' && s < fitClick(f)));
+  return { palette: PALETTE[who], form, pulse, dir, plant, to, grip, missing, top: -18 - Math.round(3 + Math.sin(phase * Math.PI) * 2), on: f.state !== 'dormant' };
+}
+// Story time a friend's part clicks in (FIT_BEATS after it was picked up).
+const fitClick = f => (f.fitAt + FIT_BEATS) * BEAT;
+// Green's and red's parts: lying on the road, glowing in their friend's
+// colour; once picked up (or, landed past, after jumping after the hero) it
+// rises over the hero's head and arcs to its friend, landing on the beat.
+function drawKits(cam) {
+  for (const who of ['green', 'red']) {
+    const kit = run.kits[who], f = run[who];
+    let x, y;
+    if (kit.at === null) {
+      x = kit.x - cam; y = FLOOR - 8 - (reducedMotion.matches ? 0 : Math.round(Math.sin(s * 3) * 1.5));
+      if (x < -30 - cull || x > W + 30 + cull) continue;
+      const pulse = reducedMotion.matches ? .5 : .5 + .5 * Math.sin(s * 4);
+      ctx.fillStyle = GLOW[who]; ctx.globalAlpha = .18 + .14 * pulse; ctx.beginPath(); ctx.arc(x, y - 3, 20, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
+    } else if (f.state === 'fit' && s < fitClick(f)) {
+      const u = Math.max(0, (s - kit.at) / (fitClick(f) - kit.at)), over = [run.x - cam, heroY() - 64];
+      const to = who === 'green' ? [f.x - cam, FLOOR - 4] : [f.x - 13 - cam, FLOOR - 16];
+      if (u < .35) { const k = smooth(0, .35, u); x = kit.x - cam + (over[0] - (kit.x - cam)) * k; y = FLOOR - 8 + (over[1] - FLOOR + 8) * k; }
+      else { const k = smooth(.35, 1, u); x = over[0] + (to[0] - over[0]) * k; y = over[1] + (to[1] - over[1]) * k - Math.sin(k * Math.PI) * 34; }
+      ctx.fillStyle = GLOW[who]; ctx.globalAlpha = .3; ctx.beginPath(); ctx.arc(x, y - 3, 15, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
+    } else continue;
+    // Drawn half as large again as the friends' own parts, to read on a phone.
+    drawKit(ctx, who, x, y, 1.5, s);
+  }
 }
 // Red's trip back, seen through a small comms window while it is off
 // screen: red reaches green on the switch, green's eyes light again, and the
@@ -687,7 +742,7 @@ function drawInset() {
 // the bars drop out and green's eyes go dark. It was left behind by the
 // player's own speed, not by a script.
 function drawGreenSignal(f, x, y) {
-  if (f.state === 'dormant') return;
+  if (!awake(f)) return;
   const k = Math.abs(run.x - f.x) / RANGE, linked = f.state === 'follow' || f.state === 'catch';
   // Out of range the bars drop out and the line goes, but green keeps coming.
   const bars = !linked || k > 1 ? 0 : k < .5 ? 3 : k < .78 ? 2 : 1, edge = linked && k > .78 && k <= 1 && (s * 12 | 0) % 2;
@@ -713,7 +768,7 @@ function drawBehind(cam) {
     ctx.globalAlpha = fade; ctx.fillStyle = PALETTE[who].a;
     ctx.beginPath(); ctx.moveTo(4, FLOOR - 40); ctx.lineTo(11, FLOOR - 45); ctx.lineTo(11, FLOOR - 35); ctx.fill();
     ctx.fillStyle = PALETTE[who].c; ctx.fillRect(14, FLOOR - 44, 7, 8);
-    ctx.fillStyle = f.state === 'dormant' ? '#24342f' : '#172638'; ctx.fillRect(15, FLOOR - 42, 2, 2); ctx.fillRect(18, FLOOR - 42, 2, 2);
+    ctx.fillStyle = !awake(f) ? '#24342f' : '#172638'; ctx.fillRect(15, FLOOR - 42, 2, 2); ctx.fillRect(18, FLOOR - 42, 2, 2);
     if (f.state === 'carry') { ctx.fillStyle = PALETTE.green.c; ctx.fillRect(14, FLOOR - 33, 7, 7); }
     ctx.globalAlpha = 1;
   }
@@ -754,6 +809,18 @@ function drawFlashes(cam) {
         const r = Math.max(0, age - i * .12) * 150; ctx.strokeStyle = c; ctx.globalAlpha = Math.max(0, 1 - age / 1.4);
         ctx.beginPath(); ctx.arc(heroX, heroY() - 30, r, 0, Math.PI * 2); ctx.stroke();
       }
+      ctx.globalAlpha = 1;
+    } else if (f.kind === 'fit' && age < .5) {
+      // The part clicks in: a small ring at the joint; green's magnet sparks.
+      const jx = f.who === 'green' ? x : x - 13, jy = f.who === 'green' ? FLOOR - 4 : FLOOR - 16;
+      ctx.strokeStyle = GLOW[f.who]; ctx.globalAlpha = 1 - age / .5; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(jx, jy, 4 + age * 50, 0, Math.PI * 2); ctx.stroke();
+      if (f.who === 'green') { ctx.fillStyle = '#e6fff0'; for (const side of [-1, 1]) for (let k = 0; k < 3; k++) ctx.fillRect(x + side * (16 + k * 4 + age * 20), FLOOR - 4 - k * 3, 2, 2); }
+      ctx.globalAlpha = 1;
+    } else if (f.kind === 'join' && age < 1) {
+      // Booted: two rings rise from its head, in its colour.
+      ctx.strokeStyle = GLOW[f.who]; ctx.lineWidth = 2;
+      for (const lag of [0, .2]) { const k = Math.max(0, age - lag); ctx.globalAlpha = Math.max(0, 1 - age); ctx.beginPath(); ctx.arc(x, FLOOR - 26, 8 + k * 70, Math.PI * 1.1, Math.PI * 1.9); ctx.stroke(); }
       ctx.globalAlpha = 1;
     } else if (f.kind === 'lantern' && age < .9) {
       // The lantern catches: one soft ring, once.
@@ -825,7 +892,7 @@ function drawScene() {
   ctx.fillStyle = '#020406'; ctx.fillRect(0, FLOOR, W, H - FLOOR);
   ctx.save();
   if (zoom < 1) { ctx.translate(0, FLOOR); ctx.scale(zoom, zoom); ctx.translate(0, -FLOOR); cull = W / zoom - W + 20; }
-  drawRange(); drawPlatforms(cam); drawDevices(cam); drawFriends(cam); drawHero(cam);
+  drawRange(); drawPlatforms(cam); drawDevices(cam); drawFriends(cam); drawHero(cam); drawKits(cam);
   for (const p of particles) {
     ctx.globalAlpha = Math.max(0, 1 - p.age / .4); ctx.fillStyle = p.color;
     ctx.fillRect(p.x - cam + p.vx * p.age, p.y + p.vy * p.age + 120 * p.age ** 2, 3, 3);

@@ -110,6 +110,10 @@ export function notesAt(n, song) {
 // One-shot story cues: [delay s, frequency Hz, decay s, peak].
 const CUES = {
   collect: [[0, 1047, .1, .05], [.06, 1568, .16, .045]],
+  // A friend's part: picked up (lower than blue's), then clicked in.
+  kit: [[0, 659, .08, .05], [.06, 988, .14, .045]],
+  'fit-green': [[0, 147, .12, .08], [.01, 294, .08, .04], [.08, 1976, .1, .02], [.12, 2637, .16, .015]],
+  'fit-red': [[0, 1319, .03, .05], [.07, 1319, .03, .05], [.14, 1760, .05, .05], [.16, 220, .14, .06]],
   assemble: [[0, 1319, .08, .05], [.09, 1760, .24, .05], [.2, 2637, .5, .03]],
   join: [[0, 784, .12, .05], [.1, 1175, .3, .045]],
   switch: [[0, 392, .1, .06], [.08, 587, .1, .05], [.16, 784, .35, .05]],
@@ -232,7 +236,7 @@ export function createStoryAudio() {
     cue(name, at = null) {
       if (!ctx || ctx.state !== 'running') return;
       const start = at ?? ctx.currentTime + .005;
-      const wave = name === 'dock' || name === 'fall' || name.startsWith('plank') ? 'triangle' : 'sine';
+      const wave = name === 'dock' || name === 'fall' || name.startsWith('plank') || name.startsWith('fit') ? 'triangle' : 'sine';
       for (const [delay, f, decay, peak] of CUES[name] || []) tone(buses.cue, wave, f, start + delay, decay, peak, name === 'fall' ? .5 : 0);
       if (name === 'dock') hiss(buses.cue, 900, start, .25, .06, 'bandpass');
       // Out of the dark: a slow, wide chord under the boot chime.

@@ -43,9 +43,12 @@ export function buildCourse() {
   // The light opens: a wide, generous plain to feel how large the moon is.
   c.filler(12, r, [40, 64], [190, 260]);
 
-  // ② APART: green joins; bring it to the socket and it becomes the bridge.
+  // ② APART: green lies here without its legs; its magnetic leg unit lies
+  // 300px before it, so even at FAST it is fitted before the hero passes
+  // green. Picked up, it flies ahead to green; green boots and joins.
+  // Bring it to the socket and it becomes the bridge.
   c.chapter('apart');
-  p = c.plat(50, 420); c.checkpoint(p, 'apart'); c.marks.greenMeet = p.a + 300;
+  p = c.plat(50, 540); c.checkpoint({ a: p.a, b: p.a + 80 }, 'apart'); c.marks.greenMeet = p.a + 470; c.marks.greenKit = p.a + 170;
   c.filler(6, r, [40, 80], [150, 220]);
   // Long valley: stepping stones only a mostly-FAST rhythm can cross. Green
   // falls behind here (FAST outruns it), and on the rest ground after it the
@@ -73,7 +76,9 @@ export function buildCourse() {
   // ③ RESCUE: red wakes at the crane; crossing leaves green far behind and red
   // breaks the range rule to fetch it.
   c.chapter('rescue');
-  p = c.plat(50, 380); c.checkpoint(p, 'rescue'); c.marks.redConsole = p.a + 230;
+  // Red sits at its console without its hook; the telescopic hook lies 300px
+  // before it. Fitted, red walks along and works the crane with it.
+  p = c.plat(50, 540); c.checkpoint({ a: p.a, b: p.a + 80 }, 'rescue'); c.marks.redConsole = p.a + 470; c.marks.redKit = p.a + 170;
   p = c.plat(46, 560); c.checkpoint({ a: p.a, b: p.a + 160 }, 'rescue');
   c.marks.crane = c.plat(100, 120, 'crane');
   // A long, safe landing: red looks back and leaves while the hero has
