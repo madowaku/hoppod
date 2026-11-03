@@ -27,11 +27,14 @@ const data=page=>page.evaluate(()=>({notes:globalThis.__rapippoStoryProbe.notes|
 // In-page driver: hold FAST for the first path[i] of hop i. Edges are sent
 // by timers aimed at their exact story time (not on the next frame), so slow
 // CI frames do not shift them; the event's own timestamp is what the game uses.
+// A release and the next press at the same instant cancel out (FAST stays
+// held): sent as two edges, the press would wait a frame and land short.
 async function drive(page,path) {
   await page.evaluate(path=>{
     let down=false,pending=null;const key=on=>{if(on!==down){down=on;window.dispatchEvent(new KeyboardEvent(on?'keydown':'keyup',{code:'Space',bubbles:true}));}};
-    const edges=[];path.forEach((f,i)=>{if(f>0){edges.push([i*.78,true]);edges.push([(i+f)*.78-(f===1?0:0),false]);}});
-    edges.sort((a,b)=>a[0]-b[0]);
+    const edges=[];path.forEach((f,i)=>{if(f<=0)return;const t=i*.78;
+      if(edges.length&&!edges.at(-1)[1]&&Math.abs(edges.at(-1)[0]-t)<1e-9)edges.pop();else edges.push([t,true]);
+      edges.push([(i+f)*.78,false]);});
     const tick=()=>{const r=globalThis.__rapippoStoryProbe.read();
       while(edges.length&&edges[0][0]<=r.s){key(edges.shift()[1]);}
       if(edges.length&&!pending&&edges[0][0]-r.s<.12){const [t,on]=edges[0];pending=setTimeout(()=>{pending=null;const now=globalThis.__rapippoStoryProbe.read().s;if(edges[0]&&edges[0][0]===t&&now>=t-.004){edges.shift();key(on);}},Math.max(0,(t-r.s)*1000));}
@@ -54,9 +57,10 @@ function checkBeatLock(notes,events) {
 test('real audio: blue parts, predicted pickup cues, bell enters, pause/resume/mute',async({page})=>{
   test.setTimeout(120000);
   const start=storyFrom(COURSE,1);hop(start,COURSE,0);
-  const {path}=solve(COURSE,start,{until:r=>r.parts.got===3&&r.beat-Math.round(r.parts.assembledAt/BEAT)>=10,order:[0,1]});
+  const {path}=solve(COURSE,start,{until:r=>r.parts.got===3&&r.beat-Math.round(r.parts.assembledAt/BEAT)>=10,order:[0,1,.5,.25,.75],robust:.08});
   const errors=await open(page,1);await drive(page,[0,...path]);
-  await expect.poll(async()=>(await read(page)).blue,{timeout:40000}).toBe('follow');
+  // A fall here is the driver missing a hold, not the game: say so when it fails.
+  await expect.poll(async()=>{const r=await read(page),{events}=await data(page);return r.blue==='follow'?'follow':`${r.blue}; falls at beats ${events.filter(e=>e.type==='fall').map(e=>e.beat)}`;},{timeout:40000}).toBe('follow');
   await page.waitForTimeout(6000);
   const r=await read(page),{notes,events}=await data(page);
   const offset=checkBeatLock(notes,events);
