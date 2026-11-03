@@ -231,6 +231,12 @@ Not measurable here: real speaker/Bluetooth latency and touch latency on Android
 - **Long stalls.** A frame later than 0.5s pauses the story on the last instant it simulated and drew; nothing is simulated unseen. RESUME is always at SLOW. Cue predictions cancelled by PAUSE are forgotten and scheduled again; a launch paused mid-way resumes its rumble from where it was.
 - **Lesson one** is cleared by SLOW alone (each touchdown at least 13px inside its footing); lessons two and three still need FAST, and both speeds.
 
+## itch.io build
+
+`npm run build:itch` writes `output/itch/rapippo.zip`: every file under `public/` except `dev/` (the sound bench) and dotfiles, with `index.html` at the root (22 files, about 80 KiB, no build step). `tests/browser/itch-zip.spec.mjs` reads that ZIP back and plays it from a sub-folder of another origin inside an embed iframe: title, play, the touch PAUSE, FREE RUN and back, with every request answered from the ZIP.
+
+On touch screens PAUSE is a 44px button in the header while playing (hidden on the title and the end card); it releases a FAST held by another finger. From the dock on, the FAST/SLOW control is disabled and a held FAST is released.
+
 ## Open items (next)
 
 - From here (2026-11-03) no new STORY features as a rule: first-time playtests and release prep.

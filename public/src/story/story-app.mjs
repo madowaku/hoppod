@@ -44,6 +44,8 @@ let run, screen = 'start', s = 0, nextStep = 0, particles = [], banner = null, l
 const perfNow = () => performance.now() / 1000;
 const fast = () => pointers.size + keys.size > 0;
 const playing = () => screen === 'play';
+// FAST/SLOW only while hopping: from the dock on the hero stays still.
+const steering = () => playing() && run.status !== 'docked';
 
 function initialRun() {
   const cp = params.get('cp');
@@ -60,7 +62,7 @@ function begin() {
   audio.unlock(); audio.cancel();
   run = initialRun(); ahead = structuredClone(run); cued.clear(); fallGap = null; zoom = 1; s = 0; heroX = HERO_X; cameraS = 0; particles = []; flashes = []; launched = false; inset = 0; pickupAt = null;
   clock.start(0, perfNow()); input.reset(0, false); nextStep = 0;
-  releaseInput(); screen = 'play'; showBanner(run.status === 'docked' ? 'send' : run.chapter);
+  releaseInput(); screen = 'play'; updateHud(); showBanner(run.status === 'docked' ? 'send' : run.chapter);
   get('overlay').hidden = true; get('action').blur();
 }
 // The story stops on the last instant it simulated and drew (s), never on
@@ -71,7 +73,7 @@ function begin() {
 function pause() {
   releaseInput();
   if (!playing()) return;
-  clock.pause(perfNow(), s); audio.cancel(); screen = 'pause';
+  clock.pause(perfNow(), s); audio.cancel(); screen = 'pause'; updateHud();
   for (const [key, t] of cued) if (t > s) cued.delete(key);
   launched = false;
   get('overlay').dataset.screen = 'pause'; refreshOverlay(); get('overlay').hidden = false;
@@ -79,7 +81,7 @@ function pause() {
 function resume() {
   audio.unlock(); clock.resume(perfNow());
   s = clock.now(perfNow()); input.reset(s, false); nextStep = Math.ceil(s / STEP);
-  releaseInput(); screen = 'play'; get('overlay').hidden = true; get('action').blur();
+  releaseInput(); screen = 'play'; updateHud(); get('overlay').hidden = true; get('action').blur();
 }
 function finish() {
   screen = 'end'; updateHud(); get('overlay').dataset.screen = 'end'; refreshOverlay(); get('overlay').hidden = false;
@@ -119,6 +121,7 @@ function refreshCopy() {
   get('intro-hold').textContent = tr('hold'); get('intro-release').textContent = tr('release');
   get('headphones').textContent = tr('headphones'); get('again').textContent = tr('again');
   get('footer-tag').textContent = tr('footer'); get('footer-keys').textContent = tr('keys');
+  get('pause').setAttribute('aria-label', tr('pause'));
   get('language').textContent = language === 'ja' ? 'EN' : '日本語'; get('language').setAttribute('aria-label', tr('switchLanguage'));
   get('buzz').textContent = tr(buzzOn ? 'buzzOn' : 'buzzOff'); get('buzz').setAttribute('aria-pressed', String(buzzOn));
   get('sound').textContent = tr(audio.muted ? 'soundOff' : 'soundOn'); get('sound').setAttribute('aria-pressed', String(!audio.muted));
@@ -127,14 +130,17 @@ function refreshCopy() {
 }
 function updateHud() {
   const on = fast();
-  // Off the play screen the control takes no input: it says so by looking off.
-  get('hold').disabled = !playing();
+  // Off the play screen, and from the dock on, the control takes no input: it
+  // says so by looking off. PAUSE is there only while playing.
+  get('hold').disabled = !steering(); get('pause').hidden = !playing();
   get('hold').classList.toggle('active', on); get('hold').setAttribute('aria-pressed', String(on));
   get('hold-state').textContent = on ? 'FAST' : 'SLOW';
   get('hold-instruction').textContent = tr(on ? 'toSlow' : 'toFast');
 }
 
 get('action').addEventListener('click', () => { if (screen === 'pause') resume(); else begin(); });
+// The touch screen's ESC: a FAST still held by another finger is released too.
+get('pause').addEventListener('click', () => { get('pause').blur(); pause(); });
 get('again').addEventListener('click', () => { get('overlay').dataset.screen = 'start'; begin(); });
 get('sound').addEventListener('click', () => {
   get('sound').blur(); audio.unlock(); audio.setMuted(!audio.muted);
@@ -153,7 +159,7 @@ get('language').addEventListener('click', () => {
 });
 for (const target of [canvas, get('hold')]) {
   target.addEventListener('pointerdown', e => {
-    if (!playing() || e.button > 0) return;
+    if (!steering() || e.button > 0) return;
     e.preventDefault(); audio.unlock(); pointers.add(e.pointerId); target.setPointerCapture(e.pointerId);
     press(true, e.timeStamp); updateHud();
   });
@@ -165,6 +171,7 @@ window.addEventListener('keydown', e => {
   if (e.code === 'Space') {
     if (!playing() || (document.activeElement?.tagName === 'BUTTON' && document.activeElement !== get('hold'))) return;
     e.preventDefault();
+    if (!steering()) return;
     if (!e.repeat && !keys.has('Space')) { audio.unlock(); const was = fast(); keys.add('Space'); if (!was) press(true, e.timeStamp); updateHud(); }
   }
   if (e.code === 'Escape') pause();

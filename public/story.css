@@ -3,6 +3,12 @@ body.story{background:radial-gradient(ellipse at top,#16242c 0%,#05080c 75%)}
 .story .play-area{background:#05080c}
 .to-free,.end-free{color:#b3c5c2;font-size:10px;text-decoration:none;border:1px solid #405e66;border-radius:5px;padding:9px 8px;min-height:34px;display:inline-flex;align-items:center}
 .to-free:focus-visible,.end-free:focus-visible{outline:3px solid #8ee6c4;outline-offset:4px}
+.top-actions{display:flex;align-items:center;gap:8px}
+/* PAUSE for touch: quiet, 44px to hit, beside the FREE RUN link. */
+.pause-button{display:inline-flex;align-items:center;justify-content:center;gap:4px;width:44px;height:44px;padding:0;border:1px solid #405e66;border-radius:5px;background:transparent;cursor:pointer}
+.pause-button[hidden]{display:none}
+.pause-button i{width:4px;height:14px;background:#b3c5c2;border-radius:1px}
+.pause-button:focus-visible{outline:3px solid #8ee6c4;outline-offset:3px}
 .story .overlay{background:linear-gradient(#05080caa,#05080c22 60%,#05080caa)}
 .headphones{font-size:9px!important;color:#9db4b6!important}
 .auto-hop{color:#e9d9b0!important}
