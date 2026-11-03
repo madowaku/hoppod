@@ -1,11 +1,20 @@
 // Small, dependency-free JA/EN copy layer. Display only: never used for
 // course seeds, scoring, terrain, collision or storage namespace selection.
 export const LANGUAGES = Object.freeze(['ja','en']);
-export function chooseLanguage(url, stored, browser = 'en') {
+// A valid ?lang=, then the player's saved choice, then English. The browser
+// language is not consulted: the first visit is always English.
+export function chooseLanguage(url, stored) {
   const query = new URL(url).searchParams.get('lang');
   if (LANGUAGES.includes(query)) return query;
   if (LANGUAGES.includes(stored)) return stored;
-  return /^ja(?:-|$)/i.test(browser) ? 'ja' : 'en';
+  return 'en';
+}
+// The same address with ?lang= set: links between pages carry the language,
+// so it holds even where nothing can be saved.
+export function withLanguage(href, language) {
+  const url = new URL(href);
+  url.searchParams.set('lang', language);
+  return url.href;
 }
 const TEXT = Object.freeze({
   en: Object.freeze({

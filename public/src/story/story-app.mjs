@@ -8,7 +8,7 @@ import { BEAT, BeatClock, TimedInput, heardFromContext, beatIndex } from './beat
 import { COURSE } from './course.mjs';
 import { newStory, storyFrom, advanceStory, craneSolid, craneWorking, hopLift, bridgeFront, bridgeSegmentAt, RANGE, FOLLOW_GAP, FALL_BEATS, SOCKET_NEAR, BRIDGE_SEGMENTS, CRANE_CLIMB, FIT_BEATS } from './sim.mjs';
 import { createStoryAudio, notesAt, STEP, ENDING } from './music.mjs';
-import { chooseLanguage, storyCopy } from './copy.mjs';
+import { chooseLanguage, withLanguage, storyCopy } from './copy.mjs';
 import { drawCrewParts, drawKit, drawTransmit, TRANSMIT_LOCK } from './crew.mjs';
 
 const get = id => document.getElementById(id);
@@ -27,7 +27,7 @@ const pointers = new Set(), keys = new Set();
 const params = new URL(location.href).searchParams;
 function readPreference(key) { try { return localStorage.getItem(key); } catch { return null; } }
 function savePreference(key, value) { try { localStorage.setItem(key, value); } catch { /* this session only */ } }
-let language = chooseLanguage(location.href, readPreference('hoppod.pref.lang'), navigator.language);
+let language = chooseLanguage(location.href, readPreference('hoppod.pref.lang'));
 const tr = key => storyCopy(language, key);
 audio.setMuted(readPreference('hoppod.pref.muted') === '1');
 // Short vibrations at the story's turns, only where the device has them
@@ -63,10 +63,17 @@ function begin() {
   releaseInput(); screen = 'play'; showBanner(run.status === 'docked' ? 'send' : run.chapter);
   get('overlay').hidden = true; get('action').blur();
 }
+// The story stops on the last instant it simulated and drew (s), never on
+// "now": after a long stall (a frozen tab, a debugger) nothing it did not
+// show happens. Every sound not yet heard is cancelled, so it is forgotten
+// too, and predicted again when its moment comes round after RESUME; a
+// launch cut short starts over from where it was.
 function pause() {
   releaseInput();
   if (!playing()) return;
-  clock.pause(perfNow()); audio.cancel(); screen = 'pause';
+  clock.pause(perfNow(), s); audio.cancel(); screen = 'pause';
+  for (const [key, t] of cued) if (t > s) cued.delete(key);
+  launched = false;
   get('overlay').dataset.screen = 'pause'; refreshOverlay(); get('overlay').hidden = false;
 }
 function resume() {
@@ -101,6 +108,9 @@ function refreshOverlay() {
 function refreshCopy() {
   document.documentElement.lang = language;
   get('story-tag').textContent = tr('tag'); get('to-free').textContent = tr('free'); get('end-free').textContent = tr('free');
+  // FREE RUN (never DAILY) in the same language, even where nothing is saved.
+  for (const id of ['to-free', 'end-free']) get(id).setAttribute('href', 'index.html?mode=free&lang=' + language);
+  get('auto-hop').textContent = tr('autoHop');
   get('intro-hold').textContent = tr('hold'); get('intro-release').textContent = tr('release');
   get('headphones').textContent = tr('headphones'); get('again').textContent = tr('again');
   get('footer-tag').textContent = tr('footer'); get('footer-keys').textContent = tr('keys');
@@ -131,7 +141,8 @@ get('buzz').addEventListener('click', () => {
 });
 get('language').addEventListener('click', () => {
   get('language').blur(); language = language === 'ja' ? 'en' : 'ja';
-  savePreference('hoppod.pref.lang', language); refreshCopy();
+  // Saved, and the address follows: a ?lang= left behind would win on reload.
+  savePreference('hoppod.pref.lang', language); history.replaceState(history.state, '', withLanguage(location.href, language)); refreshCopy();
 });
 for (const target of [canvas, get('hold')]) {
   target.addEventListener('pointerdown', e => {
@@ -281,7 +292,7 @@ function handle(events) {
 }
 // Test probe: scheduled notes and events (only when a probe is injected).
 const probe = globalThis.__rapippoStoryProbe;
-function probeNote(part, at, storyTime) { if (probe) (probe.notes ||= []).push({ part, at, s: storyTime }); }
+function probeNote(part, at, storyTime, extra) { if (probe) (probe.notes ||= []).push({ part, at, s: storyTime, ...extra }); }
 function probeEvent(e) { if (probe) (probe.events ||= []).push({ type: e.type, t: e.t, beat: e.beat }); }
 
 // ---------- drawing ----------
@@ -1057,20 +1068,25 @@ function drawBanner() {
 }
 
 // ---------- loop ----------
-let lastS = 0;
+// A frame later than this is a stall, not a slow frame: the story pauses on
+// the last frame it drew instead of simulating the gap unseen.
+const STALL = .5, RUMBLE = 7;
 function frame() {
   if (playing()) {
-    s = clock.now(perfNow());
-    if (s - lastS > .5 && lastS > 0) { lastS = s; pause(); }
+    const now = clock.now(perfNow());
+    if (now - s > STALL) pause();
     else {
+      s = now;
       const events = [];
       if (run.status === 'docked') { run.t = s; }
       else input.advance(s, (from, to, f) => advanceStory(run, COURSE, to, f, events));
-      lastS = s;
       predict(); handle(events); steerCamera();
       mixMusic(); scheduleMusic();
       const a = after();
-      if (a >= ENDING.launch && !launched) { launched = true; audio.rumble(clock.contextTime(s) ?? 0, 7); }
+      if (a >= ENDING.launch && !launched) {
+        launched = true; const into = (a - ENDING.launch) * BEAT, at = clock.contextTime(s) ?? 0;
+        if (into < RUMBLE) { audio.rumble(at, RUMBLE, into); probeNote('cue:rumble', at, s, { into }); }
+      }
       if (a >= ENDING.card) finish();
     }
   }

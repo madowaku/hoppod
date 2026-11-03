@@ -67,9 +67,12 @@ export class BeatClock {
     this.frozen = s; this.paused = false;
     this.offset = this.sample(perfSeconds) - s;
   }
-  pause(perfSeconds) {
+  // at: freeze on this earlier story time instead of now (after a long stall,
+  // the last instant the game actually simulated and drew).
+  pause(perfSeconds, at = null) {
     if (this.paused) return;
-    this.frozen = this.now(perfSeconds); this.paused = true;
+    const now = this.now(perfSeconds);
+    this.frozen = at === null ? now : Math.min(at, now); this.paused = true;
   }
   resume(perfSeconds) {
     if (!this.paused) return;

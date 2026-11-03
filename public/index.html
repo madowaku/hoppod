@@ -6,6 +6,19 @@
 <meta name="theme-color" content="#101f2c">
 <meta name="description" content="ONE MORE HOP! A tiny capsule, an endless moon. It hops. You set the pace. Play RAPIPPO and share your best.">
 <title>RAPIPPO | ONE MORE HOP!</title>
+<script>
+// Entry, before any game code loads: the bare address (or one with only
+// ?lang=) opens STORY. Every FREE RUN address (mode, date, seed, shared
+// replay links) stays here. Relative, so it also works inside an itch.io ZIP.
+(function () {
+  var query = new URLSearchParams(location.search), lang = query.get('lang'), freeRun = false;
+  query.forEach(function (value, key) { if (key !== 'lang') freeRun = true; });
+  if (!freeRun) { location.replace('story.html' + (lang === 'ja' || lang === 'en' ? '?lang=' + lang : '')); return; }
+  document.addEventListener('DOMContentLoaded', function () {
+    var game = document.createElement('script'); game.type = 'module'; game.src = './src/app.mjs'; document.body.appendChild(game);
+  });
+})();
+</script>
 <link rel="icon" href="./icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="./style.css">
 </head>
@@ -34,5 +47,4 @@
   <div class="below"><span id="marker-guide" hidden></span><div class="prefs"><button id="language" type="button" aria-label="Switch to Japanese">日本語</button><button id="sound" type="button" aria-pressed="true">SOUND ON</button></div></div>
   <footer><span id="footer-tag">A tiny capsule. An endless moon.</span><span id="footer-keys">SPACE = HOLD · R = RETRY</span></footer>
 </main>
-<script type="module" src="./src/app.mjs"></script>
 </body></html>

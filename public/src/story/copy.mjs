@@ -1,9 +1,10 @@
-// STORY copy (display only). English by default; Japanese on request or by
-// the browser language, sharing the FREE RUN preference key.
-export { chooseLanguage } from '../ui-copy.mjs';
+// STORY copy (display only). English by default; Japanese on request (?lang=
+// or the saved choice), sharing the FREE RUN preference key.
+export { chooseLanguage, withLanguage } from '../ui-copy.mjs';
 const TEXT = Object.freeze({
   en: Object.freeze({
     tag: 'STORY', free: 'FREE RUN ›', title: 'RAPIPPO', subtitle: 'One hop at a time, music is born on the moon.',
+    autoHop: 'It hops by itself. Hold to go farther.',
     begin: 'BEGIN', headphones: '♪ Sound on. Headphones recommended.', hold: 'HOLD', release: 'LET GO',
     pauseTitle: 'PAUSED', pauseText: 'The beat waits for you.', resume: 'RESUME', again: 'PLAY AGAIN',
     toFast: 'HOLD TO GO FAST', toSlow: 'RELEASE TO SLOW', soundOn: 'SOUND ON', soundOff: 'SOUND OFF', buzzOn: 'BUZZ ON', buzzOff: 'BUZZ OFF',
@@ -14,6 +15,7 @@ const TEXT = Object.freeze({
   }),
   ja: Object.freeze({
     tag: 'ストーリー', free: 'フリーラン ›', title: 'RAPIPPO', subtitle: 'ひとりのジャンプから、月面に音楽が生まれる。',
+    autoHop: '自動でジャンプ。押し続けると遠くへ。',
     begin: 'はじめる', headphones: '♪ 音を出して遊んでください。ヘッドホン推奨。', hold: '押す', release: '離す',
     pauseTitle: 'ひとやすみ', pauseText: '拍は待っています。', resume: 'つづける', again: 'もう一度',
     toFast: '押してFAST', toSlow: '離してSLOW', soundOn: '音 ON', soundOff: '音 OFF', buzzOn: '振動 ON', buzzOff: '振動 OFF',

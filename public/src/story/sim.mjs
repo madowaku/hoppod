@@ -226,7 +226,10 @@ function moveCrew(run, course, dt, speed, events) {
       // Exact instant red reaches green, so its cue can be scheduled ahead.
       let lo = run.t - red.rescueAt, hi = t1 - red.rescueAt;
       for (let i = 0; i < 40; i++) { const mid = (lo + hi) / 2; if (rescueTravel(mid) >= reach) hi = mid; else lo = mid; }
-      red.x = green.x + 12; red.state = 'carry'; green.state = 'carry'; events.push({ type: 'pickup', x: green.x, t: red.rescueAt + hi });
+      // The carry starts at that instant, not at the end of the frame (the
+      // hero is far ahead, so the reunion is never in this step).
+      events.push({ type: 'pickup', x: green.x, t: red.rescueAt + hi });
+      red.x = green.x + 12 + CARRY_SPEED * (t1 - red.rescueAt - hi); red.state = 'carry'; green.state = 'carry'; green.x = red.x - 16;
     } else red.x = red.rescueX - rescueTravel(t1 - red.rescueAt);
   } else if (red.state === 'carry') {
     const gap = FOLLOW_GAP * 1.6, d0 = run.x - red.x;
@@ -242,7 +245,10 @@ function moveCrew(run, course, dt, speed, events) {
   else if (red.state === 'escort') red.x = Math.max(Math.min(red.x, x1), Math.min(x1 - FOLLOW_GAP * 1.6, red.x + (x1 - red.x > FOLLOW_GAP * 3 ? CARRY_SPEED : TEAM_SPEED) * dt));
   // Up to the boom over CRANE_CLIMB s (a closed form of time, not of frames).
   else if (red.state === 'crane') { const k = Math.min(1, (run.t + dt - red.craneAt) / CRANE_CLIMB); red.x = red.fromX + ((course.crane.a + course.crane.b) / 2 - red.fromX) * k * k * (3 - 2 * k); }
-  else if (red.state === 'notice') red.x += (x1 - 70 - red.x) * (1 - Math.exp(-8 * dt));
+  // Red eases in 70px behind the moving hero. Closed form for a step at one
+  // speed, so where it leaves from, and so the pickup, is the same at any
+  // frame rate.
+  else if (red.state === 'notice') red.x = x1 - 70 + (red.x - (run.x - 70) + speed / 8) * Math.exp(-8 * dt) - speed / 8;
 }
 
 // Distance red has flown τ seconds after leaving: it sets off visibly,

@@ -194,3 +194,123 @@ test('offline render: the launch rumble lasts its full length; the mix never cli
   expect(m.nan).toBe(0);expect(m.peak).toBeGreaterThan(.01);expect(m.peak).toBeLessThan(.9);
   expect(m.rumbleLate).toBeGreaterThan(m.rumbleEarly*.1);
 });
+
+// Notes scheduled after index `from`, and their common context offset.
+const since=(notes,from)=>notes.slice(from);
+function offsetOf(notes) {
+  const offsets=notes.filter(n=>!n.part.startsWith('late:')).map(n=>n.at-n.s);
+  expect(offsets.length).toBeGreaterThan(0);
+  expect(Math.max(...offsets)-Math.min(...offsets),'one offset for every note').toBeLessThan(1e-6);
+  return offsets[0];
+}
+
+test('real audio: a 30s frame stall pauses on the last drawn beat; nothing happens unseen',async({page})=>{
+  test.setTimeout(120000);
+  const errors=await open(page,0);
+  // Hold FAST, then freeze the page for 30s two seconds in (a frozen tab, a debugger).
+  await page.keyboard.down('Space');
+  await expect.poll(async()=>(await read(page)).s,{timeout:5000}).toBeGreaterThan(2);
+  const before=await read(page);
+  expect(before.screen).toBe('play');
+  await page.evaluate(()=>{const end=performance.now()+30000;while(performance.now()<end){}});
+  await page.waitForTimeout(400);
+  const stalled=await read(page),{events,notes}=await data(page);
+  expect(stalled.screen).toBe('pause');
+  expect(stalled.s,'story time did not run during the stall').toBeLessThan(before.s+.2);
+  expect(stalled.beat-before.beat).toBeLessThanOrEqual(1);
+  expect(stalled.status).toBe('playing');
+  expect(events.filter(e=>e.type==='fall'),'no unseen falls').toEqual([]);
+  expect(Math.max(...events.map(e=>e.t??0))).toBeLessThanOrEqual(stalled.s+1e-9);
+  // Input is released (RESUME is always at SLOW) while the key stays down.
+  await expect(page.locator('#hold-state')).toHaveText('SLOW');
+  await page.keyboard.up('Space');
+  const count=notes.length;
+  await page.locator('#action').click();await page.waitForTimeout(1600);
+  const resumed=await read(page),after=await data(page);
+  expect(resumed.screen).toBe('play');
+  expect(resumed.s-stalled.s).toBeGreaterThan(1.2);expect(resumed.s-stalled.s).toBeLessThan(2.2);
+  // The beat continues from where it stopped, on one grid, with fresh notes.
+  const fresh=since(after.notes,count);offsetOf(fresh);
+  expect(Math.min(...fresh.map(n=>n.s))).toBeGreaterThanOrEqual(stalled.s-1e-9);
+  for(const n of fresh.filter(n=>!n.part.includes(':'))) expect(near(n.s/(BEAT/4),Math.round(n.s/(BEAT/4)))).toBe(true);
+  const lands=after.events.filter(e=>e.type==='land'&&e.t>stalled.s);
+  expect(lands.length).toBeGreaterThan(0);
+  for(const e of lands) expect(near(e.t,e.beat*BEAT)).toBe(true);
+  expect(after.events.filter(e=>e.type==='fall')).toEqual([]);
+  await writeFile(dir+'/stall.json',JSON.stringify({before:before.s,stalled:stalled.s,resumed:resumed.s,beat:[before.beat,stalled.beat,resumed.beat]},null,2));
+  expect(errors).toEqual([]);
+});
+
+test('real audio: a pickup cue cancelled by PAUSE sounds once, on time, after RESUME',async({page})=>{
+  test.setTimeout(60000);
+  // From the second part's checkpoint, SLOW reaches the next part in three hops.
+  const errors=await open(page,1);
+  // Pause the very frame the collect cue is scheduled ahead (not yet heard).
+  await page.evaluate(()=>{const p=globalThis.__rapippoStoryProbe;const look=()=>{const n=(p.notes||[]).find(n=>n.part==='cue:collect');
+    if(n){p.pausedOn={count:p.notes.length,s:p.read().s,cue:n};window.dispatchEvent(new KeyboardEvent('keydown',{code:'Escape',bubbles:true}));}else requestAnimationFrame(look);};look();});
+  await expect.poll(()=>page.evaluate(()=>!!globalThis.__rapippoStoryProbe.pausedOn),{timeout:10000}).toBe(true);
+  const pausedOn=await page.evaluate(()=>globalThis.__rapippoStoryProbe.pausedOn);
+  await page.waitForTimeout(800);
+  const paused=await read(page);
+  expect(paused.screen).toBe('pause');
+  expect(paused.s,'paused before the touchdown it belongs to').toBeLessThan(pausedOn.cue.s);
+  expect((await data(page)).events.some(e=>e.type==='collect')).toBe(false);
+  await page.locator('#action').click();
+  await expect.poll(async()=>(await data(page)).events.filter(e=>e.type==='collect').length,{timeout:5000}).toBe(1);
+  await page.waitForTimeout(800);
+  const {notes,events}=await data(page),collect=events.find(e=>e.type==='collect');
+  const fresh=since(notes,pausedOn.count),offset=offsetOf(fresh);
+  const cues=fresh.filter(n=>n.part.endsWith(':collect'));
+  // Exactly one, predicted (not late), at the touchdown's own time on the new offset.
+  expect(cues.map(n=>n.part)).toEqual(['cue:collect']);
+  expect(near(cues[0].s,collect.t)).toBe(true);expect(near(cues[0].at-cues[0].s,offset)).toBe(true);
+  expect(near(collect.t,pausedOn.cue.s)).toBe(true);
+  expect(errors).toEqual([]);
+});
+
+test('real audio: pausing mid-launch resumes the rumble where it was, once',async({page})=>{
+  test.setTimeout(90000);
+  const errors=await open(page,'end');
+  const rumbles=async()=>(await data(page)).notes.filter(n=>n.part==='cue:rumble');
+  await expect.poll(async()=>(await rumbles()).length,{timeout:25000}).toBe(1);
+  const first=(await rumbles())[0];expect(first.into).toBeLessThan(.1);
+  await page.waitForTimeout(2500);
+  await page.keyboard.press('Escape');await page.waitForTimeout(200);
+  const paused=await read(page);expect(paused.screen).toBe('pause');
+  const count=(await data(page)).notes.length;
+  await page.waitForTimeout(1000);
+  expect((await read(page)).audio.voices,'the rumble is cut on PAUSE').toBe(0);
+  await page.locator('#action').click();
+  await expect.poll(async()=>(await rumbles()).length,{timeout:3000}).toBe(2);
+  const second=(await rumbles())[1];
+  expect(Math.abs(second.into-(paused.after-ENDING.launch)*BEAT)).toBeLessThan(.06);
+  expect(second.into).toBeGreaterThan(2);
+  await page.waitForTimeout(1500);
+  expect((await rumbles()).length,'no duplicate rumble').toBe(2);
+  const fresh=since((await data(page)).notes,count);expect(near(second.at-second.s,offsetOf(fresh))).toBe(true);
+  expect((await read(page)).audio.voices).toBeGreaterThan(0);
+  expect(errors).toEqual([]);
+});
+
+test('offline render: a resumed rumble picks up at its hold level and ends on time',async({page})=>{
+  await page.goto('/story.html?lang=en');
+  const m=await page.evaluate(async()=>{
+    const {createStoryAudio}=await import('/src/story/music.mjs');
+    const Native=window.AudioContext,R=48000;
+    const render=async(from)=>{
+      window.AudioContext=class extends OfflineAudioContext{constructor(){super(1,R*8,R);}get state(){return 'running';}resume(){return Promise.resolve();}};
+      const a=createStoryAudio();a.unlock();a.rumble(.2,7,from);
+      const d=(await a.context.startRendering()).getChannelData(0);
+      const rms=(x,y)=>{let e=0;for(let i=Math.round(x*R);i<Math.round(y*R);i++)e+=d[i]**2;return Math.sqrt(e/((y-x)*R));};
+      let jump=0;for(let i=Math.round(.2*R);i<Math.round(.21*R);i++)jump=Math.max(jump,Math.abs(d[i]));
+      return {hold:rms(.4,1),tail:rms(.2+7-from+.1,.2+7-from+.6),start:jump};
+    };
+    try{return {fresh:await render(0),resumed:await render(3)};}finally{window.AudioContext=Native;}
+  });
+  // From 3s in it is already at the hold level (the fresh one is still swelling at .4–1s).
+  expect(m.resumed.hold).toBeGreaterThan(m.fresh.hold*1.2);
+  // It ends where the full one would have: 4s after resuming.
+  expect(m.resumed.tail).toBeLessThan(m.resumed.hold*.01);
+  // A short fade-in, not a click at full level.
+  expect(m.resumed.start).toBeLessThan(m.resumed.hold*1.5);
+});

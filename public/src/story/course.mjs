@@ -34,8 +34,12 @@ export function buildCourse() {
   // landings after wide gaps where SLOW is the control. ~4000px to the light.
   c.plat(0, 420); c.checkpoint({ a: 0, b: 140 }, 'wake');
   const parts = [], run = list => { for (const [gap, width] of list) c.plat(gap, width); };
-  run([[30, 200], [32, 190], [36, 180], [34, 170]]);
-  let p = c.plat(38, 190); parts.push(Math.round((p.a + p.b) / 2));
+  // Lesson one is cleared by SLOW alone: every gap sits midway between two
+  // SLOW touchdowns (from x 70, one every 81.9px), so each lands at least
+  // 13px inside its footing. The part's ground still ends at x 1520, so
+  // nothing after it moves.
+  run([[30, 218], [32, 212], [36, 211], [34, 127]]);
+  let p = c.plat(38, 162); parts.push(Math.round((p.a + p.b) / 2));
   run([[70, 170], [78, 160], [84, 170], [76, 160]]);
   p = c.plat(82, 190); parts.push(Math.round((p.a + p.b) / 2)); c.checkpoint(p, 'wake');
   run([[60, 180], [92, 100], [40, 140], [96, 100], [44, 170]]);

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { PERIOD, SLOW_SPEED, FAST_SPEED } from '../public/src/engine.mjs';
+import { PERIOD, SLOW_SPEED, FAST_SPEED, INSET } from '../public/src/engine.mjs';
 import { BEAT, BPM, BeatClock, TimedInput, beatIndex, heardFromContext } from '../public/src/story/beat.mjs';
 import { COURSE, platformAt } from '../public/src/story/course.mjs';
 import { newStory, storyFrom, advanceStory, craneDown, craneSolid, bridgeFront, bridgeSegmentAt, craneWorking, RANGE, FOLLOW_GAP, GREEN_SPEED, KIT_REACH, FIT_BEATS, BOOT_BEATS, BRIDGE_LEGS, BRIDGE_SEGMENTS, CRANE_CALL, CRANE_CLIMB } from '../public/src/story/sim.mjs';
@@ -46,6 +46,22 @@ test('pause freezes story time; resume continues from the same beat phase', () =
   heard = 90.39; assert.ok(Math.abs(clock.now(40.39) - 1.56) < 1e-9, 'resumes exactly two beats in');
 });
 
+test('a long stall pauses on the last simulated instant, not on the time it ended', () => {
+  let heard = 50;
+  const clock = new BeatClock(() => heard);
+  clock.start(0, 0);
+  heard = 52; assert.ok(Math.abs(clock.now(2) - 2) < 1e-9);
+  // 30s with no frame: the game last simulated (and drew) story time 2.
+  heard = 82; clock.pause(32, 2);
+  assert.ok(Math.abs(clock.now(33) - 2) < 1e-9, 'frozen on the last drawn instant');
+  heard = 90; clock.resume(40);
+  assert.ok(Math.abs(clock.now(40) - 2) < 1e-9, 'resumes there: no beats skipped');
+  heard = 90.78; assert.ok(Math.abs(clock.now(40.78) - 2.78) < 1e-9);
+  // An `at` later than now never moves the story ahead.
+  const other = new BeatClock(() => null); other.start(0, 0); other.pause(1, 5);
+  assert.ok(Math.abs(other.now(9) - 1) < 1e-9);
+});
+
 test('jittery output timestamps are smoothed and never run backwards', () => {
   let perf = 0, k = 0;
   const latency = .21; // e.g. Bluetooth headphones
@@ -80,6 +96,31 @@ test('the full five-chapter course is clearable and the journey lasts about five
   assert.ok(witness.end.together, 'red brought green back');
 });
 
+test('lesson one is cleared by SLOW alone with room to spare; lessons two and three still ask for FAST and for both', () => {
+  const slowFrom = (run, until) => {
+    const log = [];
+    for (let k = 0; k < 60 && run.status === 'playing' && !until(run); k++) log.push(...hop(run, COURSE, 0));
+    return log;
+  };
+  const run = newStory(COURSE), log = slowFrom(run, r => r.parts.got >= 1);
+  assert.equal(run.parts.got, 1, 'SLOW alone reaches the first part');
+  assert.ok(!log.some(e => e.type === 'fall'));
+  for (const e of log.filter(e => e.type === 'land')) {
+    const x = COURSE.start + e.beat * SLOW_SPEED * BEAT, p = COURSE.platforms.find(q => x >= q.a && x <= q.b);
+    assert.ok(p && Math.min(x - p.a, p.b - x) - INSET >= 12, `touchdown ${e.beat} at x ${x.toFixed(1)}: ${p && Math.min(x - p.a, p.b - x) - INSET}px inside`);
+  }
+  // Lesson two (wide gaps) cannot be crossed at SLOW alone.
+  const on = slowFrom(run, () => false);
+  assert.ok(on.some(e => e.type === 'fall') && run.parts.got === 1, 'lesson two needs FAST');
+  // Lesson three needs both speeds: neither SLOW nor FAST alone reaches the last part.
+  for (const f of [0, 1]) {
+    const r = storyFrom(COURSE, 1), ev = [];
+    for (let k = 0; k < 40 && r.status === 'playing'; k++) ev.push(...hop(r, COURSE, f));
+    assert.equal(r.status, 'falling', (f ? 'FAST' : 'SLOW') + ' alone falls in lesson three');
+    assert.ok(r.parts.got < 3);
+  }
+});
+
 test('hops land exactly on beats regardless of frame rate or input timing', () => {
   const edges = [];
   witness.path.forEach((f, k) => {
@@ -97,12 +138,21 @@ test('hops land exactly on beats regardless of frame rate or input timing', () =
       while (i < edges.length && edges[i][0] <= t) { input.push(edges[i][0], edges[i][1]); i++; }
       input.advance(t, (from, to, f) => advanceStory(run, COURSE, to, f, log));
     }
-    for (const e of log) if (e.type === 'land') assert.ok(Math.abs(e.beat * BEAT - (e.beat * BEAT)) < 1e-12);
-    results.push({ x: run.x, status: run.status, beat: run.beat, lands: log.filter(e => e.type === 'land').length });
+    const lands = log.filter(e => e.type === 'land');
+    assert.ok(lands.length > 100, fps + ': ' + lands.length + ' touchdowns');
+    for (const e of lands) assert.ok(Math.abs(e.t - e.beat * BEAT) < 1e-9, `${fps}: touchdown at ${e.t}, beat ${e.beat}`);
+    results.push({ fps, x: run.x, status: run.status, beat: run.beat, events: log.map(e => ({ type: e.type, beat: e.beat, t: e.t, who: e.who })) });
   }
+  // Every frame rate sees the same events, in the same order, at the same story times.
   for (const r of results) {
     assert.equal(r.status, 'docked'); assert.equal(r.beat, results[0].beat);
     assert.ok(Math.abs(r.x - results[0].x) < 1e-6);
+    assert.equal(r.events.length, results[0].events.length, r.fps + ' event count');
+    r.events.forEach((e, i) => {
+      const o = results[0].events[i];
+      assert.equal(e.type + ':' + e.beat + ':' + e.who, o.type + ':' + o.beat + ':' + o.who, `${r.fps}: event ${i}`);
+      if (e.t !== undefined || o.t !== undefined) assert.ok(Math.abs(e.t - o.t) < 1e-9, `${r.fps}: ${e.type} at ${e.t} vs ${o.t}`);
+    });
   }
 });
 

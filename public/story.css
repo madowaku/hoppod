@@ -5,6 +5,11 @@ body.story{background:radial-gradient(ellipse at top,#16242c 0%,#05080c 75%)}
 .to-free:focus-visible,.end-free:focus-visible{outline:3px solid #8ee6c4;outline-offset:4px}
 .story .overlay{background:linear-gradient(#05080caa,#05080c22 60%,#05080caa)}
 .headphones{font-size:9px!important;color:#9db4b6!important}
+.auto-hop{color:#e9d9b0!important}
+/* The start card's extra line costs no height: BEGIN stays clear of the hero. */
+.story .overlay[data-screen=start]{gap:11px;padding-top:50px}
+@media(max-height:760px){.story .overlay[data-screen=start]{gap:8px;padding-top:34px}}
+.story .overlay[data-screen=pause] .auto-hop,.story .overlay[data-screen=end] .auto-hop,
 .story .overlay[data-screen=pause] .headphones,.story .overlay[data-screen=end] .headphones,
 .story .overlay[data-screen=end] .intro-controls,.story .overlay[data-screen=pause] .intro-controls{display:none}
 .story .overlay[data-screen=end]{background:#000;justify-content:center}

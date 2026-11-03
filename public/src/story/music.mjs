@@ -242,18 +242,25 @@ export function createStoryAudio() {
       // Out of the dark: a slow, wide chord under the boot chime.
       if (name === 'assemble') for (const [i, f] of [196, 293.66, 392, 493.88, 587.33].entries()) tone(buses.cue, 'sine', f, start + .25 + i * .05, 4.5, .022, 0, .9);
     },
-    // Launch: swell for 1.5s, hold, then fade out over the last 2s.
-    rumble(at, seconds) {
-      if (!ctx) return;
+    // Launch: swell for 1.5s, hold, then fade out over the last 2s. from:
+    // seconds of it already played (resumed mid-launch): the sweep and the
+    // envelope pick up there, after a short fade-in instead of a click.
+    rumble(at, seconds, from = 0) {
+      if (!ctx || from >= seconds) return;
       const s = ctx.createBufferSource(), filter = ctx.createBiquadFilter(), g = ctx.createGain(), o = ctx.createOscillator(), og = ctx.createGain();
+      const t0 = at - from, end = t0 + seconds, ease = from > 0 ? Math.min(.05, seconds - from) : 0;
+      const level = x => x < 1.5 ? x / 1.5 : x < seconds - 2 ? 1 : Math.max(0, (seconds - x) / 2);
       s.buffer = noise; s.loop = true; filter.type = 'lowpass'; filter.frequency.value = 160;
-      o.type = 'sawtooth'; o.frequency.setValueAtTime(55, at); o.frequency.linearRampToValueAtTime(90, at + seconds);
+      o.type = 'sawtooth'; o.frequency.setValueAtTime(55 + 35 * from / seconds, at); o.frequency.linearRampToValueAtTime(90, end);
       for (const [gain, peak] of [[g, .12], [og, .018]]) {
-        gain.gain.value = 0; gain.gain.setValueAtTime(0, at); gain.gain.linearRampToValueAtTime(peak, at + 1.5);
-        gain.gain.setValueAtTime(peak, at + seconds - 2); gain.gain.linearRampToValueAtTime(0, at + seconds);
+        gain.gain.value = 0; gain.gain.setValueAtTime(0, at);
+        if (ease) gain.gain.linearRampToValueAtTime(peak * level(from + ease), at + ease);
+        if (from + ease < 1.5) gain.gain.linearRampToValueAtTime(peak, t0 + 1.5);
+        if (from + ease < seconds - 2) gain.gain.setValueAtTime(peak, t0 + seconds - 2);
+        gain.gain.linearRampToValueAtTime(0, end);
       }
       s.connect(filter); filter.connect(g); g.connect(buses.cue); o.connect(og); og.connect(buses.cue);
-      s.start(at); s.stop(at + seconds + .05); o.start(at); o.stop(at + seconds + .05);
+      s.start(at); s.stop(end + .05); o.start(at); o.stop(end + .05);
       track(s, g, at); track(o, og, at);
     },
     // Read-only snapshot for tests.

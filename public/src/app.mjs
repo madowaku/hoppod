@@ -22,7 +22,7 @@ const FLIGHT = .35, trayX = i => 21 + i * 14, TRAY_Y = 41;
 let failure = '', failureKind = 'short', failureX = 0, signal = 0, signalAge = 10, markerMode = markerModeFromUrl(location.href), comparisonEnabled = new URL(location.href).searchParams.get('compare') === '1';
 function readPreference(key) { try { return localStorage.getItem(key); } catch { return null; } }
 function savePreference(key,value) { try { localStorage.setItem(key,value); } catch { /* settings work for this session */ } }
-let language = chooseLanguage(location.href, readPreference('hoppod.pref.lang'), navigator.language);
+let language = chooseLanguage(location.href, readPreference('hoppod.pref.lang'));
 const tr = key => copy(language,key);
 let notice = null, noticeUntil = 0, recordNotified = false, lastRecord = false;
 if (readPreference('hoppod.pref.muted') === '1') audio.toggle();
@@ -54,6 +54,7 @@ function refreshResult() {
 }
 function refreshCopy() {
   document.documentElement.lang = language;
+  get('story').setAttribute('href', 'story.html?lang=' + language);
   get('language').textContent = language === 'ja' ? 'EN' : '日本語';
   get('language').setAttribute('aria-label',tr('switchLanguage'));
   get('daily').textContent = tr('daily'); get('free').textContent = tr('free');
