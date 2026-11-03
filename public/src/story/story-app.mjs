@@ -82,7 +82,7 @@ function resume() {
   releaseInput(); screen = 'play'; get('overlay').hidden = true; get('action').blur();
 }
 function finish() {
-  screen = 'end'; get('overlay').dataset.screen = 'end'; refreshOverlay(); get('overlay').hidden = false;
+  screen = 'end'; updateHud(); get('overlay').dataset.screen = 'end'; refreshOverlay(); get('overlay').hidden = false;
 }
 function releaseInput() {
   pointers.clear(); keys.clear();
@@ -100,7 +100,11 @@ function showBanner(id) { banner = { id, at: s }; get('chapter-label').textConte
 function refreshOverlay() {
   const kind = get('overlay').dataset.screen;
   get('intro-mark').textContent = '✦ ' + tr('tag') + ' ✦';
-  get('overlay-title').textContent = kind === 'pause' ? tr('pauseTitle') : tr('title');
+  // On the title the logo's O is the hero itself (a canvas, drawn each frame).
+  const title = kind === 'start';
+  get('title-text').textContent = kind === 'pause' ? tr('pauseTitle') : title ? tr('title').slice(0, -1) : tr('title');
+  get('logo-o').hidden = !title;
+  if (title) get('overlay-title').setAttribute('aria-label', tr('title')); else get('overlay-title').removeAttribute('aria-label');
   get('overlay-subtitle').textContent = kind === 'pause' ? tr('pauseText') : kind === 'end' ? tr('thanks') : tr('subtitle');
   get('action').textContent = kind === 'pause' ? tr('resume') : tr('begin');
   get('end-actions').hidden = kind !== 'end';
@@ -123,6 +127,8 @@ function refreshCopy() {
 }
 function updateHud() {
   const on = fast();
+  // Off the play screen the control takes no input: it says so by looking off.
+  get('hold').disabled = !playing();
   get('hold').classList.toggle('active', on); get('hold').setAttribute('aria-pressed', String(on));
   get('hold-state').textContent = on ? 'FAST' : 'SLOW';
   get('hold-instruction').textContent = tr(on ? 'toSlow' : 'toFast');
@@ -1002,10 +1008,24 @@ function drawEnding() {
   const dip = smooth(ENDING.turn - .7, ENDING.turn, a) * (1 - smooth(ENDING.turn, ENDING.turn + 1, a));
   const black = Math.max(dip, smooth(ENDING.black - 2, ENDING.black, a));
   if (black > 0) { ctx.fillStyle = `rgba(0,0,0,${black})`; ctx.fillRect(0, 0, W, H); }
-  if (a >= ENDING.title) {
-    ctx.globalAlpha = smooth(ENDING.title, ENDING.title + 2, a); ctx.fillStyle = '#fff0d0'; ctx.font = 'bold 30px monospace'; ctx.textAlign = 'center';
-    ctx.fillText('RAPIPPO', W / 2, H / 2); ctx.globalAlpha = 1;
-  }
+  if (a >= ENDING.title) { ctx.globalAlpha = smooth(ENDING.title, ENDING.title + 2, a); drawEndLogo(W / 2, H / 2 + 10); ctx.globalAlpha = 1; }
+}
+// The last logo: each P is a friend (smaller, set high) and the O is the
+// hero, all four dipping together on every beat with the hero's ear tips lit.
+const END_LOGO = ['R', 'A', 'blue', 'I', 'green', 'red', 'hero'];
+function drawEndLogo(cx, y) {
+  // Drawn at exactly 2x, so the pods' pixels stay square.
+  const step = 22, land = s - beatIndex(s) * BEAT < .12 ? 1 : 0;
+  ctx.save(); ctx.translate(Math.round(cx), Math.round(y)); ctx.scale(2, 2);
+  ctx.fillStyle = '#fff0d0'; ctx.font = 'bold 30px monospace'; ctx.textAlign = 'center';
+  END_LOGO.forEach((glyph, i) => {
+    const x = (i - 3) * step;
+    if (glyph.length === 1) ctx.fillText(glyph, x, 0);
+    // The friends, smaller, sit high like a P's bowl with the spring for its stem.
+    else if (glyph === 'hero') drawPod(ctx, x, 3, 1, { land, signal: 1 });
+    else drawPod(ctx, x, -3, .75, { palette: PALETTE[glyph], land });
+  });
+  ctx.restore();
 }
 function drawBaseView(a) {
   // The camera pulls back on the stopping beat, so by D+1 the whole base,
@@ -1069,11 +1089,12 @@ function drawBanner() {
 }
 
 // ---------- title ----------
-// The start screen shows where the road goes: Earth over the moon, the base,
-// and the four of them hopping together on the beat, drawn with the game's
-// own sprites. The overlay above holds the words and the two buttons.
+// The start screen shows where the road goes, Earth over the moon and the
+// base's lights, and the hero alone on the plain, hopping on the beat: the
+// friends are left for the journey to find. Drawn with the game's own
+// sprites; the overlay above holds the words and the two buttons.
 const TITLE_STARS = Array.from({ length: 90 }, (_, i) => [(i * 137.5) % W, (i * 71.3) % 290, i % 9 ? 1 : 2, i]);
-const TITLE_CREW = [['blue', 136], ['green', 180], ['red', 224]];
+const logoO = get('logo-o').getContext('2d'), TITLE_HERO = 214;
 // A larger Earth for the title, laid out in 3px cells: land and cloud from a
 // fixed noise that drifts slowly, lit from the upper left, a thin air rim.
 function drawTitleEarth(cx, cy, r, t) {
@@ -1136,27 +1157,13 @@ function drawTitle(t) {
   ctx.fillStyle = 'rgba(255,210,122,.18)'; ctx.fillRect(50, F - 36, 34, 25);
   ctx.fillStyle = '#56699a'; ctx.fillRect(34, F - 76, 2, 26);
   ctx.fillStyle = pulse > .4 ? '#ffe3ac' : '#b88a4a'; ctx.fillRect(32, F - 80, 6, 5);
-  // Pads, the dock, and its antenna sending on every beat.
-  ctx.fillStyle = '#3f4d7c';
-  for (const [, x] of TITLE_CREW) ctx.fillRect(x - 14, F - 2, 28, 3);
-  ctx.fillStyle = '#c4934a'; ctx.fillRect(262, F - 3, 52, 4); ctx.fillStyle = '#8a6532'; ctx.fillRect(262, F + 1, 52, 2);
-  ctx.fillStyle = '#c4934a'; ctx.fillRect(320, F - 62, 3, 60); ctx.fillRect(315, F - 64, 13, 3);
-  for (let i = 0; i < 2; i++) {
-    const age = (phase + i * .5) % 1;
-    ctx.strokeStyle = `rgba(126,214,255,${.7 * (1 - age)})`; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.arc(321, F - 66, 6 + age * 18, Math.PI * 1.2, Math.PI * 1.8); ctx.stroke();
-  }
-  // The four of them, hopping together.
-  for (const [who, x] of TITLE_CREW) {
-    const y = F - 2 - hop * 10, palette = PALETTE[who], top = -18 - Math.round(3 + hop * 2);
-    if (who === 'blue') {
-      const glow = ctx.createRadialGradient(x, F - 4, 2, x, F - 4, 40);
-      glow.addColorStop(0, 'rgba(111,182,255,.25)'); glow.addColorStop(1, 'rgba(111,182,255,0)'); ctx.fillStyle = glow; ctx.fillRect(x - 40, F - 44, 80, 52);
-    }
-    drawPod(ctx, x, y, 1, { phase, time: t, palette, eyes: true });
-    drawCrewParts(ctx, who, x, y, 1, { palette, form: 1, pulse: who === 'blue' ? pulse : 0, top, on: true });
-  }
-  drawPod(ctx, 286, F - 3 - hop * 16, 2, { phase, land: Math.max(0, 1 - phase / .17), time: t });
+  // The hero alone, in its own small pool of light.
+  const pool = ctx.createRadialGradient(TITLE_HERO, F - 6, 2, TITLE_HERO, F - 6, 54);
+  pool.addColorStop(0, 'rgba(255,233,190,.2)'); pool.addColorStop(1, 'rgba(255,233,190,0)'); ctx.fillStyle = pool; ctx.fillRect(TITLE_HERO - 54, F - 60, 108, 70);
+  drawPod(ctx, TITLE_HERO, F - 3 - hop * 16, 2, { phase, land: Math.max(0, 1 - phase / .17), time: t });
+  // The logo's O: the hero's head, dipping on each beat with its ear tips lit.
+  const land = still ? 0 : pulse, top = -18 - Math.round(3 - land * 2);
+  logoO.clearRect(0, 0, 20, 30); drawPod(logoO, 10, 31, 1, { land, signal: 1, time: t }); logoO.clearRect(0, 31 + top + 18, 20, 30);
 }
 
 // ---------- loop ----------

@@ -148,11 +148,11 @@ for(const [width,height] of [[360,640],[390,844]]) test(`STORY start screen fits
       items.push([id,b]);
     }
     for(let i=1;i<items.length;i++) expect(items[i][1].y,items[i][0]+' below '+items[i-1][0]).toBeGreaterThanOrEqual(items[i-1][1].y+items[i-1][1].height-.5);
-    // Both title buttons on one row, clear of the crew standing on the title's ground (canvas y 444, ~44px tall).
+    // Both title buttons on one row, clear of the hero at the top of its hop (canvas y 444 - 81).
     const story=await box('#action'),free=await box('#title-free');
     expect(Math.abs(story.y-free.y)).toBeLessThan(1);
     expect(story.x+story.width).toBeLessThanOrEqual(free.x);
-    expect(Math.max(story.y+story.height,free.y+free.height),'buttons above the crew').toBeLessThanOrEqual(area.y+area.height*(444-48)/510);
+    expect(Math.max(story.y+story.height,free.y+free.height),'buttons above the hero').toBeLessThanOrEqual(area.y+area.height*(444-81)/510);
     expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
     await page.screenshot({path:`${dir}/story-start-${width}x${height}-${l}.png`});
   }

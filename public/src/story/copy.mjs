@@ -3,7 +3,7 @@
 export { chooseLanguage, withLanguage } from '../ui-copy.mjs';
 const TEXT = Object.freeze({
   en: Object.freeze({
-    tag: 'STORY', free: 'FREE RUN ›', title: 'RAPIPPO', subtitle: 'One hop at a time, music is born on the moon.',
+    tag: 'STORY', free: 'FREE RUN ›', title: 'RAPIPPO', subtitle: 'One hop. One beat. A song is born.',
     autoHop: 'It hops by itself. Hold to go farther.',
     begin: 'STORY', freeRun: 'FREE RUN', headphones: '♪ Sound on. Headphones recommended.', hold: 'HOLD', release: 'LET GO',
     pauseTitle: 'PAUSED', pauseText: 'The beat waits for you.', resume: 'RESUME', again: 'PLAY AGAIN',

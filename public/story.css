@@ -12,8 +12,10 @@ body.story{background:radial-gradient(ellipse at top,#16242c 0%,#05080c 75%)}
 .story .overlay[data-screen=pause] .auto-hop,.story .overlay[data-screen=end] .auto-hop,
 .story .overlay[data-screen=pause] .headphones,.story .overlay[data-screen=end] .headphones,
 .story .overlay[data-screen=end] .intro-controls,.story .overlay[data-screen=pause] .intro-controls{display:none}
-.story .overlay[data-screen=end]{background:#000;justify-content:center}
-.story .overlay[data-screen=end] h1{font-size:34px;letter-spacing:6px}
+/* The end card leaves the canvas's last logo (friends as the Ps, the hero as
+   the O) in view; the heading stays for screen readers only. */
+.story .overlay[data-screen=end]{background:transparent;justify-content:flex-end;padding-bottom:28px}
+.story .overlay[data-screen=end] h1{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 .story .overlay[data-screen=end] .action{display:none}
 .end-free{font-size:10px}
 #chapter-label{letter-spacing:1px;font-size:9px}
@@ -28,8 +30,14 @@ body.story{background:radial-gradient(ellipse at top,#16242c 0%,#05080c 75%)}
 @media(prefers-reduced-motion:reduce){.beat-mark.on i{background:#355b5c;box-shadow:none}.hold.active .beat-mark.on i{background:#d98a5c}}
 /* Title (the start screen): the canvas draws the scene; the words sit over it. */
 .story .overlay[data-screen=start]{background:linear-gradient(#0000,#0000 62%,#05080c55)}
-.story .overlay[data-screen=start] h1{font-size:clamp(36px,12vw,50px);letter-spacing:3px;color:#fff1d2;text-shadow:0 3px 0 #c98a4a,0 0 22px rgba(255,214,150,.35);line-height:1}
-.story .overlay[data-screen=start] .intro-mark{font-size:10px;color:#ffd88a;letter-spacing:3px;background:#0b142bcc;padding:3px 10px;border-radius:9px}
+.story .overlay[data-screen=start] h1{font-size:clamp(32px,10.5vw,48px);white-space:nowrap;letter-spacing:3px;color:#fff1d2;text-shadow:0 3px 0 #c98a4a,0 0 22px rgba(255,214,150,.35);line-height:1}
+.story .overlay[data-screen=start] .intro-mark,.story .overlay[data-screen=end] .intro-mark{display:none}
+/* (.play-area canvas would make it a full-width block: undo that here.) */
+.play-area #logo-o{display:inline-block;height:1.2em;width:auto;aspect-ratio:20/30;image-rendering:pixelated;vertical-align:-.1em;margin-left:.06em}
+.play-area #logo-o[hidden]{display:none}
+/* Japanese reads a size up on the title. */
+html[lang=ja] .story .overlay[data-screen=start] p:not(.headphones){font-size:12px;max-width:300px}
+.story .hold:disabled{opacity:.35;filter:saturate(.3);cursor:default}
 .story .overlay[data-screen=start] #overlay-subtitle{color:#c3d0f5;text-shadow:0 1px 3px #0b142b}
 .title-orbit{width:min(240px,80%);height:18px;margin-top:-6px}
 .title-actions{display:flex;gap:10px;justify-content:center;width:100%;max-width:300px}
