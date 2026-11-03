@@ -50,5 +50,15 @@ await (await play(field, sw, r => {
   const key = !r.switchOn && d < 120 && !seen.near ? 'near' : r.switchOn && !seen.on ? 'on' : r.switchOn && r.x > COURSE.bridge.a && !seen.cross ? 'cross' : null;
   if (key) { seen[key] = true; return 'switch-' + key; }
 })).close();
+// ⑤ The ending: the four lights carried into the rocket before launch.
+{
+  const page = await open('end');
+  const E = await page.evaluate(async () => (await import('/src/story/music.mjs')).ENDING);
+  for (const [beat, name] of [[E.pad + 2.5, 'load-1'], [E.launch - .3, 'load-2']]) {
+    const r = await page.evaluate(() => globalThis.__rapippoStoryProbe.read());
+    await page.clock.runFor(Math.max(0, Math.round((beat * .78 - r.s) * 1000))); await shot(page, name);
+  }
+  await page.close();
+}
 await browser.close();
 console.log('done', out);

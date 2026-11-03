@@ -7,7 +7,7 @@ import { COURSE } from '../../public/src/story/course.mjs';
 import { storyFrom } from '../../public/src/story/sim.mjs';
 import { solve, hop } from '../helpers/story-solver.mjs';
 
-const out = 'output/compare';
+const out = process.env.OUT || 'output/compare';
 const sites = { before: process.env.BEFORE_URL || 'http://127.0.0.1:8020', after: process.env.AFTER_URL || 'http://127.0.0.1:8010' };
 await mkdir(out, { recursive: true });
 const browser = await chromium.launch();

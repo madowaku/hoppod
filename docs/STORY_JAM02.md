@@ -102,6 +102,23 @@ Same face, different job: see [CREW_SPRITES.md](story/CREW_SPRITES.md). Blue has
 ![Awakening, before P4 (top) and P4 (bottom)](story/p4-wake.png)
 ![Ending, before P4 (top) and P4 (bottom)](story/p4-ending.png)
 
+## First full play (2026-11-03): story for a first-time player
+
+Findings from the first complete playthrough, and what changed. No new systems; FREE RUN untouched.
+
+| # | Finding | Cause found | Change |
+|---|---|---|---|
+| ① | The dark start was the hardest part: holes hard to judge | the hero's glow is ~64px, a FAST hop lands up to 210px ahead; only sparse dots marked edges | a faint line along each platform top and lit cliff edges, brighter near the hero and on each touchdown; everything else stays dark until blue |
+| ② | The switch read as a pickup, not "leave green here to make a bridge" | measured: switch → chasm 440px; when green is near the socket the view's right edge is ~14217 and the chasm starts at 14288, so it was never on screen | the chasm now starts 220px past the switch (only the ground after the switch is shorter); a cable runs from the socket to the bridge anchor, a pulse runs along it while green is over the socket, it lights when the switch holds |
+| ③ | Why red goes back was unclear: green is off screen | nothing linked green to red's decision | green keeps calling from the switch (an arc each beat); at red's notice beat green's call comes in from the left edge, red's ear tips catch it, red answers, then flies; the comms window opens from that beat and shows green waiting |
+| ④ | Separation, rescue and reunion barely changed the music; green inaudible on a phone | green's bass is 82–147Hz, below what phone speakers play | the bass line is doubled two octaves up as a short pluck (phone band +12dB, full-range level +7%); a far green's radio filter takes it away first; while green is away blue's tune thins to its downbeats |
+| ⑤ | The moon, the leaving rocket and the friends staying weren't clear | no Earth, no lunar ground, nothing loaded | Earth over the far range, hidden by the rock ceiling until blue lifts it; craters on the near plain; in the ending the four lights leave the mast one per beat (D+13 to D+17) into the rocket's window, which keeps them as it lifts off |
+
+![Dark start and switch, after (left to right: dark, dark, green near the socket, switch on, crossing)](story/p5-dark-switch.png)
+![Loading the rocket: the friends' lights leave the mast one per beat](story/p5-loading.png)
+
+The real-audio test that failed on CI for both P4 commits was the test driver, not the game: a release and the next press at the same instant made the press wait a frame. Under load the old driver failed 1/6, the fixed one 9/9.
+
 ## Real Web Audio verification
 
 `tests/browser/story-audio.spec.mjs` runs a real `AudioContext` in Chromium (headless, real time, no clock mocking). With `STORY_AUDIO=required` (set in CI, and by `npm run test:story-audio`) a browser without running audio **fails** instead of skipping.

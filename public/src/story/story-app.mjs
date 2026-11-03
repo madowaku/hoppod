@@ -2,6 +2,7 @@
 // read-only (physics constants, footing, pod artwork).
 import { INSET, FAST_SPEED, footing } from '../engine.mjs';
 import { drawPod } from '../pod.mjs';
+import { drawEarth } from '../earth.mjs';
 import { COMPANION_PALETTE } from '../companion.mjs';
 import { BEAT, BeatClock, TimedInput, heardFromContext, beatIndex } from './beat.mjs';
 import { COURSE } from './course.mjs';
@@ -436,12 +437,29 @@ function drawDevices(cam) {
       }
     }
     const lift = rocketLift(a), rx = COURSE.rocketX - cam, ry = FLOOR - lift;
+    // Loading: once all four play, their lights leave the mast one per beat
+    // along a line to the rocket's window, which keeps them as it lifts off.
+    const load = [['blue', 0], ['green', 1], ['red', 2], ['hero', 3]], depart = k => ENDING.pad + k;
+    if (a >= ENDING.pad && a < ENDING.launch) {
+      ctx.strokeStyle = 'rgba(255,227,172,.4)'; ctx.lineWidth = 2; ctx.setLineDash([3, 4]);
+      const mx = (dx + rx) / 2, my = (FLOOR - 124 + ry - 52) / 2 - 60, at = (t, p0, p1, p2) => (1 - t) ** 2 * p0 + 2 * t * (1 - t) * p1 + t * t * p2;
+      ctx.beginPath(); ctx.moveTo(dx, FLOOR - 124); ctx.quadraticCurveTo(mx, my, rx, ry - 52); ctx.stroke(); ctx.setLineDash([]);
+      for (const [who, k] of load) {
+        const t = smooth(depart(k), depart(k) + .8, a); if (t <= 0 || t >= 1) continue;
+        const lx = at(t, dx, mx, rx), ly = at(t, FLOOR - 124, my, ry - 52);
+        ctx.fillStyle = GLOW[who]; ctx.globalAlpha = .3; ctx.beginPath(); ctx.arc(lx, ly, 12, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 1; ctx.beginPath(); ctx.arc(lx, ly, 5, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    const aboard = load.filter(([, k]) => a >= depart(k) + .8);
     if (a < ENDING.turn) {
     ctx.fillStyle = '#3a4a52'; ctx.fillRect(rx - 26, FLOOR - 4, 52, 4);
     ctx.fillStyle = '#e8e2d0'; ctx.fillRect(rx - 9, ry - 70, 18, 60);
     ctx.fillStyle = '#ff9161'; ctx.beginPath(); ctx.moveTo(rx - 9, ry - 70); ctx.lineTo(rx, ry - 88); ctx.lineTo(rx + 9, ry - 70); ctx.fill();
     ctx.fillRect(rx - 15, ry - 22, 6, 14); ctx.fillRect(rx + 9, ry - 22, 6, 14);
     ctx.fillStyle = '#8fd0ff'; ctx.fillRect(rx - 4, ry - 56, 8, 8);
+    aboard.forEach(([who], i) => { ctx.fillStyle = GLOW[who]; ctx.fillRect(rx - 4 + (i % 2) * 4, ry - 56 + (i >> 1) * 4, 4, 4); });
+    if (aboard.length) { ctx.fillStyle = `rgba(255,240,208,${(.12 + .06 * Math.sin(s * 6)) * aboard.length})`; ctx.beginPath(); ctx.arc(rx, ry - 52, 16, 0, Math.PI * 2); ctx.fill(); }
     if (a > ENDING.launch - 2) { ctx.fillStyle = (s * 20 | 0) % 2 ? '#ffd28a' : '#ff9161'; ctx.fillRect(rx - 6, ry - 8, 12, 10 + (s * 30 | 0) % 8); }
     }
   }
@@ -475,6 +493,12 @@ function drawFriends(cam, inset = false) {
     }
     // Anchored on the switch green's spring stays pressed down: its weight is on the plate.
     const anchored = who === 'green' && f.state === 'switch' && switchPlant() !== null;
+    // Holding the switch alone, green keeps calling: a small arc rises from
+    // its ears on every beat once the hero has gone on.
+    if (anchored && !run.together && run.chapter !== 'apart') {
+      const age = s - beatIndex(s) * BEAT;
+      if (age < .6) { ctx.strokeStyle = `rgba(95,227,154,${.8 * (1 - age / .6)})`; ctx.lineWidth = inset ? 2.5 : 1.5; ctx.beginPath(); ctx.arc(x, y - 34, 6 + age * 50, Math.PI * 1.2, Math.PI * 1.8); ctx.stroke(); }
+    }
     drawPod(ctx, x, y, 1, anchored ? { phase: 0, land: 1, time: s, palette, eyes: awake } : { phase: (s / BEAT) % 1, time: s, palette, eyes: awake, idle: !awake });
     drawCrewParts(ctx, who, x, y, 1, crewForm(who, f));
     // In the ending each friend's touchdown on its beat leaves a small ring.
@@ -521,7 +545,9 @@ function crewForm(who, f) {
 let inset = 0, insetS = 0, pickupAt = null;
 function insetWanted() {
   const { red, green } = run;
-  if (red.state === 'rescue') return red.x - green.x < 1400;
+  // From the beat red hears green, the window shows green waiting on the
+  // switch, still calling, until red arrives and they lift off.
+  if (red.state === 'notice' || red.state === 'rescue') return true;
   return red.state === 'carry' && pickupAt !== null && s - pickupAt < 4.5 && red.x - camera() < -30;
 }
 function drawInset() {
@@ -529,7 +555,7 @@ function drawInset() {
   inset += ((insetWanted() ? 1 : 0) - inset) * (1 - Math.exp(-dt * 8));
   if (inset < .02) return;
   const { red, green } = run, w = 176, h = 100, x0 = 10, y0 = 50, scale = .6;
-  const focus = red.state === 'rescue' ? green.x + 40 : red.x - 30;
+  const focus = red.state === 'rescue' || red.state === 'notice' ? green.x + 40 : red.x - 30;
   const cam = focus - W / 2;
   ctx.save(); ctx.globalAlpha = inset;
   ctx.beginPath(); ctx.roundRect(x0, y0, w, h, 6); ctx.clip();
@@ -606,11 +632,20 @@ function drawFlashes(cam) {
       for (const lag of [0, .25]) { const r = Math.max(0, age - lag) * 160; ctx.beginPath(); ctx.arc(x, FLOOR - 68, r, Math.PI, Math.PI * 2); ctx.stroke(); }
     } else if (f.kind === 'switch' && age < 1) {
       ctx.strokeStyle = `rgba(200,255,220,${1 - age})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, FLOOR - 14, 10 + age * 40, 0, Math.PI * 2); ctx.stroke();
-    } else if (f.kind === 'ping' && age < BEAT) {
-      // Red looks back: pings sent from where it is towards where green was left.
-      const rx = run.red.x - cam, ry = friendY('red', run.red) - 20;
-      ctx.strokeStyle = `rgba(255,127,102,${1 - age / BEAT})`; ctx.lineWidth = 2;
-      for (const lag of [0, .2]) { const r = 14 + Math.max(0, age - lag) * 120; ctx.beginPath(); ctx.arc(rx, ry, r, Math.PI * .75, Math.PI * 1.25); ctx.stroke(); }
+    } else if (f.kind === 'ping' && age < BEAT * 1.3) {
+      // Red hears green: green's call comes in from the left edge (where green
+      // was left) and closes on red, red's ear tips catch it, then red answers
+      // with its own pings back towards green, and goes.
+      const rx = run.red.x - cam, ry = friendY('red', run.red) - 20, inc = BEAT * .45;
+      if (age < inc) {
+        const k = age / inc; ctx.strokeStyle = `rgba(95,227,154,${.35 + .6 * k})`; ctx.lineWidth = 2;
+        for (const lag of [0, .18]) { const r = 14 + Math.max(0, rx + 20) * Math.max(0, 1 - k - lag); ctx.beginPath(); ctx.arc(rx, ry, r, Math.PI * .8, Math.PI * 1.2); ctx.stroke(); }
+      } else if (age < inc + .2) { ctx.fillStyle = '#9ff0c4'; for (let i = 0; i < 3; i++) ctx.fillRect(rx + 9 + i * 3, ry - 18 - i * 2, 2, 3 + i * 2); }
+      const back = age - inc;
+      if (back > 0) {
+        ctx.strokeStyle = `rgba(255,127,102,${Math.max(0, 1 - back / BEAT)})`; ctx.lineWidth = 2;
+        for (const lag of [0, .2]) { const r = 14 + Math.max(0, back - lag) * 120; ctx.beginPath(); ctx.arc(rx, ry, r, Math.PI * .75, Math.PI * 1.25); ctx.stroke(); }
+      }
     } else if (f.kind === 'reunion' && age < 1.4) {
       ctx.lineWidth = 2;
       for (const [i, c] of ['#6fb6ff', '#5fe39a', '#ff7f66'].entries()) {
@@ -722,6 +757,9 @@ function drawBackdrop(cam, alpha = 1) {
       ctx.fillStyle = `rgba(22,38,50,${open})`; ctx.fillRect(x, FLOOR - 40 - h, 4, h);
       ctx.fillStyle = `rgba(150,190,220,${.45 * open})`; ctx.fillRect(x, FLOOR - 40 - h, 4, 1);
     }
+    // Earth hangs over the far range: hidden by the rock ceiling until blue's
+    // light lifts it, then there for the rest of the journey and the launch.
+    ctx.globalAlpha = open; drawEarth(ctx, 262 - Math.min(30, cam * .001), 74, 20, s); ctx.globalAlpha = 1;
     // On the far ridge, the base's lights: where this road goes. Nearly at
     // infinity, they drift only a few pixels over the whole journey.
     for (const [i, x0] of [[0, 268], [1, 281], [2, 302]]) {
@@ -738,6 +776,12 @@ function drawBackdrop(cam, alpha = 1) {
       const h = 18 + (Math.sin((x + cam * (.04 + layer * .03)) * .025) + 1) * (22 + layer * 10);
       ctx.fillRect(x, FLOOR - h, 29, h);
     }
+  }
+  // The near plain is pocked with craters: bowls with a lit far rim.
+  for (let i = -1; i < 7; i++) {
+    const span = 70, x = ((i * span - cam * .07) % (span * 7) + span * 7) % (span * 7) - span, w = 14 + (i * 37 % 5) * 5, y = FLOOR - 10 - (i * 13 % 3) * 5;
+    ctx.fillStyle = '#0c161d'; ctx.beginPath(); ctx.ellipse(x, y, w, w * .22, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = `rgba(120,150,165,${.12 + .2 * lightOpen()})`; ctx.fillRect(x - w * .6, y + w * .2 - 1, w * 1.2, 1);
   }
   ctx.globalAlpha = 1;
 }
