@@ -22,7 +22,7 @@ Not measured yet: real touch/dispatch latency on Android, and whether `getOutput
 
 ## P1 — the full skeleton
 
-Fixed course, five chapters, eleven checkpoints (one added past the crane in P3). A fall plays for two beats and respawns on a beat at the last checkpoint; **progress with friends is never lost** (parts stay collected; a stranded green is restored next to the hero).
+Fixed course, five chapters, eleven checkpoints (one added past the crane in P3). A fall plays for two beats and respawns on a beat at the last checkpoint; **progress with friends is never lost** (parts stay collected; a green behind is restored next to the hero; once green holds the bridge it stays).
 
 | Chapter | Mechanic in the skeleton |
 |---|---|
@@ -52,7 +52,7 @@ Length from the solver witnesses: dock at 167–216s depending on pace, plus a 5
 
 **Learning the rule before it matters.** The valley (four stepping stones, ~0.77 FAST on average) **always** breaks the link once: tested on every feasible route. A relay antenna on the rest ground after it reconnects green (rings, a rising cue, green flies back). The rule is experienced safely before the switch.
 
-**The switch, without words.** The switch is a socket drawn in green's shape. Whenever green floats over it while following, the socket glows and the bridge's first planks stir: the player sees "green here → bridge" before ever leaving green there. Leaving green within 70px of it (+30px per respawn) opens the bridge; the planks run out over one beat. After one fall there green lingers a little over its socket; after two it almost stops, so SLOW alone works. Novices cannot get stuck; the solution is still shown, not told.
+*Superseded by "Green's socket" below (2026-11-03).* **The switch, without words.** The switch is a socket drawn in green's shape. Whenever green floats over it while following, the socket glows and the bridge's first planks stir: the player sees "green here → bridge" before ever leaving green there. Leaving green within 70px of it (+30px per respawn) opens the bridge; the planks run out over one beat. After one fall there green lingers a little over its socket; after two it almost stops, so SLOW alone works. Novices cannot get stuck; the solution is still shown, not told.
 
 Discoverability, honestly: the valley teaches "FAST → green drops out" and "relay → back", the socket teaches "green here → bridge". Joining the two ("so drop it *here*") is the real leap; most first-time players will fall once, then see the socket glow again. Needs a human first-play test (P5).
 
@@ -72,6 +72,8 @@ Discoverability, honestly: the valley teaches "FAST → green drops out" and "re
 **Phones.** At 390×844 (the Playwright viewport) the four lights end about 22–25 CSS px apart (asserted > 14px): 3px dots with 7px halos, inside the window.
 
 ### Switch assist, revised (P2 follow-up)
+
+*Superseded: the new socket rule needs no assist (see "Green's socket").*
 
 The old assist let SLOW alone solve the switch after two falls. Now each fall at the switch:
 - widens the socket's catch zone (70 → 100 → 130 → 160px) and draws it on the ground as a green band with end ticks;
@@ -119,6 +121,23 @@ Findings from the first complete playthrough, and what changed. No new systems; 
 
 The real-audio test that failed on CI for both P4 commits was the test driver, not the game: a release and the next press at the same instant made the press wait a frame. Under load the old driver failed 1/6, the fixed one 9/9.
 
+## Green's socket (2026-11-03)
+
+The switch rule changed from "the link breaks near the switch" to **green steps on its socket, plants its legs and becomes the bridge's root**. Chosen after simulating alternatives on the real course (4,096 input patterns from the field's checkpoint, plus arrivals from the valley):
+
+| Variant | First try, calm player | First try, rushing | Decided by the last 3 hops? | Stuck risk |
+|---|---|---|---|---|
+| Old (link breaks near the switch) | 0% | 0–4% | no | needed the assist |
+| Socket, green still stops when the link breaks | — | — | no (42% even with 3 SLOW) | high: two FAST hops lose green for good |
+| **Socket, green never stops (adopted)** | ~80% | ~50% | **yes: 3 SLOW → 100%, none → 0%** | none |
+
+- **Rule:** green chases at 160px/s (between SLOW 105 and FAST 270) and never stops; out of range only its signal bars, line and music fade. The socket is 100px before the chasm. The instant green reaches it (closed form: the later of green's own run and the hero's, not a frame end) it plants its legs (0.18s), and the bridge runs out from under it at 520px/s. The bridge is solid only as far as it has grown (`bridgeFront`), so rushing ahead means landing where it is not yet.
+- **Seen, not told:** as green comes within 80px the socket glows, the rail to the chasm shivers and a soft ping plays. Green drops onto the plate, its pads swing out, clamps rise to them and the rail lights, then the deck runs across with its struts and a bright tip. If the hero falls into the chasm first, the view slides back to the socket so the player sees green arrive and the bridge run out, too late.
+- **Kept:** once built the bridge stays (a fall never undoes green's work). Respawn puts green beside the hero. Red still finds green holding the bridge and fetches it; the music's distance fade and reunion are unchanged.
+- **Relays** boost a green out of range (it dashes at 320px/s with a streak), so a player who rushed the valley meets green again before the socket. No warp.
+- **Removed:** stranding ('lost'), the snap window, its widening per fall, green lingering over the socket, the auto-settle after four falls, the strand cue. The fall hint skips the chasm (the late bridge is the hint there).
+- **Checked:** Node tests for calm, rushed, far-behind (relay), falls before and after the bridge, frame sizes 1/30–1/144s, 0.78s and random; full browser playthrough; real-audio rescue and reunion. Clips: `node tests/browser/record-green.mjs` (green-calm, green-rush).
+
 ## Proposals round (2026-11-03)
 
 Chosen with the owner: shorter ①, checkpoint lights, friends reacting to falls, a beat mark; fall hints and vibration as optional. Not adopted this round: taller canvas, chapter bar, final tick; the "reply from Earth" is out (the ending stays the four lights receding).
@@ -164,7 +183,7 @@ Not measurable here: real speaker/Bluetooth latency and touch latency on Android
 
 ## Tests
 
-- `tests/story.test.mjs` (19): exact beat, clock rebasing/pause/jitter/latency mapping, full-course solvability and length, frame-rate independence, the switch puzzle (SLOW-only and FAST-only fail; the assist widens the window per fall, SLOW alone only after four), the valley link break + relay on every route, respawn keeps progress, story event order (incl. notice → rescue → pickup → reunion), crane beats, music hand-off, finite notes, noisy play never stuck, a fall after red leaves the crane, falls at six rescue/base moments.
+- `tests/story.test.mjs`: exact beat, clock rebasing/pause/jitter/latency mapping, full-course solvability and length, frame-rate independence, green's socket (SLOW brings green and the bridge forms; FAST alone falls and the bridge forms behind and stays; three SLOW hops before the edge always work, none never; arrival and bridge independent of frame size; a far green is boosted by a relay), green never stops in the valley, respawn keeps progress, story event order (incl. notice → rescue → pickup → reunion), crane beats, music hand-off, finite notes, noisy play never stuck, a fall after red leaves the crane, falls at six rescue/base moments.
 - `tests/browser/story.spec.mjs` (3): FREE RUN link; start on the beat and pause without losing phase; a full browser playthrough with real key events to the end card, checking every story beat in order, the comms window, no touchdown after the dock, and the four lights.
 - `tests/browser/story-p2.spec.mjs` (2): blue reveal and green link/relay/switch scenes.
 - `tests/browser/story-p3.spec.mjs` (2): red's rescue scenes (red waits exactly one beat); the dock beat to black: friends hold still on D, blue lands on D+1 with the hero's first blink, green D+5, red D+9, the light on/off on the three beats after, four lights > 14 CSS px apart on a 390px-wide screen.

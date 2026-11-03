@@ -43,13 +43,14 @@ export function buildCourse() {
   // The light opens: a wide, generous plain to feel how large the moon is.
   c.filler(12, r, [40, 64], [190, 260]);
 
-  // ② APART: green joins; leave it on the switch to open the bridge.
+  // ② APART: green joins; bring it to the socket and it becomes the bridge.
   c.chapter('apart');
   p = c.plat(50, 420); c.checkpoint(p, 'apart'); c.marks.greenMeet = p.a + 300;
   c.filler(6, r, [40, 80], [150, 220]);
   // Long valley: stepping stones only a mostly-FAST rhythm can cross. Green
-  // always loses the link here once, safely: the relay antenna on the rest
-  // ground after it reconnects green. The rule is learnt before the switch.
+  // falls behind here (FAST outruns it), and on the rest ground after it the
+  // relay antenna boosts it back. Seen before the socket: FAST leaves green
+  // behind, SLOW lets it catch up.
   p = c.plat(50, 220); c.checkpoint(p, 'apart');
   c.marks.relays = [Math.round(p.a + 150)];
   for (let i = 0; i < 4; i++) c.plat(125, 70);
@@ -57,13 +58,13 @@ export function buildCourse() {
   c.plat(42, 72); c.plat(40, 70);
   p = c.plat(44, 300); c.marks.relays.push(Math.round(p.a + 170));
   c.filler(3, r, [40, 70], [150, 200]);
-  // Switch field: one long ground, the switch, then a chasm only the bridge spans.
-  // The chasm starts 220px past the switch, so while green is near the socket
-  // the hero already sees the edge (and, from the socket, the cable to it).
+  // Socket field: one long ground, green's socket, then a chasm only the bridge spans.
+  // Green's socket sits at the root of the bridge, 100px before the chasm:
+  // green's legs hold the bridge up.
   p = c.plat(50, 840); c.checkpoint({ a: p.a, b: p.a + 160 }, 'apart');
-  c.marks.switchX = p.a + 620; c.marks.fieldStart = p.a;
-  // A last relay at the field's edge: a green lost on the approach is never
-  // carried onto the switch field without its link.
+  c.marks.switchX = p.b - 100; c.marks.fieldStart = p.a;
+  // A last relay at the field's edge: a green far behind on the approach is
+  // boosted back before the socket is in reach.
   c.marks.relays.push(p.a + 40);
   const chasm = c.plat(300, 320); c.marks.bridge = { a: p.b, b: chasm.a };
   c.filler(14, r, [44, 90], [130, 200]);
@@ -116,7 +117,8 @@ export function platformAt(course, x, beat = 0, flags = {}) {
     return p;
   }
   // The bridge is solid ground once the switch holds it open.
-  if (flags.bridgeOpen && x >= course.bridge.a - INSET && x <= course.bridge.b + INSET) return { a: course.bridge.a, b: course.bridge.b, kind: 'bridge' };
+  // The bridge is solid as far as it has grown (bridgeTo, from the socket out).
+  if (flags.bridgeTo > course.bridge.a && x >= course.bridge.a - INSET && x <= Math.min(course.bridge.b + INSET, flags.bridgeTo)) return { a: course.bridge.a, b: course.bridge.b, kind: 'bridge' };
   return null;
 }
 export function chapterAt(course, x) {

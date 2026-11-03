@@ -6,7 +6,7 @@ import { drawEarth } from '../earth.mjs';
 import { COMPANION_PALETTE } from '../companion.mjs';
 import { BEAT, BeatClock, TimedInput, heardFromContext, beatIndex } from './beat.mjs';
 import { COURSE } from './course.mjs';
-import { newStory, storyFrom, advanceStory, craneSolid, hopLift, switchTries, switchSnap, RANGE, FOLLOW_GAP, FALL_BEATS } from './sim.mjs';
+import { newStory, storyFrom, advanceStory, craneSolid, hopLift, bridgeFront, RANGE, FOLLOW_GAP, FALL_BEATS, SOCKET_NEAR } from './sim.mjs';
 import { createStoryAudio, notesAt, STEP, ENDING } from './music.mjs';
 import { chooseLanguage, storyCopy } from './copy.mjs';
 import { drawCrewParts, drawTransmit, TRANSMIT_LOCK } from './crew.mjs';
@@ -164,7 +164,7 @@ window.addEventListener('pagehide', pause);
 // was not predicted still sounds, just late.
 let ahead = null;
 const cued = new Map();
-const CUES = new Set(['collect', 'assemble', 'join', 'socket', 'switch', 'strand', 'relink', 'notice', 'rescue', 'pickup', 'reunion', 'station', 'dock', 'fall', 'respawn']);
+const CUES = new Set(['collect', 'assemble', 'join', 'socket', 'switch', 'relink', 'notice', 'rescue', 'pickup', 'reunion', 'station', 'dock', 'fall', 'respawn']);
 const eventKey = e => e.type + ':' + e.beat + ':' + (e.who ?? e.index ?? '');
 function predict() {
   ahead = structuredClone(run);
@@ -183,9 +183,9 @@ const song = {
   parts: new Set(),
   // Bar 1 of the song falls on the beat blue is assembled.
   get origin() { return ahead.parts.assembledAt === null ? 0 : Math.round(ahead.parts.assembledAt / BEAT); },
-  // Green is away (lost, holding the switch, or being carried back): blue's
-  // tune thins to its downbeats until they are together again.
-  get apart() { return ['lost', 'switch', 'carry'].includes(ahead.green.state); },
+  // Green is away (far out of range, holding the bridge, or being carried
+  // back): blue's tune thins to its downbeats until they are together again.
+  get apart() { const g = ahead.green; return ['switch', 'carry'].includes(g.state) || (g.state === 'follow' && !ahead.together && ahead.x - g.x > RANGE); },
   // The clockwork tick sounds on every beat the hero touches down; a beat
   // predicted to be a fall stays silent.
   tick: beat => ahead.status === 'playing' || (ahead.status === 'falling' && beat === ahead.fallAt + FALL_BEATS) || (ahead.status === 'docked' && beat <= ahead.dockAt),
@@ -198,7 +198,7 @@ function friendSound(friend) {
   if (friend.state === 'dormant') return { level: 0, clarity: 1 };
   if (friend.state === 'station') return { level: 1, clarity: 1 };
   const d = Math.abs(run.x - friend.x);
-  if (d <= RANGE && friend.state !== 'lost' && friend.state !== 'switch') return { level: 1 - .3 * smooth(RANGE * .4, RANGE, d), clarity: 1 - .45 * smooth(RANGE * .6, RANGE, d) };
+  if (d <= RANGE && friend.state !== 'switch') return { level: 1 - .3 * smooth(RANGE * .4, RANGE, d), clarity: 1 - .45 * smooth(RANGE * .6, RANGE, d) };
   const far = { level: .5 * (1 - smooth(RANGE, RANGE * 4.5, d)), clarity: .3 * (1 - smooth(RANGE, RANGE * 3, d)) };
   // Once red has green, both parts come back through red's own link: faint
   // and thin at first, clearer with every hop until they are beside you.
@@ -258,7 +258,6 @@ function handle(events) {
     probeEvent(e); buzz(e.type);
     if (e.type === 'land') burst(run.x, FLOOR - 4, ['#efdaad', '#8ee6c4'], 6);
     else if (e.type === 'collect') burst(e.x, FLOOR - 10, ['#a9d6ff', '#4f9dff'], 10);
-    else if (e.type === 'strand') flashes.push({ kind: 'snap', x: e.x, at: e.t });
     else if (e.type === 'relink') flashes.push({ kind: 'relink', x: COURSE.relays.filter(r => r <= run.x).at(-1), at: s });
     else if (e.type === 'switch') flashes.push({ kind: 'switch', x: COURSE.switchX, at: e.t });
     else if (e.type === 'assemble') flashes.push({ kind: 'dawn', x: run.x, at: s });
@@ -268,6 +267,7 @@ function handle(events) {
     else if (e.type === 'dock') { releaseInput(); showBanner('send'); flashes.push({ kind: 'dock', x: COURSE.dockX, at: e.t }); }
     else if (e.type === 'chapter') showBanner(e.id);
     else if (e.type === 'fall') fallGap = gapAt(run.fallX);
+    else if (e.type === 'respawn') heroX = HERO_X;
     else if (e.type === 'checkpoint') flashes.push({ kind: 'lantern', x: COURSE.checkpoints[e.index].x, at: s });
   }
 }
@@ -294,8 +294,13 @@ function steerCamera() {
     // friend left behind. Red looks back from right beside the hero.
     if (d > 0 && d < RANGE * 2) lag = Math.max(lag, Math.min(d - FOLLOW_GAP, LAG_MAX) * (1 - smooth(RANGE * 1.5, RANGE * 2, d)));
   }
+  // Falling into the chasm before green has reached its socket: there is no
+  // landing to judge, so the view slides back until the socket is in it and
+  // the player sees green arrive and the bridge run out, too late.
+  let target = HERO_X + Math.max(0, lag);
+  if (run.status === 'falling' && run.fallX > COURSE.bridge.a && run.fallX < COURSE.bridge.b && run.chapter === 'apart') target = Math.min(W - 30, Math.max(target, run.fallX - COURSE.switchX + 70));
   const dt = Math.max(0, Math.min(.1, s - cameraS)); cameraS = s;
-  heroX += (HERO_X + Math.max(0, lag) - heroX) * (1 - Math.exp(-dt * 5));
+  heroX += (target - heroX) * (1 - Math.exp(-dt * 5));
 }
 const camera = () => run.x - heroX;
 function friendY(who, friend) {
@@ -307,7 +312,7 @@ function friendY(who, friend) {
     if (run.status === 'docked' && after() < ENDING[PART[who]]) return FLOOR - 4;
     return FLOOR - 2 - Math.sin((((s / BEAT) % 1) + 1) % 1 * Math.PI) * 18;
   }
-  if (friend.state === 'dormant' || friend.state === 'lost') return FLOOR - 2;
+  if (friend.state === 'dormant') return FLOOR - 2;
   // Red sits on the crane's beam (y 120) while it works the span.
   if (friend.state === 'crane') return 119 + (FLOOR - 18 - Math.sin(phase * Math.PI) * 44 - 119) * smooth(0, 260, Math.abs(friend.x - (COURSE.crane.a + COURSE.crane.b) / 2));
   if (friend.state === 'notice') return 119 + (FLOOR - 44 - 119) * smooth(0, BEAT * .6, s - friend.noticeAt * BEAT);
@@ -315,8 +320,8 @@ function friendY(who, friend) {
   // has hold the pair climbs back to flying height over half a second.
   if (friend.state === 'rescue') { const near = 1 - smooth(0, 160, rescueGap()); return FLOOR - 64 + 30 * near + Math.sin(s * 6) * 3 * (1 - near); }
   if (friend.state === 'carry') { const k = liftK(); return FLOOR - 34 - 30 * k + Math.sin(s * 6) * 3 * k + (who === 'green' ? 30 - 12 * k : 0); }
-  // Green hops onto the socket, then stands on its plate, anchored.
-  if (friend.state === 'switch') { const k = switchSlide(); return FLOOR - 4 - (k < 1 ? Math.sin(k * Math.PI) * 14 : 0); }
+  // Green drops from its hop onto the socket plate and stays, anchored.
+  if (friend.state === 'switch') { const k = smooth(0, .1, switchPlant()); return FLOOR - 4 - (1 - k) * Math.sin(phase * Math.PI) * 30; }
   // Habits: blue floats high and soft, green hops low and heavy, red is
   // brisk (sharp take-off, quick landing).
   const arc = Math.sin(phase * Math.PI);
@@ -326,9 +331,8 @@ function friendY(who, friend) {
 }
 const rescueGap = () => Math.max(0, run.red.x - run.green.x - 12);
 const liftK = () => pickupAt === null ? 1 : smooth(0, .45, s - pickupAt);
-const switchSlide = () => run.switchAt > 0 ? smooth(0, BEAT * .6, run.t - run.switchAt) : 1;
-// Seconds since green's feet met the switch plate (null while it is still hopping there).
-const switchPlant = () => { const age = run.switchAt > 0 ? run.t - run.switchAt - BEAT * .6 : 9; return age >= 0 ? age : null; };
+// Seconds since green stepped onto the socket (9 when long ago).
+const switchPlant = () => run.switchAt > 0 ? Math.max(0, run.t - run.switchAt) : 9;
 function drawPlatforms(cam, flat = false) {
   for (const p of COURSE.platforms) {
     const [left, right] = footing([p.a, p.b]), l = Math.round(left - cam), r = Math.round(right - cam);
@@ -382,7 +386,8 @@ function gapAt(x) {
 }
 function drawFallHint(cam) {
   const g = fallGap;
-  if (!g || run.status !== 'playing' || g.checkpoint !== run.checkpoint || (run.fails[run.checkpoint] || 0) < 2 || run.x > g.b) return;
+  // Not for the chasm: there the late bridge itself shows what was missing.
+  if (!g || g.a === COURSE.bridge.a || run.status !== 'playing' || g.checkpoint !== run.checkpoint || (run.fails[run.checkpoint] || 0) < 2 || run.x > g.b) return;
   const glow = reducedMotion.matches ? .6 : .45 + .25 * Math.sin(s * 3);
   for (const x of [g.a - cam, g.b - cam]) {
     const edge = ctx.createLinearGradient(0, FLOOR - 4, 0, FLOOR + 40);
@@ -408,58 +413,53 @@ function drawLanterns(cam) {
   });
 }
 function drawDevices(cam) {
-  // Relay antennas: they carry the signal to a stranded friend.
+  // Relay antennas: they boost the signal to a friend far behind.
   for (const rx of COURSE.relays) {
     const x = rx - cam; if (x < -30 - cull || x > W + 30 + cull) continue;
     ctx.fillStyle = '#4c6a66'; ctx.fillRect(x - 1, FLOOR - 64, 3, 64); ctx.fillRect(x - 7, FLOOR - 64, 15, 2);
     ctx.fillStyle = beatIndex(s) % 2 ? '#5fe39a' : '#27503c'; ctx.fillRect(x - 2, FLOOR - 70, 5, 5);
   }
-  // The switch is a socket shaped like green: it glows whenever green floats
-  // over it and the bridge stirs, before the player ever leaves green there.
-  const sx = COURSE.switchX - cam, g = run.green, tries = run.chapter === 'apart' ? switchTries(run) : 0;
-  const over = !run.switchOn && g.state === 'follow' && Math.abs(g.x - COURSE.switchX) < Math.max(40, tries ? switchSnap(run) : 0);
-  if (sx > -200 - cull && sx < W + 200 + cull) {
-    // After a fall the socket shows where green may stop: the band widens
-    // with each try, and from the second it pulses on every beat.
-    if (tries && !run.switchOn) {
-      const snap = switchSnap(run);
-      ctx.fillStyle = `rgba(95,227,154,${.08 + .04 * Math.min(3, tries)})`; ctx.fillRect(sx - snap, FLOOR, snap * 2, 3);
-      ctx.fillStyle = 'rgba(159,240,196,.5)'; ctx.fillRect(sx - snap, FLOOR - 3, 2, 6); ctx.fillRect(sx + snap - 2, FLOOR - 3, 2, 6);
-      if (tries >= 2 && run.x >= COURSE.fieldStart) {
-        const age = s - beatIndex(s) * BEAT;
-        ctx.strokeStyle = `rgba(159,240,196,${.5 * (1 - age / BEAT)})`; ctx.lineWidth = 1;
-        ctx.beginPath(); ctx.arc(sx, FLOOR - 14, 12 + age * 30, Math.PI, 0); ctx.stroke();
+  // Green's socket is the bridge's root: a plate shaped like green with the
+  // folded bridge rail running from it to the chasm. As green comes near it
+  // glows and the rail stirs; the instant green steps on, its legs plant and
+  // the bridge runs out from under it across the chasm, and stays.
+  const sx = COURSE.switchX - cam, g = run.green, ba = COURSE.bridge.a - cam, bb = COURSE.bridge.b - cam;
+  const near = !run.switchOn && (g.state === 'follow' || g.state === 'catch') && g.x >= COURSE.switchX - SOCKET_NEAR && g.x < COURSE.switchX;
+  if (bb > -40 - cull && sx < W + 40 + cull) {
+    const front = Math.min(bb, bridgeFront(run, COURSE) - cam), grown = front > sx;
+    // The rail on the ground from socket to edge, then the deck over the chasm.
+    ctx.fillStyle = grown ? '#3d6b58' : '#1f3a33'; ctx.fillRect(sx, FLOOR - 2, ba - sx, 3);
+    if (grown) {
+      ctx.fillStyle = '#5fe39a'; ctx.fillRect(sx, FLOOR - 2, Math.min(front, ba) - sx, 1);
+      if (front > ba) {
+        ctx.fillStyle = '#3d6b58'; ctx.fillRect(ba, FLOOR, front - ba, 10);
+        ctx.fillStyle = '#9ff0c4'; for (let x = ba; x < front - 10; x += 14) ctx.fillRect(x, FLOOR, 10, 3);
+        // Struts under the deck, every 60px, as it passes.
+        ctx.fillStyle = '#2d4a44'; for (let x = ba + 50; x < front - 4; x += 60) ctx.fillRect(x, FLOOR + 10, 2, 16);
       }
+      // The growing tip.
+      if (front < bb) { ctx.fillStyle = '#e6fff0'; ctx.fillRect(front - 3, FLOOR - 3, 4, front > ba ? 8 : 4); }
+    } else if (near) {
+      // The rail shivers towards the chasm while green approaches.
+      const k = (s * 2.4) % 1; ctx.fillStyle = 'rgba(159,240,196,.7)'; ctx.fillRect(sx + (ba - sx) * k - 5, FLOOR - 2, 10, 3);
     }
-    // A cable runs from the socket along the ground to the bridge's anchor:
-    // dark at rest, a pulse runs down it on each beat while green is over the
-    // socket, and it lights all the way when the switch holds.
-    const ca = COURSE.bridge.a - cam, cableY = FLOOR + 3;
-    ctx.fillStyle = run.switchOn ? '#5fe39a' : '#1f3a33'; ctx.fillRect(sx + 16, cableY, ca - 4 - sx - 16, 2); ctx.fillRect(ca - 5, FLOOR - 2, 2, 7);
-    if (over || (run.switchOn && run.t - run.switchAt < BEAT)) {
-      const k = run.switchOn ? smooth(0, BEAT, run.t - run.switchAt) : (s - beatIndex(s) * BEAT) / BEAT, len = ca - 4 - sx - 16;
-      for (const lag of [0, .12]) { const at = sx + 16 + len * Math.max(0, k - lag); ctx.fillStyle = lag ? 'rgba(159,240,196,.5)' : '#c8ffdc'; ctx.fillRect(at - 6, cableY - 1, 12, 4); }
-    }
-    ctx.fillStyle = run.switchOn ? '#5fe39a' : over ? '#3f8f66' : '#2d4a44'; ctx.fillRect(sx - 16, FLOOR - 4, 32, 4);
-    ctx.strokeStyle = run.switchOn ? '#c8ffdc' : over ? '#9ff0c4' : '#4f7a6c'; ctx.lineWidth = 1; ctx.setLineDash(run.switchOn ? [] : [2, 2]);
-    ctx.beginPath(); ctx.arc(sx, FLOOR - 15, 9, Math.PI, 0); ctx.lineTo(sx + 9, FLOOR - 5); ctx.lineTo(sx - 9, FLOOR - 5); ctx.closePath(); ctx.stroke(); ctx.setLineDash([]);
-    ctx.fillStyle = ctx.strokeStyle; ctx.fillRect(sx - 6, FLOOR - 31, 2, 7); ctx.fillRect(sx + 4, FLOOR - 31, 2, 7);
-    if (over) { ctx.fillStyle = 'rgba(95,227,154,.18)'; ctx.beginPath(); ctx.arc(sx, FLOOR - 14, 22 + 8 * Math.min(3, tries), 0, Math.PI * 2); ctx.fill(); }
-  }
-  const ba = COURSE.bridge.a - cam, bb = COURSE.bridge.b - cam;
-  if (bb > -10 - cull && ba < W + 10 + cull) {
-    // Once on, the planks run out from the near edge over one beat.
-    const k = run.switchOn ? smooth(0, BEAT, run.t - run.switchAt) : over ? .12 + .04 * Math.sin(s * 20) : 0;
-    const end = ba + (bb - ba) * k;
-    ctx.fillStyle = '#2d4a44'; ctx.fillRect(ba - 4, FLOOR - 2, 6, 14); ctx.fillRect(bb - 2, FLOOR - 2, 6, 14);
-    ctx.fillStyle = run.switchOn ? '#5fe39a' : '#27503c'; ctx.fillRect(ba - 3, FLOOR - 6, 4, 4); ctx.fillRect(bb - 1, FLOOR - 6, 4, 4);
-    if (k > 0) {
-      ctx.fillStyle = '#3d6b58'; ctx.fillRect(ba, FLOOR, end - ba, 10);
-      ctx.fillStyle = '#9ff0c4'; for (let x = ba; x < end - 10; x += 14) ctx.fillRect(x, FLOOR, 10, 3);
-    }
-    if (k < 1) {
+    // The far anchor waits on the other side; the gap shows where it would go.
+    ctx.fillStyle = '#2d4a44'; ctx.fillRect(bb - 2, FLOOR - 2, 6, 14);
+    ctx.fillStyle = front >= bb ? '#5fe39a' : '#27503c'; ctx.fillRect(bb - 1, FLOOR - 6, 4, 4);
+    if (front < bb) {
       ctx.strokeStyle = '#27403c'; ctx.setLineDash([3, 7]); ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(end, FLOOR + 2); ctx.lineTo(bb, FLOOR + 2); ctx.stroke(); ctx.setLineDash([]);
+      ctx.beginPath(); ctx.moveTo(Math.max(ba, front), FLOOR + 2); ctx.lineTo(bb, FLOOR + 2); ctx.stroke(); ctx.setLineDash([]);
+    }
+    // The socket plate and its green-shaped outline.
+    ctx.fillStyle = run.switchOn ? '#5fe39a' : near ? '#3f8f66' : '#2d4a44'; ctx.fillRect(sx - 16, FLOOR - 4, 32, 4);
+    if (!run.switchOn) {
+      ctx.strokeStyle = near ? '#9ff0c4' : '#4f7a6c'; ctx.lineWidth = 1; ctx.setLineDash([2, 2]);
+      ctx.beginPath(); ctx.arc(sx, FLOOR - 15, 9, Math.PI, 0); ctx.lineTo(sx + 9, FLOOR - 5); ctx.lineTo(sx - 9, FLOOR - 5); ctx.closePath(); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = ctx.strokeStyle; ctx.fillRect(sx - 6, FLOOR - 31, 2, 7); ctx.fillRect(sx + 4, FLOOR - 31, 2, 7);
+      if (near) { ctx.fillStyle = 'rgba(95,227,154,.18)'; ctx.beginPath(); ctx.arc(sx, FLOOR - 14, 24, 0, Math.PI * 2); ctx.fill(); }
+    } else {
+      // Clamps from the plate up to green's planted pads: green is the root.
+      ctx.fillStyle = '#2d4a44'; for (const side of [-1, 1]) ctx.fillRect(sx + side * 17 - 1, FLOOR - 6, 3, 6);
     }
   }
   // Crane: the span drops on its two solid beats of every four.
@@ -526,13 +526,14 @@ function drawFriends(cam, inset = false) {
   for (const who of ['red', 'green', 'blue']) {
     const f = run[who];
     if (who === 'blue' && f.state === 'parts') continue;
-    const slide = f.state === 'switch' ? switchSlide() : 1;
     // Carried green hangs from red's hook: it slides from where it was caught.
     const hang = who === 'green' && f.state === 'carry' ? 4 * (1 - liftK()) : 0;
-    const x = (f.from !== undefined && slide < 1 ? f.from + (f.x - f.from) * slide : f.x) + hang - cam, y = friendY(who, f);
+    const x = f.x + hang - cam, y = friendY(who, f);
     if (x < -30 - cull || x > W + 30 + cull) continue;
-    const awake = !['dormant', 'lost'].includes(f.state);
+    const awake = f.state !== 'dormant';
     if (who === 'green' && !run.together && !inset) drawGreenSignal(f, x, y);
+    // Boosted by a relay, green dashes to catch up: a streak behind it.
+    if (who === 'green' && f.state === 'catch') { ctx.fillStyle = 'rgba(95,227,154,.35)'; ctx.fillRect(x - 60, y - 20, 48, 2); ctx.fillRect(x - 44, y - 12, 30, 1); }
     if (who === 'red' && (f.state === 'rescue' || f.state === 'carry')) {
       // Red flies on its own: a streak behind it, and its own signal ring.
       const dir = f.state === 'rescue' ? 1 : -1;
@@ -540,8 +541,7 @@ function drawFriends(cam, inset = false) {
       ctx.strokeStyle = `rgba(255,127,102,${.25 + .2 * Math.sin(s * 8)})`; ctx.lineWidth = 1; ctx.setLineDash([3, 5]);
       ctx.beginPath(); ctx.arc(x, y - 20, 40, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
     }
-    // A friend that lost the link goes dark-eyed with grey antenna tips.
-    const palette = f.state === 'lost' ? { ...PALETTE[who], a: '#3a4a44' } : PALETTE[who];
+    const palette = PALETTE[who];
     if (who === 'blue') {
       // Blue is the lamp: a soft pool of light under it.
       const glow = ctx.createRadialGradient(x, FLOOR - 4, 2, x, FLOOR - 4, 46);
@@ -549,7 +549,7 @@ function drawFriends(cam, inset = false) {
       ctx.fillStyle = glow; ctx.fillRect(x - 46, FLOOR - 50, 92, 60);
     }
     // Anchored on the switch green's spring stays pressed down: its weight is on the plate.
-    const anchored = who === 'green' && f.state === 'switch' && switchPlant() !== null;
+    const anchored = who === 'green' && f.state === 'switch';
     // Holding the switch alone, green keeps calling: a small arc rises from
     // its ears on every beat once the hero has gone on.
     if (anchored && !run.together && run.chapter !== 'apart') {
@@ -558,7 +558,7 @@ function drawFriends(cam, inset = false) {
     }
     const podPhase = anchored ? 0 : (s / BEAT) % 1;
     drawPod(ctx, x, y, 1, anchored ? { phase: 0, land: 1, time: s, palette, eyes: awake } : { phase: podPhase, time: s, palette, eyes: awake, idle: !awake });
-    if (awake && f.state !== 'lost' && run.status === 'falling') drawGlance(x, y, podPhase, anchored ? 1 : 0, run.fallX - cam, s - run.fallAt * BEAT);
+    if (awake && run.status === 'falling') drawGlance(x, y, podPhase, anchored ? 1 : 0, run.fallX - cam, s - run.fallAt * BEAT);
     drawCrewParts(ctx, who, x, y, 1, crewForm(who, f));
     // In the ending each friend's touchdown on its beat leaves a small ring.
     if (f.state === 'station' && run.status === 'docked' && after() >= ENDING[PART[who]]) {
@@ -592,7 +592,7 @@ function crewForm(who, f) {
     const dawn = run.parts.assembledAt === null ? 0 : 1 - smooth(2.5, 4, run.t - run.parts.assembledAt);
     target = Math.max(dawn, plays ? 1 : 0); pulse = plays ? Math.max(0, 1 - beatAge / .3) : 0;
   } else if (who === 'green') {
-    if (f.state === 'switch') { plant = switchPlant(); target = plant === null ? 0 : 1; } else target = plays ? 1 : 0;
+    if (f.state === 'switch') { plant = switchPlant(); target = 1; } else target = plays ? 1 : 0;
   } else if (who === 'red') {
     target = { crane: .5, notice: .5, rescue: 1, carry: 1 }[f.state] ?? 0;
     // Going for green the arm points ahead, then reaches down to green's head
@@ -608,7 +608,7 @@ function crewForm(who, f) {
   if (formWas[who] !== target) { formWas[who] = target; formSince[who] = s; }
   const age = s - (formSince[who] ?? -9), form = target ? target * smooth(0, .18, age) : 0;
   const phase = ((s / BEAT) % 1 + 1) % 1;
-  return { palette: PALETTE[who], form, pulse, dir, plant, to, grip, top: -18 - Math.round(3 + Math.sin(phase * Math.PI) * 2), on: f.state !== 'lost' && f.state !== 'dormant' };
+  return { palette: PALETTE[who], form, pulse, dir, plant, to, grip, top: -18 - Math.round(3 + Math.sin(phase * Math.PI) * 2), on: f.state !== 'dormant' };
 }
 // Red's trip back, seen through a small comms window while it is off
 // screen: red reaches green on the switch, green's eyes light again, and the
@@ -652,18 +652,15 @@ function drawInset() {
 function drawGreenSignal(f, x, y) {
   if (f.state === 'dormant') return;
   const k = Math.abs(run.x - f.x) / RANGE, linked = f.state === 'follow' || f.state === 'catch';
-  const bars = !linked ? 0 : k < .5 ? 3 : k < .78 ? 2 : 1, edge = linked && k > .78 && (s * 12 | 0) % 2;
-  if (linked) {
+  // Out of range the bars drop out and the line goes, but green keeps coming.
+  const bars = !linked || k > 1 ? 0 : k < .5 ? 3 : k < .78 ? 2 : 1, edge = linked && k > .78 && k <= 1 && (s * 12 | 0) % 2;
+  if (linked && k <= 1) {
     ctx.strokeStyle = `rgba(95, 227, 154, ${edge ? .08 : Math.max(.15, .75 - k * .55)})`;
     ctx.setLineDash([2, 4]); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(heroX, heroY() - 56); ctx.lineTo(x, y - 30); ctx.stroke(); ctx.setLineDash([]);
   }
   for (let i = 0; i < 3; i++) {
     ctx.fillStyle = i < bars ? (edge ? '#2c5a44' : '#5fe39a') : '#24342f';
     ctx.fillRect(x + 9 + i * 3, y - 38 - i * 2, 2, 3 + i * 2);
-  }
-  if (f.state === 'lost' && (s * 3 | 0) % 2) {
-    ctx.fillStyle = '#ff9b80';
-    for (const [dx, dy] of [[0, 0], [4, 0], [2, 2], [0, 4], [4, 4]]) ctx.fillRect(x + 9 + dx, y - 46 + dy, 2, 2);
   }
 }
 // Off the left edge, a small marker keeps a left-behind friend in mind while
@@ -678,8 +675,8 @@ function drawBehind(cam) {
     if (fade <= 0) continue;
     ctx.globalAlpha = fade; ctx.fillStyle = PALETTE[who].a;
     ctx.beginPath(); ctx.moveTo(4, FLOOR - 40); ctx.lineTo(11, FLOOR - 45); ctx.lineTo(11, FLOOR - 35); ctx.fill();
-    ctx.fillStyle = f.state === 'lost' ? '#3a4a44' : PALETTE[who].c; ctx.fillRect(14, FLOOR - 44, 7, 8);
-    ctx.fillStyle = f.state === 'lost' || f.state === 'dormant' ? '#24342f' : '#172638'; ctx.fillRect(15, FLOOR - 42, 2, 2); ctx.fillRect(18, FLOOR - 42, 2, 2);
+    ctx.fillStyle = PALETTE[who].c; ctx.fillRect(14, FLOOR - 44, 7, 8);
+    ctx.fillStyle = f.state === 'dormant' ? '#24342f' : '#172638'; ctx.fillRect(15, FLOOR - 42, 2, 2); ctx.fillRect(18, FLOOR - 42, 2, 2);
     if (f.state === 'carry') { ctx.fillStyle = PALETTE.green.c; ctx.fillRect(14, FLOOR - 33, 7, 7); }
     ctx.globalAlpha = 1;
   }
@@ -695,10 +692,7 @@ function drawRange() {
 function drawFlashes(cam) {
   for (const f of flashes) {
     const age = s - f.at, x = f.x - cam;
-    if (f.kind === 'snap' && age < .5) {
-      ctx.fillStyle = `rgba(255,155,128,${1 - age / .5})`;
-      for (let i = 0; i < 6; i++) ctx.fillRect(x + Math.cos(i) * age * 60, FLOOR - 40 + Math.sin(i * 2) * age * 40, 2, 2);
-    } else if (f.kind === 'relink' && age < 1.2) {
+    if (f.kind === 'relink' && age < 1.2) {
       ctx.strokeStyle = `rgba(95,227,154,${1 - age / 1.2})`; ctx.lineWidth = 2;
       for (const lag of [0, .25]) { const r = Math.max(0, age - lag) * 160; ctx.beginPath(); ctx.arc(x, FLOOR - 68, r, Math.PI, Math.PI * 2); ctx.stroke(); }
     } else if (f.kind === 'switch' && age < 1) {
@@ -967,7 +961,7 @@ if (globalThis.__rapippoStoryProbe) globalThis.__rapippoStoryProbe.read = () => 
   screen, s, x: run.x, beat: run.beat, status: run.status, chapter: run.chapter, checkpoint: run.checkpoint,
   parts: run.parts.got, blue: run.blue.state, green: run.green.state, red: run.red.state, switchOn: run.switchOn, greenX: run.green.x, redX: run.red.x,
   domain: clock.domain, dockAt: run.dockAt, offset: clock.offset, audio: audio.debug(), after: after(), inset, heroLit: heroBlink(), lights,
-  friendY: { blue: friendY('blue', run.blue), green: friendY('green', run.green), red: friendY('red', run.red) }, tries: switchTries(run),
+  friendY: { blue: friendY('blue', run.blue), green: friendY('green', run.green), red: friendY('red', run.red) }, tries: run.fails[run.checkpoint] || 0,
   // How far the context clock runs ahead of what is heard right now.
   latency: audio.running ? audio.context.currentTime - heardFromContext(audio.context, perfNow()) : null,
   hasOutputTimestamp: !!audio.context?.getOutputTimestamp,

@@ -2,7 +2,7 @@ import {test,expect} from '@playwright/test';
 import {mkdir} from 'node:fs/promises';
 import {COURSE} from '../../public/src/story/course.mjs';
 import {storyFrom} from '../../public/src/story/sim.mjs';
-import {solve} from '../helpers/story-solver.mjs';
+import {solve,hop} from '../helpers/story-solver.mjs';
 const dir='output/playwright/story-p2';
 async function open(page,cp) {
   await mkdir(dir,{recursive:true});
@@ -34,15 +34,18 @@ test('P2 blue: the third part opens the dark into a wide moon',async({page})=>{
   done=(await read(page)).blue==='follow';expect(done).toBe(true);expect(errors).toEqual([]);
 });
 
-test('P2 green: the valley breaks the link once, a relay restores it, then the switch',async({page})=>{
+test('P2 green: rushing the valley leaves green behind, a relay boosts it, then it holds the bridge',async({page})=>{
   const start=storyFrom(COURSE,3);
-  const {path}=solve(COURSE,start,{until:r=>r.x>COURSE.bridge.b+40,order:[.25,0,.5,.75,1]});
+  // FAST-first through the valley (green falls out of range), SLOW-first on the field.
+  const valley=solve(COURSE,start,{until:r=>r.x>=COURSE.fieldStart+60,order:[1,.75,.5,.25,0]}).path;
+  const mid=storyFrom(COURSE,3);for(const f of valley)hop(mid,COURSE,f);
+  const field=solve(COURSE,mid,{until:r=>r.x>COURSE.bridge.b+40,order:[0,.25,.5,.75,1]}).path;
   const errors=await open(page,3);const seen={};
-  await play(page,path,async r=>{
-    const key=r.green==='lost'?'green-1-lost':r.green==='catch'?'green-2-relink':r.switchOn?'green-4-switch':r.green==='follow'&&Math.abs(r.greenX-COURSE.switchX)<60?'green-3-over-switch':null;
+  await play(page,[...valley,...field],async r=>{
+    const key=r.green==='catch'?'green-1-boost':r.switchOn?'green-3-bridge':r.green==='follow'&&r.greenX>COURSE.switchX-80&&r.greenX<COURSE.switchX?'green-2-near-socket':null;
     if(key&&!seen[key]){seen[key]=true;await shot(page,key);}
   });
-  await shot(page,'green-5-alone');
-  for(const k of ['green-1-lost','green-2-relink','green-4-switch']) expect(seen[k],k).toBe(true);
+  await shot(page,'green-4-alone');
+  for(const k of ['green-1-boost','green-2-near-socket','green-3-bridge']) expect(seen[k],k).toBe(true);
   expect(errors).toEqual([]);
 });

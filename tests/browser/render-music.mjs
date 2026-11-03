@@ -64,8 +64,8 @@ const clips = await page.evaluate(async () => {
       return { levels: { ...full, bass: .9 * (done ? 1 : lv), perc: .9 * (done ? 1 : lv) }, clarity: { bass: done ? 1 : cl, perc: done ? 1 : cl } }; },
     cues: [[back, 'reunion']],
   });
-  // Apart: together for 8 beats, then green is left behind (its part fades to
-  // a radio and blue's tune thins), then red carries it back (07's curve).
+  // Apart: together for 8 beats, then green stays behind holding the bridge (its
+  // part fades to a radio and blue's tune thins), then red carries it back (07's curve).
   const split = 8 * BEAT, away = split + 16 * BEAT;
   result['09-apart-and-back'] = await render(away + back + 8, {
     song: t => parts(['bell', 'bass', 'perc'], t >= split && t < away + back),
@@ -76,7 +76,7 @@ const clips = await page.evaluate(async () => {
       const perc = t < away ? .9 : lv;
       return { levels: { ...full, bass: lv, perc }, clarity: { bass: cl, perc: t < away ? 1 : cl } };
     },
-    cues: [[split, 'strand'], [away, 'pickup'], [away + back, 'reunion']],
+    cues: [[away, 'pickup'], [away + back, 'reunion']],
   });
   // Ending: the last touchdown (dock), one silent beat, blue, green, red,
   // the pad, the launch, then the base receding from the rocket to black.

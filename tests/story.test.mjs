@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { PERIOD, SLOW_SPEED, FAST_SPEED } from '../public/src/engine.mjs';
 import { BEAT, BPM, BeatClock, TimedInput, beatIndex, heardFromContext } from '../public/src/story/beat.mjs';
 import { COURSE, platformAt } from '../public/src/story/course.mjs';
-import { newStory, storyFrom, advanceStory, craneDown, craneSolid, RANGE, GREEN_SPEED, SETTLE_TRIES } from '../public/src/story/sim.mjs';
+import { newStory, storyFrom, advanceStory, craneDown, craneSolid, bridgeFront, RANGE, GREEN_SPEED, BRIDGE_LEGS, BRIDGE_SPEED } from '../public/src/story/sim.mjs';
 import { notesAt, STEP, ENDING } from '../public/src/story/music.mjs';
 import { solve, hop } from './helpers/story-solver.mjs';
 
@@ -113,16 +113,67 @@ function holdOnly(fast, i = fieldCheckpoint, beats = 40) {
   return { run, log };
 }
 
-test('green switch: neither SLOW-only nor FAST-only opens the bridge, a mix does', () => {
+test('green socket: SLOW brings green to it and the bridge forms; FAST alone outruns it', () => {
   assert.ok(fieldCheckpoint > 0);
-  const slow = holdOnly(false);
-  assert.ok(!slow.run.switchOn, 'SLOW keeps green beside you'); assert.equal(slow.run.status, 'falling');
+  assert.equal(COURSE.bridge.a - COURSE.switchX, 100, 'the socket is the bridge root, 100px before the chasm');
+  const slow = { run: storyFrom(COURSE, fieldCheckpoint), log: [] };
+  for (let k = 0; k < 30 && slow.run.status === 'playing' && slow.run.x <= COURSE.bridge.b; k++) slow.log.push(...hop(slow.run, COURSE, 0));
+  assert.ok(slow.run.switchOn && slow.run.x > COURSE.bridge.b, 'waiting for green: green reaches the socket, the hero crosses');
+  assert.equal(slow.run.green.state, 'switch'); assert.ok(!slow.log.some(e => e.type === 'fall'));
   const fastOnly = holdOnly(true);
-  assert.ok(!fastOnly.run.switchOn, 'FAST strands green short of the switch');
-  assert.ok(fastOnly.log.some(e => e.type === 'strand'));
-  const mixed = solve(COURSE, storyFrom(COURSE, fieldCheckpoint), { until: r => r.x > COURSE.bridge.b });
-  assert.ok(mixed.end?.switchOn, 'a SLOW-then-FAST rhythm leaves green on the switch');
-  assert.ok(mixed.path.some(f => f <= .25) && mixed.path.some(f => f >= .75));
+  assert.equal(fastOnly.run.status, 'falling', 'rushing: over the chasm before the bridge');
+  // Green keeps coming while the hero falls: the bridge forms behind him and stays.
+  const run = fastOnly.run, log = [];
+  for (let k = 0; k < 3; k++) log.push(...hop(run, COURSE, 0));
+  assert.ok(run.switchOn && run.green.state === 'switch', 'green reached the socket anyway');
+  assert.ok(log.some(e => e.type === 'respawn'));
+  for (let k = 0; k < 20 && run.x < COURSE.bridge.b; k++) hop(run, COURSE, 1);
+  assert.ok(run.x > COURSE.bridge.b && run.status === 'playing', 'after the respawn even FAST crosses: the bridge stayed');
+});
+
+test('green socket: three SLOW hops before the edge always work, none never does', () => {
+  const by = {};
+  for (let m = 0; m < 1 << 12; m++) {
+    const run = storyFrom(COURSE, fieldCheckpoint), hist = []; let res = null;
+    for (let i = 0; i < 30 && !res; i++) {
+      const f = i < 12 ? (m >> i) & 1 : 0, before = run.x, ev = hop(run, COURSE, f);
+      if (before < COURSE.bridge.a) hist.push(f);
+      if (ev.some(e => e.type === 'fall')) res = 'fall'; else if (run.x > COURSE.bridge.b) res = 'ok';
+    }
+    const k = hist.slice(-3).filter(f => f === 0).length; (by[k] ??= { n: 0, ok: 0 }).n++; if (res === 'ok') by[k].ok++;
+  }
+  assert.equal(by[3].ok, by[3].n, 'three SLOW: ' + JSON.stringify(by));
+  assert.equal(by[0].ok, 0, 'no SLOW: ' + JSON.stringify(by));
+  assert.ok(by[2].ok > 0 && by[2].ok < by[2].n, 'two SLOW sometimes: ' + JSON.stringify(by));
+});
+
+test('green socket: the arrival and the bridge do not depend on the frame rate', () => {
+  const runAt = step => {
+    const run = storyFrom(COURSE, fieldCheckpoint), events = [];
+    while (!run.switchOn && run.t < 30) advanceStory(run, COURSE, run.t + step(), false, events);
+    return { switchAt: run.switchAt, socket: events.find(e => e.type === 'socket')?.t };
+  };
+  let seed = 9; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const results = [() => 1 / 30, () => 1 / 60, () => 1 / 144, () => .78, () => .001 + rnd() * .2].map(runAt);
+  for (const r of results) {
+    assert.ok(Math.abs(r.switchAt - results[0].switchAt) < 1e-9, JSON.stringify(results));
+    assert.ok(Math.abs(r.socket - results[0].socket) < 1e-9, JSON.stringify(results));
+  }
+  // The bridge grows from the socket at a fixed speed once green's legs are down.
+  const run = storyFrom(COURSE, fieldCheckpoint); run.switchOn = true; run.switchAt = 10;
+  run.t = 10 + BRIDGE_LEGS; assert.equal(bridgeFront(run, COURSE), COURSE.switchX);
+  run.t = 10 + BRIDGE_LEGS + .2; assert.ok(Math.abs(bridgeFront(run, COURSE) - (COURSE.switchX + .2 * BRIDGE_SPEED)) < 1e-9);
+  assert.equal(platformAt(COURSE, COURSE.bridge.b - 20, 0, { bridgeTo: COURSE.bridge.b - 40 }), null, 'not solid beyond its tip');
+  assert.ok(platformAt(COURSE, COURSE.bridge.b - 20, 0, { bridgeTo: Infinity }));
+});
+
+test('green far behind is boosted by a relay and still reaches the socket', () => {
+  const run = storyFrom(COURSE, fieldCheckpoint - 1), log = [];
+  const m = solve(COURSE, structuredClone(run), { until: r => r.x >= COURSE.fieldStart + 60, order: [1, .75, .5, .25, 0] });
+  for (const f of m.path) log.push(...hop(run, COURSE, f));
+  assert.ok(log.some(e => e.type === 'relink'), 'rushing the valley leaves green out of range; the relay boosts it');
+  for (let k = 0; k < 20 && run.status === 'playing' && run.x < COURSE.bridge.b; k++) hop(run, COURSE, 0);
+  assert.ok(run.switchOn && run.x > COURSE.bridge.b, 'then SLOW on the field: green holds the bridge');
 });
 
 test('green floats between SLOW and FAST: FAST pulls away, SLOW lets it catch up', () => {
@@ -194,51 +245,31 @@ test('every note the composer emits has a finite pitch, length and level', () =>
   assert.ok(count > 500);
 });
 
-test('green loses the link once in the valley on every route, and a relay restores it', () => {
+test('green never stops: in the valley it falls out of range and keeps coming', () => {
   const i = COURSE.checkpoints.findIndex(cp => cp.from <= COURSE.relays[0] && COURSE.relays[0] < cp.from + 300);
-  let seed = 3, routes = 0;
+  let seed = 3, routes = 0, outOfRange = 0;
   const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   for (let k = 0; k < 12; k++) {
     const order = [0, .125, .25, .375, .5, .625, .75, .875, 1].sort(() => rnd() - .5);
     const m = solve(COURSE, storyFrom(COURSE, i), { until: r => r.x > COURSE.relays[1] + 10, order });
     if (!m.end) continue;
     routes++;
-    const run = storyFrom(COURSE, i), types = [];
-    for (const f of m.path) for (const e of hop(run, COURSE, f)) types.push(e.type);
-    assert.ok(types.includes('strand') && types.includes('relink'), types.join());
-    assert.ok(['catch', 'follow'].includes(run.green.state), run.green.state);
+    const run = storyFrom(COURSE, i); let last = run.green.x, far = false;
+    for (const f of m.path) {
+      hop(run, COURSE, f);
+      assert.ok(['follow', 'catch'].includes(run.green.state), run.green.state);
+      assert.ok(run.green.x >= last - 1e-9, 'green only ever moves forward'); last = run.green.x;
+      if (run.x - run.green.x > RANGE) far = true;
+    }
+    if (far) outOfRange++;
   }
-  assert.ok(routes >= 8);
-});
-
-function switchPlan(tries, plan) {
-  const run = storyFrom(COURSE, fieldCheckpoint), log = [];
-  run.fails[fieldCheckpoint] = tries;
-  for (let k = 0; k < 40 && run.status === 'playing' && run.x < COURSE.bridge.b + 10; k++) log.push(...hop(run, COURSE, plan(k)));
-  return { ok: run.switchOn && run.x > COURSE.bridge.b, log };
-}
-test('each fall at the switch widens the window, but the last FAST burst stays with the player', () => {
-  const wins = [];
-  for (let tries = 0; tries <= SETTLE_TRIES; tries++) {
-    let ok = 0;
-    for (let j = 0; j < 8; j++) for (const f of [.25, .5, .75, 1]) for (const n of [1, 2]) if (switchPlan(tries, k => k >= j && k < j + n ? f : 0).ok) ok++;
-    wins.push(ok);
-    assert.equal(switchPlan(tries, () => 1).ok, false, 'FAST only strands green early');
-    assert.equal(switchPlan(tries, () => 0).ok, tries >= SETTLE_TRIES, `SLOW only after ${tries} falls`);
-  }
-  for (let t = 1; t < wins.length; t++) assert.ok(wins[t] >= wins[t - 1], wins.join());
-  assert.ok(wins[3] >= wins[0] * 3, 'three falls triple the single-burst plans: ' + wins.join());
-  // Green tells the player it is over its socket, on a beat.
-  const { log } = switchPlan(0, () => 0), socket = log.find(e => e.type === 'socket');
-  assert.ok(socket && Math.abs(socket.t - socket.beat * BEAT) < 1e-9);
+  assert.ok(routes >= 8 && outOfRange >= routes / 2, `${outOfRange}/${routes} routes leave green out of range`);
 });
 
 // Noisy play: mostly a short look-ahead, sometimes a random hold. After every
-// respawn the run must still reach the next checkpoint (never stuck), and the
-// link may only ever break in chapter II, before the switch.
-test('noisy play never gets stuck and only loses green where the course means it', () => {
+// respawn the run must still reach the next checkpoint (never stuck).
+test('noisy play never gets stuck', () => {
   const choices = [0, .25, .5, .75, 1];
-  const stranded = [];
   let respawns = 0;
   for (const seed of [11, 23, 37, 51]) {
     let x = seed;
@@ -252,7 +283,6 @@ test('noisy play never gets stuck and only loses green where the course means it
         f = look.path[0] ?? choices[Math.floor(rnd() * choices.length)];
       }
       for (const e of hop(run, COURSE, f)) {
-        if (e.type === 'strand') stranded.push({ x: e.x, chapter: run.chapter });
         if (e.type !== 'respawn') continue;
         respawns++;
         const next = COURSE.checkpoints[run.checkpoint + 1];
@@ -263,7 +293,6 @@ test('noisy play never gets stuck and only loses green where the course means it
     assert.equal(run.status, 'docked', 'seed ' + seed + ' reached the dock');
   }
   assert.ok(respawns >= 8, 'noise caused falls: ' + respawns);
-  for (const s of stranded) assert.ok(s.chapter === 'apart' && s.x < COURSE.bridge.a, JSON.stringify(s));
 });
 
 test('a fall after red has left the crane never strands the hero behind it', () => {
