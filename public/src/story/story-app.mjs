@@ -109,7 +109,8 @@ function refreshCopy() {
   document.documentElement.lang = language;
   get('story-tag').textContent = tr('tag'); get('to-free').textContent = tr('free'); get('end-free').textContent = tr('free');
   // FREE RUN (never DAILY) in the same language, even where nothing is saved.
-  for (const id of ['to-free', 'end-free']) get(id).setAttribute('href', 'index.html?mode=free&lang=' + language);
+  for (const id of ['to-free', 'end-free', 'title-free']) get(id).setAttribute('href', 'index.html?mode=free&lang=' + language);
+  get('title-free').textContent = tr('freeRun');
   get('auto-hop').textContent = tr('autoHop');
   get('intro-hold').textContent = tr('hold'); get('intro-release').textContent = tr('release');
   get('headphones').textContent = tr('headphones'); get('again').textContent = tr('again');
@@ -1067,6 +1068,97 @@ function drawBanner() {
   ctx.fillText(tr('chapters')[banner.id] || '', W / 2, 120); ctx.globalAlpha = 1;
 }
 
+// ---------- title ----------
+// The start screen shows where the road goes: Earth over the moon, the base,
+// and the four of them hopping together on the beat, drawn with the game's
+// own sprites. The overlay above holds the words and the two buttons.
+const TITLE_STARS = Array.from({ length: 90 }, (_, i) => [(i * 137.5) % W, (i * 71.3) % 290, i % 9 ? 1 : 2, i]);
+const TITLE_CREW = [['blue', 136], ['green', 180], ['red', 224]];
+// A larger Earth for the title, laid out in 3px cells: land and cloud from a
+// fixed noise that drifts slowly, lit from the upper left, a thin air rim.
+function drawTitleEarth(cx, cy, r, t) {
+  const cell = 3, drift = t * .02;
+  for (let y = -r; y < r; y += cell) for (let x = -r; x < r; x += cell) {
+    const nx = (x + cell / 2) / r, ny = (y + cell / 2) / r, d = nx * nx + ny * ny;
+    if (d > 1) continue;
+    const z = Math.sqrt(1 - d), u = Math.atan2(nx, z) + drift, v = Math.asin(ny);
+    const land = Math.sin(u * 3.1 + 1.3) + Math.sin(v * 4.7 + u * 1.7) * .8 + Math.sin(u * 7.3 - v * 5.1) * .35 > .55;
+    const cloud = Math.sin(u * 5.3 + v * 9.1 + 2) + Math.sin(v * 13 - u * 2.3) * .6 > 1.05;
+    const light = Math.max(0, -.55 * nx - .5 * ny + .67 * z);
+    const base = cloud ? [232, 242, 255] : land ? [96, 166, 104] : [44, 104, 186];
+    const k = .28 + .82 * Math.min(1, light * 1.25);
+    ctx.fillStyle = `rgb(${base[0] * k | 0},${base[1] * k | 0},${base[2] * k | 0})`;
+    ctx.fillRect(Math.round(cx + x), Math.round(cy + y), cell, cell);
+  }
+  ctx.strokeStyle = 'rgba(150,200,255,.55)'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(cx, cy, r + 1, Math.PI * .75, Math.PI * 1.75); ctx.stroke();
+}
+function drawTitle(t) {
+  // The title's ground sits lower than the game's, under the buttons.
+  const F = 444;
+  const still = reducedMotion.matches, phase = still ? 0 : (t / BEAT) % 1, hop = Math.sin(phase * Math.PI), pulse = Math.max(0, 1 - phase * BEAT / .3);
+  const sky = ctx.createLinearGradient(0, 0, 0, F);
+  sky.addColorStop(0, '#0b142b'); sky.addColorStop(.7, '#121d38'); sky.addColorStop(1, '#1c2946');
+  ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
+  for (const [x, y, size, i] of TITLE_STARS) {
+    ctx.globalAlpha = still ? .7 : .4 + .6 * Math.abs(Math.sin(t * .8 + i * 1.7));
+    ctx.fillStyle = i % 5 ? '#c3d0f5' : '#ffe2a0'; ctx.fillRect(x | 0, y | 0, size, size);
+  }
+  ctx.globalAlpha = 1; ctx.fillStyle = '#ffd88a';
+  for (const [x, y, r] of [[324, 150, 5], [28, 214, 3], [314, 24, 3]]) { ctx.fillRect(x - r, y, r * 2 + 1, 1); ctx.fillRect(x, y - r, 1, r * 2 + 1); ctx.fillRect(x - 1, y - 1, 3, 3); }
+  // A shooting star every six seconds.
+  const k = (t % 6) / .9;
+  if (!still && k < 1) {
+    const x = 26 + k * 110, y = 34 + k * 40, trail = ctx.createLinearGradient(x - 48, y - 18, x, y);
+    trail.addColorStop(0, 'rgba(255,255,255,0)'); trail.addColorStop(1, `rgba(255,255,255,${.85 * (1 - k)})`);
+    ctx.strokeStyle = trail; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x - 48, y - 18); ctx.lineTo(x, y); ctx.stroke();
+  }
+  // Earth, high over the moon, with a wide blue halo.
+  const halo = ctx.createRadialGradient(W / 2, 74, 50, W / 2, 74, 124);
+  halo.addColorStop(0, 'rgba(80,140,255,.34)'); halo.addColorStop(1, 'rgba(80,140,255,0)');
+  ctx.fillStyle = halo; ctx.fillRect(0, 0, W, 220);
+  drawTitleEarth(W / 2, 74, 62, still ? 0 : t);
+  // Two far ridges with moonlit rims, then the plain.
+  for (const [base, amp, body, rim] of [[F - 62, 30, '#19243f', '#3a4a76'], [F - 34, 18, '#212e4e', '#56699a']]) {
+    for (let x = 0; x < W; x += 4) {
+      const h = amp * (1 + .6 * Math.sin(x * .029 + base) + .4 * Math.sin(x * .011 + base * .3));
+      ctx.fillStyle = body; ctx.fillRect(x, base - h, 4, F - base + h); ctx.fillStyle = rim; ctx.fillRect(x, base - h, 4, 1);
+    }
+  }
+  ctx.fillStyle = '#28345a'; ctx.fillRect(0, F, W, H - F); ctx.fillStyle = '#7383b6'; ctx.fillRect(0, F, W, 2);
+  for (const [x, y, w] of [[60, F + 20, 24], [204, F + 36, 30], [320, F + 16, 16], [124, F + 54, 20], [292, F + 58, 26]]) {
+    ctx.fillStyle = '#1d2746'; ctx.beginPath(); ctx.ellipse(x, y, w, w * .24, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#5d6d9e'; ctx.fillRect(x - w * .6, y + w * .2, w * 1.2, 1);
+  }
+  // The base: lit windows, and a mast whose light blinks on the beat.
+  ctx.fillStyle = '#34416c'; ctx.fillRect(14, F - 40, 74, 40); ctx.fillStyle = '#46558a'; ctx.fillRect(20, F - 50, 62, 10); ctx.fillRect(14, F - 40, 74, 2);
+  ctx.fillStyle = '#ffd27a'; ctx.fillRect(56, F - 30, 9, 13); ctx.fillRect(70, F - 30, 9, 13);
+  ctx.fillStyle = 'rgba(255,210,122,.18)'; ctx.fillRect(50, F - 36, 34, 25);
+  ctx.fillStyle = '#56699a'; ctx.fillRect(34, F - 76, 2, 26);
+  ctx.fillStyle = pulse > .4 ? '#ffe3ac' : '#b88a4a'; ctx.fillRect(32, F - 80, 6, 5);
+  // Pads, the dock, and its antenna sending on every beat.
+  ctx.fillStyle = '#3f4d7c';
+  for (const [, x] of TITLE_CREW) ctx.fillRect(x - 14, F - 2, 28, 3);
+  ctx.fillStyle = '#c4934a'; ctx.fillRect(262, F - 3, 52, 4); ctx.fillStyle = '#8a6532'; ctx.fillRect(262, F + 1, 52, 2);
+  ctx.fillStyle = '#c4934a'; ctx.fillRect(320, F - 62, 3, 60); ctx.fillRect(315, F - 64, 13, 3);
+  for (let i = 0; i < 2; i++) {
+    const age = (phase + i * .5) % 1;
+    ctx.strokeStyle = `rgba(126,214,255,${.7 * (1 - age)})`; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(321, F - 66, 6 + age * 18, Math.PI * 1.2, Math.PI * 1.8); ctx.stroke();
+  }
+  // The four of them, hopping together.
+  for (const [who, x] of TITLE_CREW) {
+    const y = F - 2 - hop * 10, palette = PALETTE[who], top = -18 - Math.round(3 + hop * 2);
+    if (who === 'blue') {
+      const glow = ctx.createRadialGradient(x, F - 4, 2, x, F - 4, 40);
+      glow.addColorStop(0, 'rgba(111,182,255,.25)'); glow.addColorStop(1, 'rgba(111,182,255,0)'); ctx.fillStyle = glow; ctx.fillRect(x - 40, F - 44, 80, 52);
+    }
+    drawPod(ctx, x, y, 1, { phase, time: t, palette, eyes: true });
+    drawCrewParts(ctx, who, x, y, 1, { palette, form: 1, pulse: who === 'blue' ? pulse : 0, top, on: true });
+  }
+  drawPod(ctx, 286, F - 3 - hop * 16, 2, { phase, land: Math.max(0, 1 - phase / .17), time: t });
+}
+
 // ---------- loop ----------
 // A frame later than this is a stall, not a slow frame: the story pauses on
 // the last frame it drew instead of simulating the gap unseen.
@@ -1091,7 +1183,8 @@ function frame() {
     }
   }
   particles.forEach(p => p.age += 1 / 60); particles = particles.filter(p => p.age < .4);
-  if (run.status === 'docked' && after() >= 0) drawEnding(); else drawScene();
+  if (screen === 'start') drawTitle(perfNow());
+  else if (run.status === 'docked' && after() >= 0) drawEnding(); else drawScene();
   drawHints(); drawBanner();
   // The control's antenna tip lights for a moment on every beat while playing.
   get('beat-mark').classList.toggle('on', playing() && run.status !== 'docked' && s - beatIndex(s) * BEAT < .1);

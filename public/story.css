@@ -26,3 +26,21 @@ body.story{background:radial-gradient(ellipse at top,#16242c 0%,#05080c 75%)}
 .beat-mark.on i{background:#fff0d0;box-shadow:0 0 5px #ffc38e}
 .hold.active .beat-mark::before{background:#aa6647}.hold.active .beat-mark i{background:#d98a5c}.hold.active .beat-mark.on i{background:#fffbea}
 @media(prefers-reduced-motion:reduce){.beat-mark.on i{background:#355b5c;box-shadow:none}.hold.active .beat-mark.on i{background:#d98a5c}}
+/* Title (the start screen): the canvas draws the scene; the words sit over it. */
+.story .overlay[data-screen=start]{background:linear-gradient(#0000,#0000 62%,#05080c55)}
+.story .overlay[data-screen=start] h1{font-size:clamp(36px,12vw,50px);letter-spacing:3px;color:#fff1d2;text-shadow:0 3px 0 #c98a4a,0 0 22px rgba(255,214,150,.35);line-height:1}
+.story .overlay[data-screen=start] .intro-mark{font-size:10px;color:#ffd88a;letter-spacing:3px;background:#0b142bcc;padding:3px 10px;border-radius:9px}
+.story .overlay[data-screen=start] #overlay-subtitle{color:#c3d0f5;text-shadow:0 1px 3px #0b142b}
+.title-orbit{width:min(240px,80%);height:18px;margin-top:-6px}
+.title-actions{display:flex;gap:10px;justify-content:center;width:100%;max-width:300px}
+/* Two equal buttons on one row at any width; RESUME alone keeps its own size. */
+.story .overlay[data-screen=start] .title-actions>*{flex:1 1 0;justify-content:center;padding-left:8px;padding-right:8px;white-space:nowrap}
+.story .overlay:not([data-screen=start]) .title-actions{width:auto}
+.title-actions .action::before{content:'▶' / '';font-size:.8em;margin-right:8px}
+.title-free{display:inline-flex;align-items:center;min-height:48px;padding:0 18px;border:2px solid #9fc4e8;border-radius:5px;color:#e6f0ff;background:#0b142bcc;font-weight:900;font-size:14px;text-decoration:none;box-shadow:0 4px 0 #3a4a76}
+.title-free::before{content:'∞' / '';margin-right:8px;font-size:1.2em}
+.title-free:focus-visible,.title-actions .action:focus-visible{outline:3px solid #8ee6c4;outline-offset:3px}
+.story .overlay:not([data-screen=start]) .title-orbit,.story .overlay:not([data-screen=start]) .title-free{display:none}
+.story .overlay:not([data-screen=start]) .title-actions .action::before{content:none}
+/* The title already names the game and offers FREE RUN: the header steps aside. */
+body.story:has(.overlay[data-screen=start]:not([hidden])) .top>*{visibility:hidden}

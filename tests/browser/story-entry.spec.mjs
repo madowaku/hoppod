@@ -16,6 +16,8 @@ test('the top address opens STORY in English, before any game code loads',async(
   await expect(page.locator('#auto-hop')).toHaveText('It hops by itself. Hold to go farther.');
   await expect(page.locator('#to-free')).toHaveAttribute('href','index.html?mode=free&lang=en');
   await expect(page.locator('#end-free')).toHaveAttribute('href','index.html?mode=free&lang=en');
+  await expect(page.locator('#title-free')).toHaveAttribute('href','index.html?mode=free&lang=en');
+  await expect(page.locator('#title-free')).toHaveText('FREE RUN');await expect(page.locator('#action')).toHaveText('STORY');
   expect(scripts.filter(p=>p==='/src/app.mjs'),'FREE RUN code never loads on the way').toEqual([]);
   await page.goto('/?lang=ja');
   await expect(page).toHaveURL(/\/story\.html\?lang=ja$/);
@@ -71,8 +73,9 @@ test('STORY → FREE RUN → STORY keeps the language even where nothing can be 
   expect(await lang(page)).toBe('ja');
   expect(new URL(page.url()).searchParams.get('lang'),'the address follows the switch').toBe('ja');
   await expect(page.locator('#to-free')).toHaveAttribute('href','index.html?mode=free&lang=ja');
+  await expect(page.locator('#title-free')).toHaveAttribute('href','index.html?mode=free&lang=ja');
   await page.reload();expect(await lang(page)).toBe('ja');
-  await page.locator('#to-free').click();
+  await page.locator('#title-free').click();
   await expect(page.locator('#free')).toHaveAttribute('aria-pressed','true');
   expect(new URL(page.url()).searchParams.get('mode')).toBe('free');
   expect(await lang(page)).toBe('ja');
@@ -113,7 +116,7 @@ test('inside an itch.io-style ZIP (a sub-folder, explicit index.html) every path
   await page.goto('https://itch.test/html/123/index.html');
   await expect(page).toHaveURL('https://itch.test/html/123/story.html');
   await expect(page.locator('#action')).toBeVisible();
-  await page.locator('#to-free').click();
+  await page.locator('#title-free').click();
   await expect(page.locator('#free')).toHaveAttribute('aria-pressed','true');
   // FREE RUN rewrites its address to the replay link (a seed), in the same folder.
   expect(page.url()).toMatch(/^https:\/\/itch\.test\/html\/123\/index\.html\?mode=free&seed=\d+&v=4$/);
@@ -125,8 +128,8 @@ test('inside an itch.io-style ZIP (a sub-folder, explicit index.html) every path
 
 test('Cloudflare assets: the top opens STORY and index.html?mode=free opens FREE RUN',async({page})=>{
   await page.goto('http://127.0.0.1:8011/');
-  await expect(page.locator('#to-free')).toBeVisible();expect(new URL(page.url()).pathname).toMatch(/^\/story(\.html)?$/);
-  await page.locator('#to-free').click();
+  await expect(page.locator('#title-free')).toBeVisible();expect(new URL(page.url()).pathname).toMatch(/^\/story(\.html)?$/);
+  await page.locator('#title-free').click();
   await expect(page.locator('#free')).toHaveAttribute('aria-pressed','true');
   const url=new URL(page.url());expect(url.searchParams.get('mode')).toBe('free');expect(url.searchParams.get('lang')).toBe(null);
   expect(await lang(page)).toBe('en');
@@ -145,6 +148,11 @@ for(const [width,height] of [[360,640],[390,844]]) test(`STORY start screen fits
       items.push([id,b]);
     }
     for(let i=1;i<items.length;i++) expect(items[i][1].y,items[i][0]+' below '+items[i-1][0]).toBeGreaterThanOrEqual(items[i-1][1].y+items[i-1][1].height-.5);
+    // Both title buttons on one row, clear of the crew standing on the title's ground (canvas y 444, ~44px tall).
+    const story=await box('#action'),free=await box('#title-free');
+    expect(Math.abs(story.y-free.y)).toBeLessThan(1);
+    expect(story.x+story.width).toBeLessThanOrEqual(free.x);
+    expect(Math.max(story.y+story.height,free.y+free.height),'buttons above the crew').toBeLessThanOrEqual(area.y+area.height*(444-48)/510);
     expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
     await page.screenshot({path:`${dir}/story-start-${width}x${height}-${l}.png`});
   }
