@@ -162,6 +162,8 @@ function paint() {
   ctx.fillStyle='#f0e8db';ctx.beginPath();ctx.roundRect(heroX-18,y-20,36,40,15);ctx.fill();
   ctx.fillStyle='#1c3349';ctx.beginPath();ctx.roundRect(heroX-14,y-13,28,21,8);ctx.fill();
   ctx.fillStyle='#baf7e6';ctx.fillRect(heroX-7,y-6,4,8);ctx.fillRect(heroX+4,y-6,4,8);
+  // Visible diode at exactly the sensor height used by the crossing model.
+  ctx.fillStyle='#ffe8ab';ctx.beginPath();ctx.arc(heroX,y-LAB.sensorOffsetY,3,0,Math.PI*2);ctx.fill();
   ctx.fillStyle='#d0ae77';ctx.fillRect(heroX-5,y+13,10,3);
   ctx.textAlign='left';ctx.font='bold 15px system-ui';ctx.fillStyle='#f0f5ed';
   ctx.fillText('D  /  TRAJECTORY',19,23);
