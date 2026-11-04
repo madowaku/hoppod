@@ -15,8 +15,8 @@ Assume x starts at 75px, FAST=270px/s, SLOW=105px/s:
 - Early: FAST during 0.00–0.39s, SLOW during 0.39–0.78s.
 - Late: SLOW during 0.00–0.39s, FAST during 0.39–0.78s.
 - Both end at x=75+0.39×270+0.39×105=**221.25px** and land safely.
-- At the vertical string plane x=173px, early crosses at t=0.362963s, y≈175.52; late crosses at t=0.601296s, y≈204.99.
-- Only the glowing tip y=165–189 triggers the note. Thus early rings the string; late passes below. The measured height separation is about **29.47px**.
+- At the vertical string plane x=173px, early crosses at t=0.362963s, sensor y≈163.52; late crosses at t=0.601296s, sensor y≈192.99.
+- Only the glowing tip y=155–173 triggers the note. Thus early rings the string; late passes below. The measured height separation is about **29.47px**.
 
 The sound event is calculated at the exact crossing time within each piecewise-constant input segment, rather than based on whether a rendered frame overlaps the string.
 
@@ -42,7 +42,7 @@ Test **mechanic viability** first, not player satisfaction inferred from scripts
 
 - Only one string, one jump, one fixed pad. This is not a level or music system.
 - The actual phone/browser input timing is frame-quantized in this prototype. The *scripted* early/late paths are explicitly split at 0.39s and checked at multiple integration resolutions. Production should use event timestamps and a pause/resume clock to avoid input latency skew.
-- Contact is a point-sensor at robot-center crossing of a string x-plane and a glowing vertical tip, not full sprite swept collision.
+- Contact is a point-sensor at the visible forehead diode's crossing of a string x-plane and a glowing vertical tip, not full sprite swept collision.
 - Original synthetic pluck only; missing audio support degrades to visual feedback.
 - No network, saved scores, cloud sharing, linked main menu, release build, or production code modification.
 - Files live under \`public/dev/\`, which the STORY itch ZIP builder excludes. Existing \`COURSE_VERSION\`, DAILY and replay URLs are untouched.
