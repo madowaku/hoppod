@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#10192d">
+<title>RAPIPPO | STRING VALLEY trajectory lab</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#10192d;color:#f5f4ed;font:15px/1.55 system-ui,-apple-system,sans-serif;min-height:100vh;display:flex;justify-content:center;padding:18px 12px}
+main{width:min(680px,100%)}small{font-size:11px;color:#8fdfd3;letter-spacing:.1em;font-weight:750}
+h1{font-size:clamp(25px,6vw,36px);line-height:1.13;margin:5px 0 8px}
+p{color:#bfd0dd;margin:7px 0 13px}.frame{border:1px solid #425a70;border-radius:14px;overflow:hidden;position:relative;background:#172641}
+canvas{width:100%;height:auto;display:block;aspect-ratio:600/370}
+button{font:inherit;cursor:pointer;touch-action:manipulation;color:#f9f8f0;border:1px solid #536d82;border-radius:11px;background:#223650;min-height:48px;font-weight:700}
+button:focus-visible{outline:3px solid #b6efdf;outline-offset:2px}
+button[aria-pressed=true]{border-color:#95e4d3;background:#285854}
+.controls{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}
+#hold{background:#d7f5e4;color:#122d3e;border-color:#d7f5e4;touch-action:none;user-select:none;-webkit-user-select:none}
+#hold.held{background:#fad08c;border-color:#fad08c}
+.demos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:10px}
+.demos button{font-size:12px;padding:8px}
+#outcome{min-height:3.5em;font-weight:700;color:#c9eede;margin:11px 0}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+.stat{background:#1b2c45;border-radius:10px;padding:10px 5px;text-align:center}
+.stat small{display:block;color:#a9bfd1;font-size:10px}
+.stat strong{font-size:19px;font-variant-numeric:tabular-nums}
+.legend{display:flex;align-items:center;gap:13px;flex-wrap:wrap;font-size:12px;margin:11px 0;color:#b7c9d7}
+.line{display:inline-block;width:17px;height:0;border-top:3px dashed #a8e5d5;vertical-align:middle;margin-right:4px}
+.line.late{border-color:#f6ca8a}
+.detail{border-left:3px solid #6088a1;padding-left:12px;font-size:13px;margin-top:15px;color:#b9cbdd}
+a{color:#aee6fc}
+kbd{border:1px solid #5c7188;border-radius:5px;padding:0 5px;font-family:inherit}
+</style>
+</head>
+<body>
+<main>
+<small>RAPIPPO · EXPERIMENT D · ISOLATED PROTOTYPE</small>
+<h1>STRING VALLEY</h1>
+<p>The robot always lands on the same pad if you hold FAST for half a beat. But <em>when</em> you hold FAST changes whether you touch the string.</p>
+<div class="frame"><canvas id="scene" width="600" height="370" aria-label="Moon robot bouncing toward a landing pad. A hanging string is struck by an early FAST trajectory but not by a late FAST trajectory."></canvas></div>
+<div class="legend">
+<span><i class="line"></i>EARLY FAST (rings)</span>
+<span><i class="line late"></i>LATE FAST (misses)</span>
+</div>
+<div class="stats">
+<div class="stat"><small>FAST TIME</small><strong id="fast-seconds">0.00s</strong></div>
+<div class="stat"><small>TOUCH</small><strong id="string-state">—</strong></div>
+<div class="stat"><small>LANDING</small><strong id="landing-state">—</strong></div>
+</div>
+<div id="outcome" role="status" aria-live="polite">Press TRY MANUAL, then hold FAST early and release around halfway through the bounce.</div>
+<div class="controls">
+<button id="start">TRY MANUAL / RETRY</button>
+<button id="hold" aria-label="Hold to move fast">HOLD » FAST</button>
+</div>
+<div class="demos">
+<button id="demo-early">▶ SHOW EARLY FAST</button>
+<button id="demo-late">▶ SHOW LATE FAST</button>
+</div>
+<p><strong>Goal:</strong> ring the glowing string <em>and</em> land on the pad. Use <kbd>Space</kbd> or HOLD for FAST; release for SLOW. <kbd>R</kbd> retries. You cannot stop the automatic 0.78-second jump.</p>
+<p class="detail">The two demos apply exactly 0.39 seconds of FAST but in a different order, so they travel the same distance (146.25px) and land at the same spot. This lab uses original generated notes; audio requires a user interaction. Development only. The production STORY, FREE RUN and game-jam ZIP do not include this page.</p>
+<script type="module" src="./string-valley.mjs"></script>
+</main>
+</body></html>
