@@ -6,7 +6,7 @@ import { createAudio, milestoneTier } from './audio.mjs';
 import { COMPANION_LAG, COMPANION_GAP, ASSEMBLE_GATHER, ASSEMBLE_FLASH, ASSEMBLE_BOOT, companionBell, companionPhase, companionLift, gatherBlend } from './companion.mjs';
 import { PartLayout, PartRun, drawPart } from './parts.mjs';
 import { MARKER_MODES, markerModeFromUrl, markerVisual } from './marker.mjs';
-import { chooseLanguage, copy, earthText, partsText, milestoneText } from './ui-copy.mjs';
+import { LANGUAGES, chooseLanguage, copy, earthText, partsText, milestoneText } from './ui-copy.mjs';
 
 const get = id => document.getElementById(id);
 const canvas = get('play'), ctx = canvas.getContext('2d');
@@ -22,7 +22,10 @@ const FLIGHT = .35, trayX = i => 21 + i * 14, TRAY_Y = 41;
 let failure = '', failureKind = 'short', failureX = 0, signal = 0, signalAge = 10, markerMode = markerModeFromUrl(location.href), comparisonEnabled = new URL(location.href).searchParams.get('compare') === '1';
 function readPreference(key) { try { return localStorage.getItem(key); } catch { return null; } }
 function savePreference(key,value) { try { localStorage.setItem(key,value); } catch { /* settings work for this session */ } }
-let language = chooseLanguage(location.href, readPreference('hoppod.pref.lang'), navigator.language);
+// The language also rides in this page's history entry: the address stays the
+// exact replay link (no ?lang=), yet a reload keeps it where nothing is saved.
+let language = chooseLanguage(location.href, LANGUAGES.includes(history.state?.lang) ? history.state.lang : readPreference('hoppod.pref.lang'));
+const remembered = () => ({ ...history.state, lang: language });
 const tr = key => copy(language,key);
 let notice = null, noticeUntil = 0, recordNotified = false, lastRecord = false;
 if (readPreference('hoppod.pref.muted') === '1') audio.toggle();
@@ -54,6 +57,7 @@ function refreshResult() {
 }
 function refreshCopy() {
   document.documentElement.lang = language;
+  get('story').setAttribute('href', 'story.html?lang=' + language);
   get('language').textContent = language === 'ja' ? 'EN' : '日本語';
   get('language').setAttribute('aria-label',tr('switchLanguage'));
   get('daily').textContent = tr('daily'); get('free').textContent = tr('free');
@@ -107,7 +111,7 @@ function loadCourse() {
   markerMode = markerModeFromUrl(location.href);
   comparisonEnabled = new URL(location.href).searchParams.get('compare') === '1';
   run = resolveRun(location.href);
-  history.replaceState(null, '', markerUrl(run.url));
+  history.replaceState(remembered(), '', markerUrl(run.url));
   syncMarkerUI();
   try { best = Math.max(0, Math.floor(Number(localStorage.getItem(bestKey())) || 0)); if (!Number.isFinite(best)) best = 0; } catch { best = 0; }
   // Both modes use the exact same date/seed and storage keys across languages.
@@ -174,11 +178,11 @@ get('action').addEventListener('click', () => {
 for (const mode of ['daily', 'free']) get(mode).addEventListener('click', () => {
   releaseInput(); const url = new URL(location.href);
   url.search = mode === 'daily' ? '?mode=daily&date=' + jstDate() : '?mode=free';
-  history.replaceState(null, '', markerUrl(url)); loadCourse();
+  history.replaceState(remembered(), '', markerUrl(url)); loadCourse();
 });
 for (const mode of MARKER_MODES) get('marker-' + mode).addEventListener('click', () => {
   // Reset to exactly the same seed on every switch, so A/B/C is comparable.
-  history.replaceState(null, '', markerUrl(location.href, mode));
+  history.replaceState(remembered(), '', markerUrl(location.href, mode));
   loadCourse();
 });
 window.addEventListener('popstate', loadCourse);
@@ -190,7 +194,7 @@ get('sound').addEventListener('click', () => {
 get('language').addEventListener('click', () => {
   get('language').blur();
   language = language === 'ja' ? 'en' : 'ja';
-  savePreference('hoppod.pref.lang',language); refreshCopy();
+  savePreference('hoppod.pref.lang',language); history.replaceState(remembered(), '', location.href); refreshCopy();
 });
 for (const target of [canvas, get('hold')]) {
   target.addEventListener('pointerdown', e => {

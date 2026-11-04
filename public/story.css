@@ -1,0 +1,60 @@
+/* STORY page: shares the FREE RUN shell; only story-specific pieces here. */
+body.story{background:radial-gradient(ellipse at top,#16242c 0%,#05080c 75%)}
+.story .play-area{background:#05080c}
+.to-free,.end-free{color:#b3c5c2;font-size:10px;text-decoration:none;border:1px solid #405e66;border-radius:5px;padding:9px 8px;min-height:34px;display:inline-flex;align-items:center}
+.to-free:focus-visible,.end-free:focus-visible{outline:3px solid #8ee6c4;outline-offset:4px}
+.top-actions{display:flex;align-items:center;gap:8px}
+/* PAUSE for touch: quiet, 44px to hit, beside the FREE RUN link. */
+.pause-button{display:inline-flex;align-items:center;justify-content:center;gap:4px;width:44px;height:44px;padding:0;border:1px solid #405e66;border-radius:5px;background:transparent;cursor:pointer}
+.pause-button[hidden]{display:none}
+.pause-button i{width:4px;height:14px;background:#b3c5c2;border-radius:1px}
+.pause-button:focus-visible{outline:3px solid #8ee6c4;outline-offset:3px}
+.story .overlay{background:linear-gradient(#05080caa,#05080c22 60%,#05080caa)}
+.headphones{font-size:9px!important;color:#9db4b6!important}
+.auto-hop{color:#e9d9b0!important}
+/* The start card's extra line costs no height: BEGIN stays clear of the hero. */
+.story .overlay[data-screen=start]{gap:11px;padding-top:50px}
+@media(max-height:760px){.story .overlay[data-screen=start]{gap:8px;padding-top:34px}}
+.story .overlay[data-screen=pause] .auto-hop,.story .overlay[data-screen=end] .auto-hop,
+.story .overlay[data-screen=pause] .headphones,.story .overlay[data-screen=end] .headphones,
+.story .overlay[data-screen=end] .intro-controls,.story .overlay[data-screen=pause] .intro-controls{display:none}
+/* The end card leaves the canvas's last logo (friends as the Ps, the hero as
+   the O) in view; the heading stays for screen readers only. */
+.story .overlay[data-screen=end]{background:transparent;justify-content:flex-end;padding-bottom:28px}
+.story .overlay[data-screen=end] h1{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.story .overlay[data-screen=end] .action{display:none}
+.end-free{font-size:10px}
+#chapter-label{letter-spacing:1px;font-size:9px}
+/* Rapippo's clock: a tiny antenna in the control's corner whose tip lights on
+   every beat. It shows the clock the hops run on, not a moment to press. */
+.story .hold{position:relative}
+.beat-mark{position:absolute;top:7px;right:9px;width:4px;height:11px;pointer-events:none}
+.beat-mark::before{content:"";position:absolute;left:1px;top:4px;width:2px;height:7px;background:#4f6f70}
+.beat-mark i{position:absolute;left:0;top:0;width:4px;height:4px;background:#355b5c;border-radius:1px}
+.beat-mark.on i{background:#fff0d0;box-shadow:0 0 5px #ffc38e}
+.hold.active .beat-mark::before{background:#aa6647}.hold.active .beat-mark i{background:#d98a5c}.hold.active .beat-mark.on i{background:#fffbea}
+@media(prefers-reduced-motion:reduce){.beat-mark.on i{background:#355b5c;box-shadow:none}.hold.active .beat-mark.on i{background:#d98a5c}}
+/* Title (the start screen): the canvas draws the scene; the words sit over it. */
+.story .overlay[data-screen=start]{background:linear-gradient(#0000,#0000 62%,#05080c55)}
+.story .overlay[data-screen=start] h1{font-size:clamp(32px,10.5vw,48px);white-space:nowrap;letter-spacing:3px;color:#fff1d2;text-shadow:0 3px 0 #c98a4a,0 0 22px rgba(255,214,150,.35);line-height:1}
+.story .overlay[data-screen=start] .intro-mark,.story .overlay[data-screen=end] .intro-mark{display:none}
+/* (.play-area canvas would make it a full-width block: undo that here.) */
+.play-area #logo-o{display:inline-block;height:1.2em;width:auto;aspect-ratio:20/30;image-rendering:pixelated;vertical-align:-.1em;margin-left:.06em}
+.play-area #logo-o[hidden]{display:none}
+/* Japanese reads a size up on the title. */
+html[lang=ja] .story .overlay[data-screen=start] p:not(.headphones){font-size:12px;max-width:300px}
+.story .hold:disabled{opacity:.35;filter:saturate(.3);cursor:default}
+.story .overlay[data-screen=start] #overlay-subtitle{color:#c3d0f5;text-shadow:0 1px 3px #0b142b}
+.title-orbit{width:min(240px,80%);height:18px;margin-top:-6px}
+.title-actions{display:flex;gap:10px;justify-content:center;width:100%;max-width:300px}
+/* Two equal buttons on one row at any width; RESUME alone keeps its own size. */
+.story .overlay[data-screen=start] .title-actions>*{flex:1 1 0;justify-content:center;padding-left:8px;padding-right:8px;white-space:nowrap}
+.story .overlay:not([data-screen=start]) .title-actions{width:auto}
+.title-actions .action::before{content:'▶' / '';font-size:.8em;margin-right:8px}
+.title-free{display:inline-flex;align-items:center;min-height:48px;padding:0 18px;border:2px solid #9fc4e8;border-radius:5px;color:#e6f0ff;background:#0b142bcc;font-weight:900;font-size:14px;text-decoration:none;box-shadow:0 4px 0 #3a4a76}
+.title-free::before{content:'∞' / '';margin-right:8px;font-size:1.2em}
+.title-free:focus-visible,.title-actions .action:focus-visible{outline:3px solid #8ee6c4;outline-offset:3px}
+.story .overlay:not([data-screen=start]) .title-orbit,.story .overlay:not([data-screen=start]) .title-free{display:none}
+.story .overlay:not([data-screen=start]) .title-actions .action::before{content:none}
+/* The title already names the game and offers FREE RUN: the header steps aside. */
+body.story:has(.overlay[data-screen=start]:not([hidden])) .top>*{visibility:hidden}
