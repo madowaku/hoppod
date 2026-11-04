@@ -12,7 +12,7 @@ const TEXT = {
     stages: ['① 鳴らす', '② くぐる', '③ 近い弦', '④ 同じ旗', '⑤ 4連'],
     goals: [
       '弦を鳴らして、パッドに着地しよう',
-      '今度は弦に触れずに、パッドに着地しよう',
+      '今度は弦に触れずに、広いパッドに着地しよう',
       '近い弦を鳴らして着地。さっきと同じ飛び方で鳴るかな？',
       '旗に2回着地しよう。1回は鳴らして、1回は鳴らさずに',
       '止まらず4ホップ。金の弦は鳴らす、青の弦は鳴らさない'
@@ -34,7 +34,7 @@ const TEXT = {
     offFlag: d => `着地はできたけれど、旗から ${d}px ずれた`,
     wrongRing: '着地はできたけれど、鳴らせなかった', wrongSilent: '着地はできたけれど、鳴ってしまった',
     wrongPhrase: n => `最後まで着いた！ ただし ${n} 本違う弦があった`,
-    cleared: '★ クリア！', flagFirstRing: '鳴らして旗に着地！ 次は鳴らさずに', flagFirstSilent: '鳴らさず旗に着地！ 次は鳴らして',
+    cleared: '★ クリア！', silentClear: '★ 静かにくぐれた！ 弦に触れずに着地成功', flagFirstRing: '鳴らして旗に着地！ 次は鳴らさずに', flagFirstSilent: '鳴らさず旗に着地！ 次は鳴らして',
     flagAgain: 'その音はもう取った。今度は逆の音で', allClear: '全ステージ達成！ おつかれさま',
     stall: '処理が止まったので、やり直します', demoDone: '見本おわり。自分でやってみよう',
     bannerClear: '★ CLEAR', bannerFall: 'FALL', bannerMiss: 'もう一度',
@@ -47,7 +47,7 @@ const TEXT = {
     stages: ['1 RING', '2 UNDER', '3 NEAR', '4 FLAG', '5 PHRASE'],
     goals: [
       'Ring the string and land on the pad',
-      'Now land on the pad without touching the string',
+      'Pass the string silently and land on the wide pad',
       'Ring the near string and land. Does the same flight still work?',
       'Land on the flag twice: once ringing, once silent',
       'Four hops without stopping. Ring the gold, leave the blue silent'
@@ -69,7 +69,7 @@ const TEXT = {
     offFlag: d => `Landed, but ${d}px off the flag`,
     wrongRing: 'Landed, but the string stayed silent', wrongSilent: 'Landed, but the string rang',
     wrongPhrase: n => `You made it! ${n} string(s) were wrong`,
-    cleared: '★ CLEAR!', flagFirstRing: 'Rang and hit the flag! Now do it silently', flagFirstSilent: 'Silent on the flag! Now ring it',
+    cleared: '★ CLEAR!', silentClear: '★ SILENT PASS! No note, safe landing', flagFirstRing: 'Rang and hit the flag! Now do it silently', flagFirstSilent: 'Silent on the flag! Now ring it',
     flagAgain: 'You already have that sound. Try the opposite', allClear: 'All stages done. Well played!',
     stall: 'Playback stalled, restarting', demoDone: 'Demo finished. Your turn',
     bannerClear: '★ CLEAR', bannerFall: 'FALL', bannerMiss: 'AGAIN',
@@ -255,7 +255,7 @@ function resolvePlayer(verdict, touched) {
   if (done) {
     cleared.add(stage().id); fails = 0; advanceOnPress = true;
     banner = text.bannerClear;
-    say(cleared.size === STAGES.length ? text.allClear : text.cleared);
+    say(cleared.size === STAGES.length ? text.allClear : stage().id === 'far-silent' ? text.silentClear : text.cleared);
     return;
   }
   banner = verdict.reason === 'short' || verdict.reason === 'far' ? text.bannerFall : text.bannerMiss;

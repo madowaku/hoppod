@@ -46,13 +46,14 @@ export const LATE = Object.freeze([HALF, PERIOD]);
 const E5 = 659.25, G5 = 783.99, A5 = 880;
 const START = Object.freeze([0, 132]);
 const PAD = Object.freeze([183, 272]);
+const UNDER_PAD = Object.freeze([155, 315]); // stage 2: focus on the silent path, not precise landing
 const FLAG_X = LAB.startX + HALF * (SLOW_SPEED + FAST_SPEED); // 221.25: both 0.39s plans land here
 const FAR = 173;  // 98px from the start: rushing reaches it while high
 const NEAR = 125; // 50px from the start: rushing passes it before the antennas are high enough
 
 export const STAGES = Object.freeze([
   { id: 'far-ring', beats: 1, platforms: [START, PAD], strings: [{ x: FAR, want: 'ring', note: E5 }], demos: [[EARLY]] },
-  { id: 'far-silent', beats: 1, platforms: [START, PAD], strings: [{ x: FAR, want: 'silent', note: E5 }], demos: [[LATE]] },
+  { id: 'far-silent', beats: 1, platforms: [START, UNDER_PAD], strings: [{ x: FAR, want: 'silent', note: E5 }], demos: [[LATE]] },
   { id: 'near-ring', beats: 1, platforms: [START, PAD], strings: [{ x: NEAR, want: 'ring', note: E5 }], demos: [[EARLY], [LATE]] },
   { id: 'flag', beats: 1, platforms: [START, PAD], flag: FLAG_X, strings: [{ x: FAR, want: 'either', note: E5 }], demos: [[EARLY], [LATE]] },
   {

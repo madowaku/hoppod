@@ -58,6 +58,35 @@ test('every stage is solved by its own demo', () => {
   }
 });
 
+
+test('stage 2 gives a wide landing pad for silent discovery without changing the later precision flag', () => {
+  const under = stageById('far-silent');
+  const flag = stageById('flag');
+  assert.deepEqual(under.platforms[1], [155, 315]);
+  assert.deepEqual(flag.platforms[1], [183, 272]);
+  assert.equal(judge(simulate(under, [LATE])).ok, true);
+  assert.equal(judge(simulate(under, [EARLY])).ok, false);
+  assert.equal(judge(simulate(under, [[0, 0]])).ok, false, 'permanent SLOW cannot cross the wider pad safely');
+
+  // Same 10ms press/release sampling as the study note; this is a proportion of
+  // possible one-press input programs, not an estimate of human clear rate.
+  let before = 0, after = 0, programs = 0;
+  const original = { ...under, platforms: [under.platforms[0], flag.platforms[1]] };
+  for (let on = 0; on <= 78; on++) {
+    for (let off = on; off <= 78; off++) {
+      const program = [[on / 100, off / 100]];
+      programs++;
+      if (judge(simulate(original, program)).ok) before++;
+      if (judge(simulate(under, program)).ok) after++;
+    }
+  }
+  const oldFraction = before / programs;
+  const newFraction = after / programs;
+  assert.ok(oldFraction > .095 && oldFraction < .11, 'old success space: ' + oldFraction);
+  assert.ok(newFraction > .40 && newFraction < .46, 'new success space: ' + newFraction);
+  assert.ok(newFraction >= 3.5 * oldFraction, 'expanded input tolerance');
+});
+
 test('the flag asks for the same spot with either sound', () => {
   const stage = stageById('flag');
   const early = simulate(stage, [EARLY]), late = simulate(stage, [LATE]);

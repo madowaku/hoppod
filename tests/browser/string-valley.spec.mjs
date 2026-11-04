@@ -83,3 +83,12 @@ test('Space on a focused control does not jump, and a stage link opens that stag
   await expect(state(page)).toHaveAttribute('data-state', 'idle');
   await page.keyboard.up('Space');
 });
+
+
+test('stage 2 offers a wider silent landing target while the demo remains safe', async ({ page }) => {
+  await page.goto('/dev/string-valley.html?lang=en&stage=far-silent');
+  await expect(page.locator('#goal')).toContainText('wide pad');
+  await watchDemo(page);
+  await expect(page.locator('#string-state')).toHaveText('SILENT');
+  await expect(page.locator('#landing-state')).toHaveText('221px');
+});

@@ -43,7 +43,7 @@ A press arms the jump: the robot makes one hop on the spot, then takes off. This
 | Stage | Goal | One-press inputs that clear |
 |---|---|---|
 | 1 RING | Ring the far string, land on the pad | 40.5% |
-| 2 UNDER | Land on the pad without ringing it | 10.3% |
+| 2 UNDER | Land on a **wider** pad without ringing; separate silent-path discovery from precise landing | ~43.2% (previously 10.3%) |
 | 3 NEAR | Ring the near string, land on the pad | 42.8% |
 | 4 FLAG | Land within ±12px of the flag (x=221.25), once ringing and once silent | 19.0% |
 | 5 PHRASE | Four hops without stopping: ring, rest, ring (near), ring | see below |
@@ -79,3 +79,13 @@ The demos establish constructive examples and the jitter test estimates margins.
 - Timing-accurate replay of each input edge could allow an original one-beat tune to be shared.
 
 **Promotion criterion:** a player can intentionally reproduce and then *reverse* the result while aiming for the same landing pad, without adding a second gameplay button.
+
+### Stage 2 revision after first human playtest (2026-11-04)
+
+First hands-on feedback: ringing the strings and landing was enjoyable, but stage 2's silent landing was frustratingly hard. The player reported **both** avoiding contact and sticking the landing were difficult to reproduce intentionally.
+
+Only stage 2's second platform changes, from [183, 272] (89px physical width) to [155, 315] (160px). The string's x and contact height, speed, timing and landing physics remain unchanged. The wider stage-2 pad still does **not** permit an all-SLOW zero-input clear; crossing silently requires some FAST use. The stage displays the new objective in both languages and celebrates a successful silent landing.
+
+The fraction of all single FAST intervals sampled in 10ms steps that clear stage 2 increases from about 10.3% to about 43.2%. This is geometric input-space coverage, **not** measured human success rate. Stage 4 intentionally retains its original flag and ±12px tolerance; keep the distinction between discovery and mastery. Stage 1, 3 and 5 layouts are unchanged.
+
+Retest with hands-on input: does stage 2 now teach “late FAST can pass below the string” instead of forcing exact landing? If silence is still hard to reproduce, measure actual input-edge intervals from the local attempt log before changing the string geometry or contact rules.
