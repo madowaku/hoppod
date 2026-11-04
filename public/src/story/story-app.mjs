@@ -417,7 +417,9 @@ function drawGlints(cam) {
     const [left, right] = footing([p.a, p.b]), l = Math.round(left - cam), r = Math.round(right - cam);
     if (r < -cull || l > W + cull) continue;
     ctx.fillRect(l, FLOOR, 3, 2); ctx.fillRect(r - 3, FLOOR, 3, 2);
-    for (let x = l + 10; x < r - 8; x += 18) ctx.fillRect(x, FLOOR, 2, 1);
+    // 2px high: at a slightly reduced canvas a 1px row can vanish, and these
+    // dots are what shows how fast the ground passes in the dark.
+    for (let x = l + 10; x < r - 8; x += 18) ctx.fillRect(x, FLOOR, 2, 2);
   }
   // In the dark before blue's light, only what a landing needs: a faint line
   // along each top and the cliff edges catching the hero's glow, brighter
@@ -430,7 +432,7 @@ function drawGlints(cam) {
     const [left, right] = footing([p.a, p.b]), l = Math.round(left - cam), r = Math.round(right - cam);
     if (r < -cull || l > W + cull) continue;
     const near = x => 1 - smooth(60, 300, Math.abs(x - heroX)) * .55;
-    ctx.fillStyle = `rgba(232,214,170,${dark * (.22 + .1 * touch)})`; ctx.fillRect(l, FLOOR, r - l, 1);
+    ctx.fillStyle = `rgba(232,214,170,${dark * (.22 + .1 * touch)})`; ctx.fillRect(l, FLOOR, r - l, 2);
     for (const x of [l, r - 2]) {
       const edge = ctx.createLinearGradient(0, FLOOR, 0, FLOOR + 26);
       edge.addColorStop(0, `rgba(232,214,170,${dark * near(x) * (.75 + .25 * touch)})`); edge.addColorStop(1, 'rgba(232,214,170,0)');
@@ -1081,10 +1083,12 @@ function drawWindowView(a) {
   ctx.strokeStyle = 'rgba(120,140,150,.6)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
   ctx.strokeStyle = 'rgba(120,140,150,.25)'; ctx.lineWidth = 8; ctx.beginPath(); ctx.arc(cx, cy, r + 7, 0, Math.PI * 2); ctx.stroke();
 }
+// Only on the safe ground at the start: three hops to hear the beat, then
+// whichever speed the player is not using, until the first hole draws near.
 function drawHints() {
-  if (!playing() || run.hops >= 3 || run.status !== 'playing' || run.checkpoint > 0) return;
+  if (!playing() || run.status !== 'playing' || run.checkpoint > 0) return;
   ctx.textAlign = 'center'; ctx.fillStyle = '#c3d1c7'; ctx.font = '11px monospace';
-  ctx.fillText(tr('hints')[run.hops], W / 2, 190);
+  ctx.fillText(tr('hints')[run.hops < 3 ? 0 : fast() ? 2 : 1], W / 2, 190);
 }
 function drawBanner() {
   if (!banner || !playing()) return;

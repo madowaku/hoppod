@@ -159,3 +159,26 @@ for(const [width,height] of [[360,640],[390,844]]) test(`STORY header at ${width
   }
   expect(errors).toEqual([]);
 });
+
+test('on the safe ground the hints follow the player, and end before the first hole',async({page})=>{
+  await page.addInitScript(()=>{
+    const fillText=CanvasRenderingContext2D.prototype.fillText;globalThis.__hints=[];
+    CanvasRenderingContext2D.prototype.fillText=function(text,...rest){if(/^(IT HOPS|HOLD|RELEASE)/.test(text))globalThis.__hints.push(text);return fillText.call(this,text,...rest);};
+  });
+  const errors=await open(page);
+  const shown=async ms=>{await page.evaluate(()=>{globalThis.__hints.length=0;});await page.clock.runFor(ms);return [...new Set(await page.evaluate(()=>globalThis.__hints))];};
+  await page.locator('#action').click();
+  expect(await shown(780*2)).toEqual(['IT HOPS ON THE BEAT.']);
+  await page.clock.runFor(780*1+100);
+  expect(await shown(200)).toEqual(['HOLD → FAST']);
+  await page.keyboard.down('Space');
+  expect(await shown(200)).toEqual(['RELEASE → SLOW']);
+  await page.keyboard.up('Space');
+  expect(await shown(200)).toEqual(['HOLD → FAST']);
+  // By the checkpoint near the plain's end (at SLOW, about 9 hops in) they are gone.
+  await page.clock.runFor(780*9);
+  const r=await read(page);expect(r.checkpoint).toBe(1);expect(r.status).toBe('playing');
+  expect(await shown(200)).toEqual([]);
+  await page.locator('#play').screenshot({path:artifacts+'/story-plain-end.png'});
+  expect(errors).toEqual([]);
+});

@@ -26,8 +26,8 @@ async function play(page,path,onHop) {
 const shot=(page,name)=>page.locator('#play').screenshot({path:`${dir}/${name}.png`});
 
 test('P2 blue: the third part opens the dark into a wide moon',async({page})=>{
-  const start=storyFrom(COURSE,1),{path}=solve(COURSE,start,{until:r=>r.parts.got===3,order:[.25,0,.5,.75,1]});
-  const errors=await open(page,1);let done=false;
+  const start=storyFrom(COURSE,2),{path}=solve(COURSE,start,{until:r=>r.parts.got===3,order:[.25,0,.5,.75,1]});
+  const errors=await open(page,2);let done=false;
   await play(page,path,async r=>{});
   await shot(page,'blue-0-assemble');
   for(const [ms,name] of [[300,'blue-1-dawn'],[900,'blue-2-opening'],[3000,'blue-3-wide']]){await page.clock.runFor(ms);await shot(page,name);}
@@ -35,12 +35,12 @@ test('P2 blue: the third part opens the dark into a wide moon',async({page})=>{
 });
 
 test('P2 green: rushing the valley leaves green behind, a relay boosts it, then it holds the bridge',async({page})=>{
-  const start=storyFrom(COURSE,3);
+  const start=storyFrom(COURSE,4);
   // FAST-first through the valley (green falls out of range), SLOW-first on the field.
   const valley=solve(COURSE,start,{until:r=>r.x>=COURSE.fieldStart+60,order:[1,.75,.5,.25,0]}).path;
-  const mid=storyFrom(COURSE,3);for(const f of valley)hop(mid,COURSE,f);
+  const mid=storyFrom(COURSE,4);for(const f of valley)hop(mid,COURSE,f);
   const field=solve(COURSE,mid,{until:r=>r.x>COURSE.bridge.b+40,order:[0,.25,.5,.75,1]}).path;
-  const errors=await open(page,3);const seen={};
+  const errors=await open(page,4);const seen={};
   await play(page,[...valley,...field],async r=>{
     const key=r.green==='catch'?'green-1-boost':r.switchOn?'green-3-bridge':r.green==='follow'&&r.greenX>COURSE.switchX-80&&r.greenX<COURSE.switchX?'green-2-near-socket':null;
     if(key&&!seen[key]){seen[key]=true;await shot(page,key);}

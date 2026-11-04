@@ -230,6 +230,7 @@ Not measurable here: real speaker/Bluetooth latency and touch latency on Android
 - **Known limit.** Without storage, a *new* tab or a typed address starts in English (nothing is remembered outside the tab).
 - **Long stalls.** A frame later than 0.5s pauses the story on the last instant it simulated and drew; nothing is simulated unseen. RESUME is always at SLOW. Cue predictions cancelled by PAUSE are forgotten and scheduled again; a launch paused mid-way resumes its rumble from where it was.
 - **Lesson one** is cleared by SLOW alone (each touchdown at least 13px inside its footing); lessons two and three still need FAST, and both speeds.
+- **The start is safe ground** (playtest, 2026-11-04). The dark was never the problem; asking for a hard input in it right away was. The first ground runs to x 1239: no fall is possible for at least 5 touchdowns at FAST and 14 at SLOW (about 11s), and at SLOW the first hole comes into view after about 9s. Hints follow what the player does: three hops about the beat, then whichever speed they are not using. A later fall returns to a checkpoint near the plain's end (x 889), so the walk is not repeated. Blue's assembly moves from about 27-30s to about 31-37s and the end of chapter I from about 49-57s to about 54-65s, depending on pace; the other chapters are unchanged.
 
 ## itch.io build
 

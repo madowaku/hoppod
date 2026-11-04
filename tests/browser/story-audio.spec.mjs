@@ -58,9 +58,9 @@ function checkBeatLock(notes,events) {
 
 test('real audio: blue parts, predicted pickup cues, bell enters, pause/resume/mute',async({page})=>{
   test.setTimeout(120000);
-  const start=storyFrom(COURSE,1);hop(start,COURSE,0);
+  const start=storyFrom(COURSE,2);hop(start,COURSE,0);
   const {path}=solve(COURSE,start,{until:r=>r.parts.got===3&&r.beat-Math.round(r.parts.assembledAt/BEAT)>=10,order:[0,1,.5,.25,.75],robust:.08});
-  const errors=await open(page,1);await drive(page,[0,...path]);
+  const errors=await open(page,2);await drive(page,[0,...path]);
   // A fall here is the driver missing a hold, not the game: say so when it fails.
   await expect.poll(async()=>{const r=await read(page),{events}=await data(page);return r.blue==='follow'?'follow':`${r.blue}; falls at beats ${events.filter(e=>e.type==='fall').map(e=>e.beat)}`;},{timeout:40000}).toBe('follow');
   await page.waitForTimeout(6000);
@@ -95,7 +95,7 @@ test('real audio: blue parts, predicted pickup cues, bell enters, pause/resume/m
 
 test('real audio: green bass follows, a predicted fall silences that beat, respawn ticks',async({page})=>{
   test.setTimeout(60000);
-  const errors=await open(page,3);
+  const errors=await open(page,4);
   await expect.poll(async()=>(await data(page)).events.filter(e=>e.type==='respawn').length,{timeout:30000}).toBeGreaterThan(0);
   await page.waitForTimeout(3000);
   const r=await read(page),{notes,events}=await data(page);
@@ -264,7 +264,7 @@ for(const [fast,ms] of [[false,30000],[true,3000]]) test(`real audio: a ${ms/100
 test('real audio: a pickup cue cancelled by PAUSE sounds once, on time, after RESUME',async({page})=>{
   test.setTimeout(60000);
   // From the second part's checkpoint, SLOW reaches the next part in three hops.
-  const errors=await open(page,1);
+  const errors=await open(page,2);
   // Pause the very frame the collect cue is scheduled ahead (not yet heard).
   await page.evaluate(()=>{const p=globalThis.__rapippoStoryProbe;const look=()=>{const n=(p.notes||[]).find(n=>n.part==='cue:collect');
     if(n){p.pausedOn={count:p.notes.length,s:p.read().s,cue:n};window.dispatchEvent(new KeyboardEvent('keydown',{code:'Escape',bubbles:true}));}else requestAnimationFrame(look);};look();});

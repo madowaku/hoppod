@@ -29,15 +29,19 @@ export function buildCourse() {
   const c = new Builder(), r = rng(0x5ba9);
   // ① WAKE: dark, narrow. Only the hero's clockwork tick. Three blue parts.
   c.chapter('wake');
-  // Hand-placed, three short lessons in the dark, one blue part after each:
-  // narrow gaps to find the rhythm, wide gaps that need FAST, then short
-  // landings after wide gaps where SLOW is the control. ~4000px to the light.
-  c.plat(0, 420); c.checkpoint({ a: 0, b: 140 }, 'wake');
+  // First the hero alone on safe ground: no hole and no way to fall, only the
+  // tick and the beat, room to feel how far FAST and SLOW carry (at least 5
+  // touchdowns at FAST, 14 at SLOW). 819px is exactly ten SLOW hops, so the
+  // lesson's touchdowns stay where they were. A fall further on comes back
+  // to the checkpoint near its end, not to the walk from the start.
+  // Then, hand-placed, three short lessons in the dark, one blue part after
+  // each: narrow gaps to find the rhythm, wide gaps that need FAST, then short
+  // landings after wide gaps where SLOW is the control. ~4800px to the light.
+  c.plat(0, 1239); c.checkpoint({ a: 0, b: 140 }, 'wake'); c.checkpoint({ a: 819, b: 959 }, 'wake');
   const parts = [], run = list => { for (const [gap, width] of list) c.plat(gap, width); };
   // Lesson one is cleared by SLOW alone: every gap sits midway between two
   // SLOW touchdowns (from x 70, one every 81.9px), so each lands at least
-  // 13px inside its footing. The part's ground still ends at x 1520, so
-  // nothing after it moves.
+  // 13px inside its footing.
   run([[30, 218], [32, 212], [36, 211], [34, 127]]);
   let p = c.plat(38, 162); parts.push(Math.round((p.a + p.b) / 2));
   run([[70, 170], [78, 160], [84, 170], [76, 160]]);

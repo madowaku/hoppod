@@ -96,6 +96,35 @@ test('the full five-chapter course is clearable and the journey lasts about five
   assert.ok(witness.end.together, 'red brought green back');
 });
 
+test('the start is safe ground: no fall at any input, the first hole small and seen late; a fall comes back near it', () => {
+  const plain = COURSE.platforms[0], edge = plain.b - INSET, gap = COURSE.platforms[1].a - plain.b;
+  assert.equal(COURSE.start, COURSE.checkpoints[0].x);
+  const steps = (COURSE.checkpoints[1].x - COURSE.start) / (SLOW_SPEED * BEAT);
+  assert.ok(Math.abs(steps - Math.round(steps)) < 1e-9, 'the respawn keeps SLOW in step with the lesson');
+  // Whatever is held, the first five touchdowns are on the ground; at SLOW, fourteen.
+  for (let m = 0; m < 1 << 5; m++) {
+    const run = newStory(COURSE);
+    for (let k = 0; k < 5; k++) assert.ok(!hop(run, COURSE, (m >> k) & 1).some(e => e.type === 'fall'), `pattern ${m}, hop ${k}`);
+    assert.ok(run.x <= edge);
+  }
+  const slow = newStory(COURSE);
+  for (let k = 0; k < 14; k++) assert.ok(!hop(slow, COURSE, 0).some(e => e.type === 'fall'));
+  // At SLOW the hole is off the screen (230px ahead of the hero) for about nine seconds.
+  assert.ok((plain.b - 230 - COURSE.start) / SLOW_SPEED > 8.5);
+  // It is the smallest gap of the lessons, and FAST or SLOW alone both cross it.
+  const lessons = COURSE.platforms.slice(1, 13).map((p, i) => p.a - COURSE.platforms[i].b);
+  assert.equal(gap, Math.min(...lessons));
+  // A fall in lesson two returns to the end of the plain, and SLOW reaches the first part from there.
+  const run = newStory(COURSE); let log = [];
+  for (let k = 0; k < 40 && run.status === 'playing'; k++) log = hop(run, COURSE, 0);
+  assert.equal(run.status, 'falling'); assert.equal(run.parts.got, 1);
+  for (let k = 0; k < 3 && run.status === 'falling'; k++) hop(run, COURSE, 0);
+  assert.equal(run.checkpoint, 1); assert.equal(run.x, COURSE.checkpoints[1].x);
+  const again = storyFrom(COURSE, 1);
+  for (let k = 0; k < 20 && again.parts.got < 1; k++) assert.ok(!hop(again, COURSE, 0).some(e => e.type === 'fall'));
+  assert.equal(again.parts.got, 1);
+});
+
 test('lesson one is cleared by SLOW alone with room to spare; lessons two and three still ask for FAST and for both', () => {
   const slowFrom = (run, until) => {
     const log = [];
@@ -114,7 +143,7 @@ test('lesson one is cleared by SLOW alone with room to spare; lessons two and th
   assert.ok(on.some(e => e.type === 'fall') && run.parts.got === 1, 'lesson two needs FAST');
   // Lesson three needs both speeds: neither SLOW nor FAST alone reaches the last part.
   for (const f of [0, 1]) {
-    const r = storyFrom(COURSE, 1), ev = [];
+    const r = storyFrom(COURSE, 2), ev = [];
     for (let k = 0; k < 40 && r.status === 'playing'; k++) ev.push(...hop(r, COURSE, f));
     assert.equal(r.status, 'falling', (f ? 'FAST' : 'SLOW') + ' alone falls in lesson three');
     assert.ok(r.parts.got < 3);
