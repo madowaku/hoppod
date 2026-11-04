@@ -10,8 +10,9 @@ export const LAB = Object.freeze({
   hopHeight: 88,
   stringX: 173,
   // Only the glowing lower section of the suspended string is touch-sensitive.
-  activeStringTop: 165,
-  activeStringBottom: 189,
+  sensorOffsetY: 12, // small visible diode at the front/top of the face
+  activeStringTop: 155,
+  activeStringBottom: 173,
   landingPad: Object.freeze([183, 272]),
   // A one-beat experiment, not a completed stage.
   tolerancePx: 0.001
@@ -49,7 +50,7 @@ export function advanceAttempt(run, dt, fast) {
     if (run.stringCross === null &&
         beforeX <= LAB.stringX && afterX >= LAB.stringX) {
       const crossingPhase = beforePhase + (LAB.stringX - beforeX) / speed;
-      const y = heroY(crossingPhase);
+      const y = heroY(crossingPhase) - LAB.sensorOffsetY;
       const touched = y >= LAB.activeStringTop && y <= LAB.activeStringBottom;
       run.stringCross = { time: crossingPhase, y, touched };
       events.push({ type: touched ? 'note' : 'passed', t: crossingPhase, y });
