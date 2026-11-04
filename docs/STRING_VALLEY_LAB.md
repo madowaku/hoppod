@@ -1,6 +1,6 @@
 # RAPIPPO lab D: STRING VALLEY / 弦の谷
 
-**Status:** research prototype only. Created independently from \`main\` (\`53b6642\`). Keep STORY jam PR #16 and A/B/C PR #17 unchanged.
+**Status:** research prototype only. Created independently from `main` (`53b6642`). Keep STORY jam PR #16 and A/B/C PR #17 unchanged.
 
 ## Core hypothesis
 
@@ -45,7 +45,7 @@ Test **mechanic viability** first, not player satisfaction inferred from scripts
 - Contact is a point-sensor at the visible forehead diode's crossing of a string x-plane and a glowing vertical tip, not full sprite swept collision.
 - Original synthetic pluck only; missing audio support degrades to visual feedback.
 - No network, saved scores, cloud sharing, linked main menu, release build, or production code modification.
-- Files live under \`public/dev/\`, which the STORY itch ZIP builder excludes. Existing \`COURSE_VERSION\`, DAILY and replay URLs are untouched.
+- Files live under `public/dev/`, which the STORY itch ZIP builder excludes. Existing `COURSE_VERSION`, DAILY and replay URLs are untouched.
 - Test under 30/60/144 fps and Android touch before any promotion.
 - No requirement to make early FAST the single correct choice forever; the point is to unlock trajectory as a new expressive axis.
 
