@@ -21,6 +21,8 @@ header div{display:flex;gap:4px}header button{font-size:10px;min-height:32px}
 .stages button[aria-current=true]{color:#101f2c;background:#e9d9b0;border-color:#e9d9b0;font-weight:700}
 .stages button.cleared::after{content:" ✓";color:#8ee6c4}
 .stages button[aria-current=true].cleared::after{color:#22604c}
+.stages button.full-pass::after{content:" ★";color:#ffd27a}
+.stages button[aria-current=true].full-pass::after{color:#8a5a12}
 #goal{font-size:13px;line-height:1.4;font-weight:700;margin:0;min-height:2.8em;display:flex;align-items:center}
 .frame{border:1px solid #607c80;border-radius:8px;overflow:hidden;background:#101f2c;line-height:0;align-self:center;width:min(100%,calc((100dvh - 268px)*360/510));min-width:230px}
 canvas{display:block;width:100%;height:auto;aspect-ratio:360/510;image-rendering:pixelated;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}

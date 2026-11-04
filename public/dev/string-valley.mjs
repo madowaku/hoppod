@@ -4,7 +4,7 @@ import { createAudio } from '../src/audio.mjs';
 import { chooseLanguage } from '../src/ui-copy.mjs';
 import {
   LAB, STAGES, CONTACT_WINDOW, newAttempt, advanceAttempt, advanceWithPlan,
-  planIsFast, judge, feetY
+  planIsFast, judge, feetY, landingPx
 } from './string-trajectory.mjs';
 
 const TEXT = {
@@ -12,14 +12,14 @@ const TEXT = {
     stages: ['① 鳴らす', '② くぐる', '③ 近い弦', '④ 同じ旗', '⑤ 4連'],
     goals: [
       '弦を鳴らして、パッドに着地しよう',
-      '今度は弦に触れずに、広いパッドに着地しよう',
+      '弦に触れずに着地しよう。できたら弦の先まで抜けてみよう',
       '近い弦を鳴らして着地。さっきと同じ飛び方で鳴るかな？',
       '旗に2回着地しよう。1回は鳴らして、1回は鳴らさずに',
       '止まらず4ホップ。金の弦は鳴らす、青の弦は鳴らさない'
     ],
     hints: [
       'ヒント：跳んですぐ押して、頂上あたりで離す',
-      'ヒント：前半は待って、頂上を過ぎてから押す',
+      'ヒント：短く押すだけでも着地できる。前半に長く押すと弦に触れる',
       'ヒント：弦が近いと、急ぐほど弦の下を抜ける。前半はゆっくり',
       'ヒント：押す長さはどちらも約0.39秒。順番だけを変える',
       'ヒント：弦が近ければゆっくりが先、遠ければ急ぐのが先'
@@ -34,10 +34,10 @@ const TEXT = {
     offFlag: d => `着地はできたけれど、旗から ${d}px ずれた`,
     wrongRing: '着地はできたけれど、鳴らせなかった', wrongSilent: '着地はできたけれど、鳴ってしまった',
     wrongPhrase: n => `最後まで着いた！ ただし ${n} 本違う弦があった`,
-    cleared: '★ クリア！', silentClear: '★ 静かにくぐれた！ 弦に触れずに着地成功', flagFirstRing: '鳴らして旗に着地！ 次は鳴らさずに', flagFirstSilent: '鳴らさず旗に着地！ 次は鳴らして',
+    cleared: '★ クリア！', quietClear: '★ 静かに着地できた！', fullPass: '★★ 弦を完全にくぐり抜けた！', flagFirstRing: '鳴らして旗に着地！ 次は鳴らさずに', flagFirstSilent: '鳴らさず旗に着地！ 次は鳴らして',
     flagAgain: 'その音はもう取った。今度は逆の音で', allClear: '全ステージ達成！ おつかれさま',
     stall: '処理が止まったので、やり直します', demoDone: '見本おわり。自分でやってみよう',
-    bannerClear: '★ CLEAR', bannerFall: 'FALL', bannerMiss: 'もう一度',
+    bannerClear: '★ CLEAR', bannerBonus: '★★ BONUS', bannerFall: 'FALL', bannerMiss: 'もう一度',
     now: '今', prev: '前回', high: '弦に届く高さ',
     notesTitle: 'テスト記録と操作メモ',
     notes: '操作は押す・離すだけ（Space も可、R でやり直し）。下の記録は端末の中だけにあり、送信されません。試遊の後でコピーして共有できます。',
@@ -47,14 +47,14 @@ const TEXT = {
     stages: ['1 RING', '2 UNDER', '3 NEAR', '4 FLAG', '5 PHRASE'],
     goals: [
       'Ring the string and land on the pad',
-      'Pass the string silently and land on the wide pad',
+      'Land without touching the string. Optional: get all the way past it',
       'Ring the near string and land. Does the same flight still work?',
       'Land on the flag twice: once ringing, once silent',
       'Four hops without stopping. Ring the gold, leave the blue silent'
     ],
     hints: [
       'Hint: press right after take-off, release around the top',
-      'Hint: wait through the first half, press after the top',
+      'Hint: a short press is enough to land. A long early press hits the string',
       'Hint: a near string slips by if you rush. Start slow',
       'Hint: hold about 0.39s both times. Only the order changes',
       'Hint: near string, slow first. Far string, fast first'
@@ -69,10 +69,10 @@ const TEXT = {
     offFlag: d => `Landed, but ${d}px off the flag`,
     wrongRing: 'Landed, but the string stayed silent', wrongSilent: 'Landed, but the string rang',
     wrongPhrase: n => `You made it! ${n} string(s) were wrong`,
-    cleared: '★ CLEAR!', silentClear: '★ SILENT PASS! No note, safe landing', flagFirstRing: 'Rang and hit the flag! Now do it silently', flagFirstSilent: 'Silent on the flag! Now ring it',
+    cleared: '★ CLEAR!', quietClear: '★ Landed quietly!', fullPass: '★★ All the way past the string!', flagFirstRing: 'Rang and hit the flag! Now do it silently', flagFirstSilent: 'Silent on the flag! Now ring it',
     flagAgain: 'You already have that sound. Try the opposite', allClear: 'All stages done. Well played!',
     stall: 'Playback stalled, restarting', demoDone: 'Demo finished. Your turn',
-    bannerClear: '★ CLEAR', bannerFall: 'FALL', bannerMiss: 'AGAIN',
+    bannerClear: '★ CLEAR', bannerBonus: '★★ BONUS', bannerFall: 'FALL', bannerMiss: 'AGAIN',
     now: 'NOW', prev: 'LAST', high: 'high enough to touch',
     notesTitle: 'Test log and controls',
     notes: 'Just press and release (Space works, R retries). The log stays on this device and is never sent. Copy it after a session to share it.',
@@ -99,7 +99,7 @@ let fails = 0, advanceOnPress = false, stringFx = [], particles = [], landAge = 
 let lastInput = 'none';
 let pluckContext = null;
 const pressedKeys = new Set(), pressedPointers = new Set();
-const cleared = new Set(), flagSounds = new Set();
+const cleared = new Set(), fullPassed = new Set(), flagSounds = new Set();
 const log = [];
 
 const stage = () => STAGES[stageIndex];
@@ -228,6 +228,7 @@ function finish() {
 function entry(verdict, touched, demoPlan) {
   return {
     stage: stage().id, demo: Boolean(demoPlan), input: lastInput, ok: verdict.ok, reason: verdict.reason,
+    ...(verdict.tier ? { tier: verdict.tier } : {}),
     x: +run.x.toFixed(2), hops: run.hops, touched, fast: +run.fastSeconds.toFixed(3),
     segments: run.segments.map(s => [s.hop, +s.from.toFixed(3), +s.to.toFixed(3)])
   };
@@ -254,8 +255,11 @@ function resolvePlayer(verdict, touched) {
   }
   if (done) {
     cleared.add(stage().id); fails = 0; advanceOnPress = true;
-    banner = text.bannerClear;
-    say(cleared.size === STAGES.length ? text.allClear : stage().id === 'far-silent' ? text.silentClear : text.cleared);
+    if (verdict.tier === 'through') fullPassed.add(stage().id);
+    banner = verdict.tier === 'through' ? text.bannerBonus : text.bannerClear;
+    const tierText = verdict.tier === 'through' ? text.fullPass : verdict.tier === 'quiet' ? text.quietClear : null;
+    if (cleared.size === STAGES.length) say(tierText ? tierText + ' / ' + text.allClear : text.allClear);
+    else say(tierText ?? text.cleared);
     return;
   }
   banner = verdict.reason === 'short' || verdict.reason === 'far' ? text.bannerFall : text.bannerMiss;
@@ -307,6 +311,7 @@ function refresh() {
   [...$('stages').children].forEach((button, index) => {
     button.textContent = text.stages[index];
     button.classList.toggle('cleared', cleared.has(STAGES[index].id));
+    button.classList.toggle('full-pass', fullPassed.has(STAGES[index].id));
     button.setAttribute('aria-current', String(index === stageIndex));
   });
   const hold = $('hold');
@@ -319,7 +324,7 @@ function refresh() {
   $('string-state').textContent = state === 'done' || anyTouched
     ? (anyTouched ? text.hit : text.silent) : '—';
   $('landing-state').textContent = state === 'done'
-    ? (run.status === 'fall' ? text.fell : Math.round(run.x) + 'px')
+    ? (run.status === 'fall' ? text.fell : landingPx(stage(), run.x) + 'px')
     : state === 'run' ? text.inAir : '—';
   $('demo').textContent = text.demoButton;
   $('retry').textContent = text.retry;

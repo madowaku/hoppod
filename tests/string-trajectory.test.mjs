@@ -5,7 +5,7 @@ import { PERIOD, SLOW_SPEED, FAST_SPEED, COURSE_VERSION } from '../public/src/en
 import { drawPod } from '../public/src/pod.mjs';
 import {
   LAB, STAGES, EARLY, LATE, CONTACT_WINDOW, stageById, newAttempt, advanceAttempt,
-  simulate, judge, feetY, podTopY
+  simulate, judge, feetY, podTopY, landingPx
 } from '../public/dev/string-trajectory.mjs';
 
 const FLAG_LANDING = LAB.startX + PERIOD / 2 * (SLOW_SPEED + FAST_SPEED);
@@ -59,32 +59,95 @@ test('every stage is solved by its own demo', () => {
 });
 
 
-test('stage 2 gives a wide landing pad for silent discovery without changing the later precision flag', () => {
-  const under = stageById('far-silent');
-  const flag = stageById('flag');
-  assert.deepEqual(under.platforms[1], [155, 315]);
-  assert.deepEqual(flag.platforms[1], [183, 272]);
-  assert.equal(judge(simulate(under, [LATE])).ok, true);
-  assert.equal(judge(simulate(under, [EARLY])).ok, false);
-  assert.equal(judge(simulate(under, [[0, 0]])).ok, false, 'permanent SLOW cannot cross the wider pad safely');
-
-  // Same 10ms press/release sampling as the study note; this is a proportion of
-  // possible one-press input programs, not an estimate of human clear rate.
-  let before = 0, after = 0, programs = 0;
-  const original = { ...under, platforms: [under.platforms[0], flag.platforms[1]] };
+// Every one-press program in 10ms steps: input-space coverage, not a human clear rate.
+function onePressPrograms(stage, visit) {
   for (let on = 0; on <= 78; on++) {
     for (let off = on; off <= 78; off++) {
-      const program = [[on / 100, off / 100]];
-      programs++;
-      if (judge(simulate(original, program)).ok) before++;
-      if (judge(simulate(under, program)).ok) after++;
+      const run = simulate(stage, [[on / 100, off / 100]]);
+      visit(run, judge(run), on / 100, off / 100);
     }
   }
-  const oldFraction = before / programs;
-  const newFraction = after / programs;
-  assert.ok(oldFraction > .095 && oldFraction < .11, 'old success space: ' + oldFraction);
-  assert.ok(newFraction > .40 && newFraction < .46, 'new success space: ' + newFraction);
-  assert.ok(newFraction >= 3.5 * oldFraction, 'expanded input tolerance');
+}
+
+test('stage 2 spec: x<173 fails, 173<=x<189 is a quiet clear, x>=189 is the full pass', () => {
+  const under = stageById('far-silent');
+  assert.deepEqual(under.platforms[1], [165, 315]);
+  assert.equal(under.fullPassX, 189);
+
+  const counts = { programs: 0, quiet: 0, through: 0 };
+  onePressPrograms(under, (run, verdict) => {
+    counts.programs++;
+    const silent = !run.strings[0].touched;
+    const safe = run.status === 'landed';
+    const expected = !silent || !safe || run.x < 173 ? undefined : run.x < 189 ? 'quiet' : 'through';
+    assert.equal(verdict.tier, expected, 'x=' + run.x);
+    assert.equal(verdict.ok, expected !== undefined, 'x=' + run.x);
+    if (run.x < 173) assert.equal(safe, false, 'x<173 is never a safe landing: ' + run.x);
+    if (expected) {
+      counts[expected]++;
+      assert.equal(expected === 'through', run.strings[0].passed, 'the antennas left the string x=' + run.x);
+    }
+  });
+  assert.deepEqual(counts, { programs: 3160, quiet: 579, through: 351 });
+  assert.equal(judge(simulate(under, [[0, 0]])).ok, false, 'all-SLOW falls short');
+  assert.equal(judge(simulate(under, [EARLY])).ok, false, 'the early demo rings');
+  assert.equal(judge(simulate(under, [LATE])).tier, 'through', 'the demo shows the optional goal');
+});
+
+test('stage 2 tiers: the boundaries themselves, and the wrong-string or fall cases have no tier', () => {
+  const under = stageById('far-silent');
+  const clear = x => judge({ stage: under, status: 'landed', x, strings: [{ touched: false }] }).tier;
+  assert.equal(clear(173), 'quiet');
+  assert.equal(clear(188.999), 'quiet');
+  assert.equal(clear(189), 'through');
+  assert.equal(judge({ stage: under, status: 'landed', x: 200, strings: [{ touched: true }] }).tier, undefined);
+  assert.equal(judge({ stage: under, status: 'fall', miss: 'short', x: 172.9, strings: [{ touched: false }] }).tier, undefined);
+});
+
+test('stage 2 display: the number shown never contradicts the tier', () => {
+  const under = stageById('far-silent');
+  assert.equal(landingPx(under, 188.6), 188, 'must not round up into the full-pass range');
+  onePressPrograms(under, (run, verdict) => {
+    if (verdict.ok) assert.equal(landingPx(under, run.x) >= 189, verdict.tier === 'through', 'x=' + run.x);
+  });
+  assert.equal(landingPx(stageById('far-ring'), 221.6), 222, 'other stages keep rounding');
+});
+
+test('a short early press alone earns the quiet clear: clearing stage 2 does not prove late FAST', () => {
+  const under = stageById('far-silent');
+  for (const program of [[0, .1], [.05, .15], [0, .15], [.1, .2]]) {
+    const run = simulate(under, [program]);
+    assert.equal(run.strings[0].touched, false, program);
+    assert.equal(judge(run).tier, 'quiet', program);
+  }
+  assert.equal(judge(simulate(under, [[0, .09]])).reason, 'short', '0.09s does not reach the pad');
+  assert.equal(judge(simulate(under, [[0, .2]])).reason, 'wrong-string', 'a longer early press rings');
+
+  // The optional goal is where late FAST is really required.
+  let earliestOn = Infinity, earliestOff = Infinity;
+  onePressPrograms(under, (run, verdict, on, off) => {
+    if (verdict.tier !== 'through') return;
+    earliestOn = Math.min(earliestOn, on);
+    earliestOff = Math.min(earliestOff, off);
+  });
+  assert.ok(earliestOn > .32, 'full pass press starts after 0.32s: ' + earliestOn);
+  assert.ok(earliestOff > CONTACT_WINDOW[1], 'full pass press outlasts the contact window: ' + earliestOff);
+});
+
+test('the stage 2 change leaves stages 1, 3, 4 and 5 and the contact rule alone', () => {
+  const pad = [183, 272];
+  for (const id of ['far-ring', 'near-ring', 'flag']) assert.deepEqual(stageById(id).platforms[1], pad, id);
+  assert.deepEqual(stageById('far-ring').strings[0].x, 173);
+  assert.deepEqual(stageById('near-ring').strings[0].x, 125);
+  assert.deepEqual(stageById('flag').strings[0].x, 173);
+  assert.deepEqual(stageById('phrase').platforms.slice(1), [pad, [325, 415], [470, 560], [620, 760]]);
+  assert.deepEqual(stageById('phrase').strings.map(s => s.x), [173, 319, 417, 611]);
+  assert.deepEqual(stageById('far-silent').strings[0].x, 173);
+  assert.equal(LAB.antennaReach, 16);
+  assert.equal(LAB.stringBottomY, 228);
+
+  const clears = id => { let n = 0; onePressPrograms(stageById(id), (run, v) => { assert.equal(v.tier, undefined); if (v.ok) n++; }); return n; };
+  assert.deepEqual([clears('far-ring'), clears('near-ring'), clears('flag')].map(n => +(100 * n / 3160).toFixed(1)), [40.5, 42.8, 19.0]);
 });
 
 test('the flag asks for the same spot with either sound', () => {

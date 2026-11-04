@@ -46,14 +46,15 @@ export const LATE = Object.freeze([HALF, PERIOD]);
 const E5 = 659.25, G5 = 783.99, A5 = 880;
 const START = Object.freeze([0, 132]);
 const PAD = Object.freeze([183, 272]);
-const UNDER_PAD = Object.freeze([155, 315]); // stage 2: focus on the silent path, not precise landing
+const UNDER_PAD = Object.freeze([165, 315]); // stage 2: its footing starts at the string, x=173
 const FLAG_X = LAB.startX + HALF * (SLOW_SPEED + FAST_SPEED); // 221.25: both 0.39s plans land here
 const FAR = 173;  // 98px from the start: rushing reaches it while high
 const NEAR = 125; // 50px from the start: rushing passes it before the antennas are high enough
 
 export const STAGES = Object.freeze([
   { id: 'far-ring', beats: 1, platforms: [START, PAD], strings: [{ x: FAR, want: 'ring', note: E5 }], demos: [[EARLY]] },
-  { id: 'far-silent', beats: 1, platforms: [START, UNDER_PAD], strings: [{ x: FAR, want: 'silent', note: E5 }], demos: [[LATE]] },
+  // fullPassX: the optional goal. The antennas (+-16px) have left the string's x.
+  { id: 'far-silent', beats: 1, platforms: [START, UNDER_PAD], fullPassX: FAR + LAB.antennaReach, strings: [{ x: FAR, want: 'silent', note: E5 }], demos: [[LATE]] },
   { id: 'near-ring', beats: 1, platforms: [START, PAD], strings: [{ x: NEAR, want: 'ring', note: E5 }], demos: [[EARLY], [LATE]] },
   { id: 'flag', beats: 1, platforms: [START, PAD], flag: FLAG_X, strings: [{ x: FAR, want: 'either', note: E5 }], demos: [[EARLY], [LATE]] },
   {
@@ -186,5 +187,15 @@ export function judge(run) {
   if (stage.flag !== undefined && Math.abs(run.x - stage.flag) > LAB.flagTolerance) {
     return { ok: false, reason: 'off-flag', wrong };
   }
-  return { ok: wrong.length === 0, reason: wrong.length ? 'wrong-string' : 'ok', wrong };
+  const ok = wrong.length === 0;
+  const verdict = { ok, reason: ok ? 'ok' : 'wrong-string', wrong };
+  // tier only grades a clear; a 'quiet' clear already advances, 'through' is optional.
+  if (ok && stage.fullPassX !== undefined) verdict.tier = run.x >= stage.fullPassX ? 'through' : 'quiet';
+  return verdict;
+}
+
+// Where a stage has a tier threshold the number must not round across it:
+// x=188.6 is a quiet clear and may not read as 189.
+export function landingPx(stage, x) {
+  return stage.fullPassX !== undefined ? Math.floor(x) : Math.round(x);
 }

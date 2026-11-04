@@ -43,7 +43,7 @@ A press arms the jump: the robot makes one hop on the spot, then takes off. This
 | Stage | Goal | One-press inputs that clear |
 |---|---|---|
 | 1 RING | Ring the far string, land on the pad | 40.5% |
-| 2 UNDER | Land on a **wider** pad without ringing; separate silent-path discovery from precise landing | ~43.2% (previously 10.3%) |
+| 2 UNDER | Land on a **wider** pad without ringing. Optional: get all the way past the string | 29.4%, of which the optional full pass is 11.1% (see the stage 2 spec) |
 | 3 NEAR | Ring the near string, land on the pad | 42.8% |
 | 4 FLAG | Land within ±12px of the flag (x=221.25), once ringing and once silent | 19.0% |
 | 5 PHRASE | Four hops without stopping: ring, rest, ring (near), ring | see below |
@@ -70,7 +70,7 @@ The demos establish constructive examples and the jitter test estimates margins.
 - Original synthetic pluck only; missing audio support degrades to visual feedback.
 - No network, saved scores, cloud sharing, linked main menu, release build, or production code modification.
 - Files live under `public/dev/`, which the STORY itch ZIP builder excludes. Existing `COURSE_VERSION`, DAILY and replay URLs are untouched.
-- Not yet tried on a physical Android phone or by anyone but scripted input.
+- Human feedback so far is limited to the first playtest noted below, on the earlier layout. The current stage 2 has only been run with scripted input, and physical-Android behaviour is not recorded here.
 
 ## Follow-on hypotheses (do not implement until this is fun)
 
@@ -84,8 +84,32 @@ The demos establish constructive examples and the jitter test estimates margins.
 
 First hands-on feedback: ringing the strings and landing was enjoyable, but stage 2's silent landing was frustratingly hard. The player reported **both** avoiding contact and sticking the landing were difficult to reproduce intentionally.
 
-Only stage 2's second platform changes, from [183, 272] (89px physical width) to [155, 315] (160px). The string's x and contact height, speed, timing and landing physics remain unchanged. The wider stage-2 pad still does **not** permit an all-SLOW zero-input clear; crossing silently requires some FAST use. The stage displays the new objective in both languages and celebrates a successful silent landing.
+Only stage 2's second platform changes, from [183, 272] (89px physical width) to [165, 315] (150px), and stage 2 gains two tiers. The string's x and contact height, speed, timing and landing physics remain unchanged, as do stages 1, 3, 4 and 5. Stage 4 keeps its flag and ±12px tolerance as the mastery challenge.
 
-The fraction of all single FAST intervals sampled in 10ms steps that clear stage 2 increases from about 10.3% to about 43.2%. This is geometric input-space coverage, **not** measured human success rate. Stage 4 intentionally retains its original flag and ±12px tolerance; keep the distinction between discovery and mastery. Stage 1, 3 and 5 layouts are unchanged.
+An interim layout of [155, 315] covered 43.2% of inputs, but 74% of those clears never took the antennas past the string, and a third of them stopped short of it. All of the extra coverage came from the left side, so the left edge was moved so that the footing starts at the string (x=173).
 
-Retest with hands-on input: does stage 2 now teach “late FAST can pass below the string” instead of forcing exact landing? If silence is still hard to reproduce, measure actual input-edge intervals from the local attempt log before changing the string geometry or contact rules.
+### Stage 2 spec
+
+Every tier requires no string contact and a safe landing.
+
+| Landing x | Result | Message | One-press inputs (of 3160) |
+|---|---|---|---|
+| x < 173 | Not cleared (the footing starts at 173, so this is a fall) | "Fell short" | n/a |
+| 173 ≤ x < 189 | **Clear**, opens the next stage | 「★ 静かに着地できた！」 / "★ Landed quietly!" | 579 (18.3%) |
+| x ≥ 189 | **Full pass**, the optional goal (★ on the stage button, also opens the next stage) | 「★★ 弦を完全にくぐり抜けた！」 / "★★ All the way past the string!" | 351 (11.1%) |
+
+189 is the string's x plus the antennas' 16px reach: the point where the antennas have left the string's x. The earlier layout had 325 clearing inputs (10.3%), so the full pass is about as demanding as the old stage 2. It never blocks progress. Stage 2 shows its landing rounded down so that the number cannot contradict the tier (x=188.6 reads 188px). Attempts in the log carry `tier`. Demos earn neither tier.
+
+### What clearing stage 2 does and does not show
+
+**A stage 2 clear is not evidence that a player learned late FAST.** A single short press early in the hop clears it: FAST for about 0.1s from take-off lands at x≈173 in silence, because the antennas arrive after they have dropped below the bead. The minimum FAST that reaches the pad is about 0.098s, and an early press beyond about 0.18s rings the string.
+
+Late FAST is required only for the optional full pass: every one-press full pass starts after about 0.32s and is still held after the contact window closes at 0.502s. Late-FAST learning therefore has to be read from the full pass and from stage 4, not from the clear. The stage 2 hint says only what holds for the clear: a short press is enough, and a long early press hits the string. These percentages are input-space coverage, **not** measured human success rates.
+
+Retest with hands-on input, and read `tier`, `x` and `segments` from the attempt log:
+
+1. Does the clear relieve the frustration of the first playtest?
+2. Do players clear with short presses only, and do they stop there?
+3. Does anyone try for the full pass unprompted, and can they repeat it on purpose?
+
+If silence is still hard to reproduce, measure actual input-edge intervals from the log before changing the string geometry or contact rules.
