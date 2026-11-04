@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>RAPIPPO | FAST/SLOW Play Lab</title>
+<style>
+:root{font-family:system-ui,-apple-system,sans-serif;background:#0b152a;color:#f3f5ff}
+*{box-sizing:border-box}body{margin:0;padding:18px 12px 34px;display:flex;justify-content:center}
+main{width:min(680px,100%)}.eyebrow{color:#8dd5cd;letter-spacing:.13em;font-size:11px;font-weight:800}
+h1{font-size:clamp(25px,6vw,36px);margin:4px 0 6px}p{margin:5px 0 14px;color:#b9cbe3;line-height:1.5}
+nav{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:13px 0}
+button{font:inherit;color:inherit;cursor:pointer;touch-action:none}
+.mode{border:1px solid #46627d;background:#192a45;padding:10px 6px;border-radius:12px;font-size:12px;font-weight:800}
+.mode[aria-pressed=true]{border-color:#a3f3dc;background:#215456;color:#ffffff}
+.frame{position:relative;border:1px solid #39506f;border-radius:16px;overflow:hidden;background:#101d33}
+canvas{display:block;width:100%;height:auto;aspect-ratio:600/390}
+.stat{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:11px 0}
+.stat div{background:#182941;border-radius:10px;padding:9px;text-align:center}
+.stat small{display:block;font-size:10px;letter-spacing:.1em;color:#a8bad2}.stat strong{display:block;font-size:21px;font-variant-numeric:tabular-nums}
+.actions{display:grid;grid-template-columns:1fr 1.5fr;gap:9px;margin:12px 0}
+.actions button{border:1px solid #52718e;padding:16px 8px;border-radius:14px;font-weight:850;background:#1e3553}
+.actions #hold{background:#dff9e6;color:#15394b;border-color:#dff9e6;user-select:none;-webkit-user-select:none;touch-action:none}
+.actions #hold:active,.actions #hold.held{background:#ffd79b;border-color:#ffd79b}
+#message{min-height:2.5em;color:#a5e3d3;font-weight:700}
+.help{font-size:13px;color:#adc1da}.notice{border-left:3px solid #9adbc7;padding-left:10px;margin-top:14px}
+a{color:#b6e4ff}kbd{border:1px solid #71839f;border-radius:4px;padding:1px 4px}
+</style>
+</head>
+<body><main>
+<div class="eyebrow">EXPERIMENT ONLY · NOT FOR THE JAM BUILD</div>
+<h1>RAPIPPO / FAST·SLOW LAB</h1>
+<p>One bouncing robot. Three different reasons to try again. Change the time spent holding FAST to choose where each hop lands.</p>
+<nav aria-label="Choose experiment">
+<button class="mode" data-mode="precision" aria-pressed="true">A · PRECISION</button>
+<button class="mode" data-mode="shortcut" aria-pressed="false">B · SHORTCUT</button>
+<button class="mode" data-mode="relay" aria-pressed="false">C · DISCOVERY</button>
+</nav>
+<div class="frame"><canvas id="scene" width="600" height="390" aria-label="A hopping robot crosses lunar platforms. Hold FAST to advance farther, release for SLOW."></canvas></div>
+<div class="stat">
+<div><small>HOPS</small><strong id="hops">0</strong></div>
+<div><small id="stat-label">PERFECT</small><strong id="stat-value">0</strong></div>
+<div><small>ATTEMPTS</small><strong id="attempts">1</strong></div>
+</div>
+<div id="message" role="status" aria-live="polite">A: land near the light at the center of each platform.</div>
+<div class="actions"><button id="restart">START / RETRY</button><button id="hold" aria-label="Hold to go fast">HOLD » FAST</button></div>
+<div class="help">SLOW is automatic. Hold the button or <kbd>Space</kbd> for FAST. Release to SLOW. <kbd>R</kbd> retries. A fall ends the attempt; every hop lasts exactly 0.78 seconds.</div>
+<p class="notice">This is a disposable comparison lab, not a release feature. Compare how each challenge feels, not the visual polish. No changes to STORY or existing FREE RUN.</p>
+<script type="module" src="./fastslow-lab.mjs"></script>
+</main></body></html>
