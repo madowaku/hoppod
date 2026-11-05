@@ -272,6 +272,9 @@ function selectStage(index) {
   toIdle();
 }
 
+// The first press sets up audio, which can hold the page for half a second. The run-up
+// starts once the page answers: it is not a timed input, and it must not read as a stall.
+const answeredAt = event => Math.max(event.timeStamp, performance.now()) / 1000;
 function press(event, source) {
   unlock();
   lastInput = source;
@@ -283,7 +286,7 @@ function press(event, source) {
       if (stageIndex < STAGES.length - 1) { selectStage(stageIndex + 1); return; }
     }
     plan = null; demoQueue = []; demoWait = 0;
-    startReady(now);
+    startReady(answeredAt(event));
     return;
   }
   if (state === 'run') audio.play('fast');
@@ -549,7 +552,7 @@ $('demo').addEventListener('click', e => {
   clearInput();
   ghost = []; trail = []; lastSegments = null; advanceOnPress = false;
   demoQueue = rest;
-  startReady(e.timeStamp / 1000, first);
+  startReady(answeredAt(e), first);
 });
 $('retry').addEventListener('click', e => { e.currentTarget.blur(); toIdle(); });
 $('sound').addEventListener('click', e => {

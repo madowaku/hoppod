@@ -42,6 +42,32 @@ test('a press only arms the jump: one beat passes before take-off', async ({ pag
   await page.keyboard.up('Space');
 });
 
+const holdPageWhileAudioStarts = page => page.addInitScript(() => {
+  const Real = window.AudioContext;
+  window.AudioContext = class extends Real {
+    constructor() { const from = performance.now(); while (performance.now() - from < 500); super(); }
+  };
+});
+
+test('a first press that holds the page while audio starts is not thrown away', async ({ page }) => {
+  await holdPageWhileAudioStarts(page);
+  await page.goto('/dev/string-valley.html?lang=ja');
+  await expect(state(page)).toHaveAttribute('data-state', 'idle');
+  await page.keyboard.press('Space');
+  await expect(state(page)).toHaveAttribute('data-state', 'ready');
+  await expect(state(page)).toHaveAttribute('data-state', 'done', { timeout: 6000 });
+  await expect(page.locator('#outcome')).not.toContainText('処理が止まった');
+  expect(JSON.parse(await page.locator('#log').inputValue())[0]).toMatchObject({ reason: 'short' });
+});
+
+test('a first demo click that holds the page while audio starts still plays the demo', async ({ page }) => {
+  await holdPageWhileAudioStarts(page);
+  await page.goto('/dev/string-valley.html?lang=ja');
+  await watchDemo(page);
+  await expect(page.locator('#outcome')).not.toContainText('処理が止まった');
+  expect(JSON.parse(await page.locator('#log').inputValue())[0]).toMatchObject({ demo: true, ok: true });
+});
+
 test('real input decides the landing: no press falls short, holding throughout flies too far', async ({ page }) => {
   await page.goto('/dev/string-valley.html?lang=en');
   await page.keyboard.press('Space');
