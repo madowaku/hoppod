@@ -3,20 +3,21 @@ import assert from 'node:assert/strict';
 import { PERIOD, SLOW_SPEED, FAST_SPEED, footing, COURSE_VERSION } from '../public/src/engine.mjs';
 import { LAB, feetY, podTopY } from '../public/dev/string-trajectory.mjs';
 import {
-  COURSE, TOWER, FIRST_SAVE, newAttempt, advanceAttempt, advanceWithPlan, simulate, judge, bobAt, swingAngle
+  COURSE, TOWER, FIRST_SAVE, newAttempt, advanceAttempt, advanceWithPlan, simulate, judge, bobAt, swingAngle, palletSpan, revival
 } from '../public/dev/clock-tower-model.mjs';
 
 const near = (actual, expected, epsilon = 1e-6) =>
   assert.ok(Math.abs(actual - expected) <= epsilon, actual + ' is not near ' + expected);
 const WAIT_THEN_HOLD = [.28, .78];
-const rhythm = (interval, hops = 10) => Array.from({ length: hops }, () => interval);
+const HOPS = 13;
+const rhythm = (interval, hops = HOPS) => Array.from({ length: hops }, () => interval);
 const saveAt = checkpoint => ({ checkpoint, time: COURSE.checkpoints[checkpoint].platform * PERIOD, collected: [] });
 
 // One hop from any state, for exhaustive searches.
-function hop(x, time, on, off, gears = COURSE.gears.map(() => false)) {
+function hop(x, time, on, off, gears = COURSE.gears.map(() => false), pallets = COURSE.pallets.map(() => false)) {
   const run = {
     course: COURSE, save: { checkpoint: 99, time: 0, collected: [] }, x, hopStartX: x, phase: 0, time, hops: 0,
-    fastSeconds: 0, status: 'playing', miss: null, hitBy: null, segments: [], gears: [...gears]
+    fastSeconds: 0, status: 'playing', miss: null, hitBy: null, segments: [], gears: [...gears], pallets: [...pallets]
   };
   if (on > 0) advanceAttempt(run, on, false);
   if (off > on) advanceAttempt(run, off - on, true);
@@ -38,7 +39,7 @@ test('geometry: a slow hop always leaves a platform and the fastest never skips 
     assert.ok(left + fast >= nextLeft, 'the next platform is in reach from the left edge of ' + i);
     assert.ok(right + slow <= nextRight, 'the next platform is not overshot by a slow hop from ' + i);
   }
-  assert.equal(COURSE.platforms.length, 11);
+  assert.equal(COURSE.platforms.length, 14);
 });
 
 test('pendulums are locked to the beat: one full swing every two hops', () => {
@@ -54,9 +55,9 @@ test('the clear asks for one rhythm: wait, then hold until landing, from every r
   const whole = simulate(COURSE, rhythm(WAIT_THEN_HOLD));
   assert.equal(whole.status, 'rang');
   assert.equal(judge(whole).ok, true);
-  assert.equal(whole.hops, 10);
-  for (const checkpoint of [1, 2]) {
-    const left = 10 - COURSE.checkpoints[checkpoint].platform;
+  assert.equal(whole.hops, HOPS);
+  for (const checkpoint of [1, 2, 3]) {
+    const left = HOPS - COURSE.checkpoints[checkpoint].platform;
     const run = simulate(COURSE, rhythm(WAIT_THEN_HOLD, left), { save: saveAt(checkpoint) });
     assert.equal(judge(run).ok, true, 'room ' + (checkpoint + 1));
   }
@@ -80,7 +81,7 @@ test('the clear is flying into the bell: a landing below it is not the end, and 
   assert.ok(farthest < b, 'the last platform is under every landing');
   for (let x = a; x <= farthest; x += 3) {
     onePress(6, (on, off) => {
-      const after = hop(x, 10 * PERIOD, on, off);
+      const after = hop(x, HOPS * PERIOD, on, off);
       assert.equal(after.status, 'rang', 'one hop from x=' + x + ' on=' + on + ' off=' + off);
     });
   }
@@ -94,6 +95,74 @@ test('going past an unturned gear is told once, and a resume does not repeat old
   assert.equal(simulate(COURSE, COURSE.demos.full).events.filter(event => event.type === 'gearMissed').length, 0);
   const resumed = simulate(COURSE, rhythm(WAIT_THEN_HOLD, 4), { save: saveAt(2) });
   assert.ok(resumed.events.filter(event => event.type === 'gearMissed').every(event => event.gear === 2));
+});
+
+// The tail of a hop plan through the chamber, from the room's spawn: short, long, short, leave.
+const CHAMBER = [[0, .27], [0, .78], [0, .23], [0, .5]];
+const chamberSave = collected => ({ checkpoint: 3, time: 9 * PERIOD, collected });
+const teeth = run => run.pallets.filter(Boolean).length;
+
+test('the escapement asks for two flights: the constant rhythm stands on only the far pallet', () => {
+  const run = simulate(COURSE, rhythm(WAIT_THEN_HOLD));
+  assert.deepEqual(run.pallets, [false, true, false]);
+  assert.deepEqual(run.events.filter(e => e.type === 'palletMissed').map(e => e.want), ['shorter', 'shorter']);
+  for (const length of [.3, .4, .5, .6, .7]) {
+    const held = simulate(COURSE, rhythm([.2, .2 + length], 4), { save: chamberSave([]) });
+    assert.ok(teeth(held) < 3, 'one length, ' + length + ', cannot turn the wheel fully');
+  }
+  const full = simulate(COURSE, COURSE.demos.full);
+  assert.deepEqual(full.pallets, [true, true, true]);
+});
+
+test('holding a whole hop from any near pallet always reaches the far one', () => {
+  const [from, to] = palletSpan(COURSE, 0);
+  for (let x = from; x <= to; x += 1) {
+    const run = hop(x, 11 * PERIOD, 0, PERIOD);
+    assert.equal(run.status, 'playing');
+    assert.equal(run.pallets[1], true, 'from x=' + x);
+  }
+});
+
+test('the wheel wakes one missed gear, only when it comes all the way round', () => {
+  const two = simulate(COURSE, CHAMBER, { save: chamberSave([0, 1]) });
+  assert.deepEqual(two.gears, [true, true, true], 'two gears and the wheel make the full result');
+  assert.equal(judge(two).tier, 'full');
+  assert.equal(two.events.find(e => e.type === 'wheelDriven').woke, 2);
+  const one = simulate(COURSE, CHAMBER, { save: chamberSave([1]) });
+  assert.equal(judge(one).tier, 'clear', 'it wakes one gear, not all of them');
+  assert.deepEqual(one.gears, [true, true, false]);
+  const all = simulate(COURSE, CHAMBER, { save: chamberSave([0, 1, 2]) });
+  assert.equal(all.events.find(e => e.type === 'wheelDriven').woke, null);
+  const partial = simulate(COURSE, [[0, .27], [0, .5], [0, .5], [0, .5]], { save: chamberSave([0, 1]) });
+  assert.equal(judge(partial).ok, true);
+  assert.ok(teeth(partial) < 3);
+  assert.deepEqual(partial.gears, [true, true, false], 'a part-turned wheel wakes nothing');
+});
+
+test('the chamber can be played with human-sized error, and leaving it alone costs nothing', () => {
+  let seed = 19, wins = 0, safe = 0;
+  const random = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 2 ** 32;
+  for (let i = 0; i < 400; i++) {
+    const noisy = CHAMBER.map(([on, off]) => {
+      const a = on === 0 ? 0 : on + (random() * 2 - 1) * .05;
+      return [a, Math.max(a, Math.min(PERIOD, off + (random() * 2 - 1) * .05))];
+    });
+    const run = simulate(COURSE, noisy, { save: chamberSave([]) });
+    if (teeth(run) === 3) wins++;
+    if (run.status === 'rang') safe++;
+  }
+  assert.ok(wins / 400 >= .8, 'all three teeth: ' + wins / 400);
+  assert.ok(safe / 400 >= .8, 'reaches the bell: ' + safe / 400);
+  const plain = simulate(COURSE, rhythm(WAIT_THEN_HOLD, 4), { save: chamberSave([]) });
+  assert.equal(plain.status, 'rang');
+});
+
+test('every clear brings the tower to life, and what shows inside follows the journey', () => {
+  const clear = revival(simulate(COURSE, COURSE.demos.clear));
+  assert.equal(clear.inside, false);
+  assert.equal(clear.wheel, false);
+  assert.ok(clear.gears >= 1 && clear.teeth === 1);
+  assert.deepEqual(revival(simulate(COURSE, COURSE.demos.full)), { gears: 3, teeth: 3, wheel: true, inside: true });
 });
 
 test('gears are optional: the clear never requires one, and only all of them make the full result', () => {
@@ -112,15 +181,15 @@ test('gears are optional: the clear never requires one, and only all of them mak
 });
 
 test('a reachable state is never a dead end, and the full result stays reachable from the start', () => {
-  const key = (x, got) => Math.round(x / 4) + '|' + got;
+  const key = (x, got, teeth) => Math.round(x / 4) + '|' + got + '|' + teeth;
   const mask = gears => gears.reduce((m, on, i) => m | (on ? 1 << i : 0), 0);
   const nodes = new Map();
-  const node = (x, got, beat) => {
-    const id = key(x, got);
-    if (!nodes.has(id)) nodes.set(id, { x, got, beat, out: [], clear: false, full: false, done: false });
+  const node = (x, got, teeth, beat) => {
+    const id = key(x, got, teeth);
+    if (!nodes.has(id)) nodes.set(id, { x, got, teeth, beat, out: [], clear: false, full: false, done: false });
     return nodes.get(id);
   };
-  const queue = [node(75, 0, 0)];
+  const queue = [node(75, 0, 0, 0)];
   const start = queue[0];
   while (queue.length) {
     const here = queue.pop();
@@ -128,11 +197,12 @@ test('a reachable state is never a dead end, and the full result stays reachable
     here.done = true;
     onePress(6, (on, off) => {
       const gears = COURSE.gears.map((_, i) => Boolean(here.got & (1 << i)));
-      const run = hop(here.x, here.beat * PERIOD, on, off, gears);
+      const pallets = COURSE.pallets.map((_, i) => Boolean(here.teeth & (1 << i)));
+      const run = hop(here.x, here.beat * PERIOD, on, off, gears, pallets);
       if (run.status === 'hit' || run.status === 'fall') return;
       const got = mask(run.gears);
       if (run.status === 'rang') { here.clear = true; if (got === 7) here.full = true; return; }
-      const next = node(run.x, got, here.beat + 1);
+      const next = node(run.x, got, mask(run.pallets), here.beat + 1);
       assert.equal(next.beat, here.beat + 1, 'hop n happens on beat n');
       here.out.push(next);
       if (!next.done) queue.push(next);
@@ -151,9 +221,9 @@ test('a reachable state is never a dead end, and the full result stays reachable
 });
 
 test('human-sized timing error, room by room: a band of late rhythms gets through', () => {
-  const rooms = [[0, 3], [3, 6], [6, 10]];
+  const rooms = [[0, 3], [3, 6], [6, 9], [9, 13]];
   for (const pressAt of [.2, .24, .28, .32]) {
-    for (const room of [0, 1, 2]) {
+    for (const room of [0, 1, 2, 3]) {
       const hops = rooms[room][1] - rooms[room][0];
       let seed = 2024, wins = 0;
       const random = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 2 ** 32;
@@ -198,6 +268,7 @@ test('results do not depend on the render step', () => {
       assert.equal(actual.status, baseline.status);
       assert.equal(actual.hitBy, baseline.hitBy);
       assert.deepEqual(actual.gears, baseline.gears);
+      assert.deepEqual(actual.pallets, baseline.pallets);
     }
   }
 });
@@ -217,16 +288,17 @@ test('a save resumes on the same beat, keeps earlier gears and only moves forwar
   assert.equal(run.save, FIRST_SAVE);
   const full = simulate(COURSE, COURSE.demos.full);
   const saves = full.events.filter(event => event.type === 'checkpoint').map(event => event.checkpoint);
-  assert.deepEqual(saves, [1, 2]);
-  assert.equal(full.save.checkpoint, 2);
-  assert.deepEqual(full.save.collected, [0, 1]);
-  near(full.save.time, 6 * PERIOD);
-  const resumed = newAttempt(COURSE, full.save);
+  assert.deepEqual(saves, [1, 2, 3]);
+  assert.equal(full.save.checkpoint, 3);
+  assert.deepEqual(full.save.collected, [0, 1, 2]);
+  near(full.save.time, 9 * PERIOD);
+  const room3 = { checkpoint: 2, time: 6 * PERIOD, collected: [0, 1] };
+  const resumed = newAttempt(COURSE, room3);
   assert.equal(resumed.x, COURSE.checkpoints[2].spawn);
   assert.deepEqual(resumed.gears, [true, true, false]);
   near(resumed.time, 6 * PERIOD);
-  const finish = newAttempt(COURSE, full.save);
-  advanceWithPlan(finish, 5 * PERIOD, rhythm(WAIT_THEN_HOLD, 4));
+  const finish = newAttempt(COURSE, room3);
+  advanceWithPlan(finish, 8 * PERIOD, rhythm(WAIT_THEN_HOLD, 7));
   assert.equal(judge(finish).ok, true, 'the rhythm finishes from the resumed room');
   assert.deepEqual(finish.gears.slice(0, 2), [true, true]);
 });

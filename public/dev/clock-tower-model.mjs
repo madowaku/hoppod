@@ -19,7 +19,14 @@ export const TOWER = Object.freeze({
 });
 
 const EPS = 1e-10;
+const PALLET_ZONES = Object.freeze({ near: [0, 32], far: [44, 80] }); // from the footing's left edge
 
+export function palletSpan(course, index) {
+  const pallet = course.pallets[index];
+  const left = footing(course.platforms[pallet.platform])[0];
+  const [from, to] = PALLET_ZONES[pallet.zone];
+  return [left + from, left + to];
+}
 export function swingAngle(pendulum, time) {
   const turn = time / (TOWER.swingBeats * PERIOD) + pendulum.phase;
   return pendulum.amp * Math.sin(2 * Math.PI * turn);
@@ -43,12 +50,14 @@ export const COURSE = Object.freeze({
     [0, 132], [172, 268], [337, 433], [502, 598],     // room 1
     [667, 763], [832, 928], [997, 1093],              // room 2
     [1162, 1258], [1327, 1423], [1492, 1588],         // room 3
-    [1657, 1960]                                      // under the bell
+    [1657, 1753], [1822, 1918], [1987, 2083],         // the escapement
+    [2152, 2455]                                      // under the bell
   ],
   checkpoints: [
     { platform: 0, spawn: 75 },
     { platform: 3, spawn: 568 },
-    { platform: 6, spawn: 1061 }
+    { platform: 6, spawn: 1061 },
+    { platform: 9, spawn: 1554 }
   ],
   pendulums: [
     { x: 380, length: 236, amp: .16, phase: .625 },
@@ -59,13 +68,20 @@ export const COURSE = Object.freeze({
     { x: 1511, length: 236, amp: .16, phase: 0 }
   ],
   gears: [{ x: 346 }, { x: 835 }, { x: 1399 }],
-  bell: { x: 1780 },
+  // Tick, tock, tick. Each pallet is the near or far part of a platform's footing,
+  // so a constant rhythm stands on only the far one. Near sits at the edge of a fall.
+  pallets: [
+    { platform: 10, zone: 'near' },
+    { platform: 11, zone: 'far' },
+    { platform: 12, zone: 'near' }
+  ],
+  bell: { x: 2275 },
   demos: {
     // One gesture repeated: wait, then hold until the landing. The clear asks for no more.
-    clear: Array.from({ length: 10 }, () => [.28, .78]),
+    clear: Array.from({ length: 13 }, () => [.28, .78]),
     // The opposite flight: press at once to be high at the gears, and read each
     // landing to choose how long. Holding one length runs into a pendulum.
-    full: [[0, .24], [0, .54], [0, .42], [0, .51], [0, .54], [0, .45], [0, .51], [0, .51], [.09, .63], [0, .48]]
+    full: [[0, .24], [0, .54], [0, .42], [0, .51], [0, .54], [0, .45], [0, .51], [0, .51], [.09, .63], [0, .49], [0, .78], [0, .25], [0, .5]]
   }
 });
 
@@ -77,7 +93,8 @@ export function newAttempt(course = COURSE, save = FIRST_SAVE) {
   return {
     course, save, x: spawn, hopStartX: spawn, phase: 0, time: save.time, hops: 0, fastSeconds: 0,
     status: 'playing', miss: null, hitBy: null, segments: [],
-    gears: course.gears.map((_, index) => save.collected.includes(index))
+    gears: course.gears.map((_, index) => save.collected.includes(index)),
+    pallets: course.pallets.map(() => false)
   };
 }
 
@@ -108,6 +125,28 @@ function contacts(run, events) {
   }
 }
 
+// A landing on a pallet advances the great wheel one tooth, whatever else happens.
+// All the teeth together drive the train back through the tower and wake one gear
+// that was missed, so a miss early on can still be made good here.
+function pressPallet(run, events) {
+  run.course.pallets.forEach((pallet, index) => {
+    const [left, right] = footing(run.course.platforms[pallet.platform]);
+    if (run.x < left || run.x > right) return;
+    const [from, to] = palletSpan(run.course, index);
+    if (run.x < from || run.x > to) {
+      events.push({ type: 'palletMissed', pallet: index, want: run.x < from ? 'longer' : 'shorter' });
+      return;
+    }
+    run.pallets[index] = true;
+    const teeth = run.pallets.filter(Boolean).length;
+    events.push({ type: 'tooth', pallet: index, teeth });
+    if (teeth < run.pallets.length) return;
+    const asleep = run.gears.indexOf(false);
+    if (asleep >= 0) run.gears[asleep] = true;
+    events.push({ type: 'wheelDriven', woke: asleep >= 0 ? asleep : null });
+  });
+}
+
 function land(run, events) {
   const terrain = { platforms: run.course.platforms };
   run.phase = 0;
@@ -120,6 +159,7 @@ function land(run, events) {
   run.hops += 1;
   run.hopStartX = run.x;
   events.push({ type: 'land', x: run.x, hops: run.hops });
+  pressPallet(run, events);
   run.course.checkpoints.forEach((checkpoint, index) => {
     if (index <= run.save.checkpoint) return;
     const [a, b] = footing(run.course.platforms[checkpoint.platform]);
@@ -157,6 +197,13 @@ export function advanceAttempt(run, dt, fast) {
     if (run.status === 'playing' && run.phase >= PERIOD - EPS) land(run, events);
   }
   return events;
+}
+
+// What the bell starts. The tower always comes alive; how much of its inside shows
+// follows what the journey woke, so no clear is a lesser ending, only a smaller one.
+export function revival(run) {
+  const gears = run.gears.filter(Boolean).length, teeth = run.pallets.filter(Boolean).length;
+  return { gears, teeth, wheel: teeth === run.pallets.length, inside: gears === run.gears.length };
 }
 
 // A plan lists one [fastOn, fastOff) interval per hop, in seconds into the hop.

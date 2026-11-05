@@ -7,7 +7,7 @@ async function watchDemo(page, id) {
   await expect(state(page)).toHaveAttribute('data-state', 'idle');
   await page.locator(id).click();
   await expect(state(page)).toHaveAttribute('data-state', 'ready');
-  await expect(state(page)).toHaveAttribute('data-state', 'done', { timeout: 15000 });
+  await expect(state(page)).toHaveAttribute('data-state', 'done', { timeout: 20000 });
 }
 
 test('the tower loads, and the one-rhythm demo reaches the bell without earning anything', async ({ page }) => {
@@ -18,7 +18,7 @@ test('the tower loads, and the one-rhythm demo reaches the bell without earning 
   await expect(page.locator('#goal')).toContainText('Optional');
   await watchDemo(page, '#demo-clear');
   const [attempt] = await logOf(page);
-  expect(attempt).toMatchObject({ demo: true, ok: true, tier: 'clear', hops: 10 });
+  expect(attempt).toMatchObject({ demo: true, ok: true, tier: 'clear', hops: 13, teeth: 1 });
   await expect(page.locator('#best-state')).toHaveText('—');
   expect(errors).toEqual([]);
 });
@@ -27,6 +27,7 @@ test('the full demo turns all three gears', async ({ page }) => {
   await page.goto('/dev/clock-tower.html?lang=ja');
   await watchDemo(page, '#demo-full');
   await expect(page.locator('#gears-state')).toHaveText('3/3');
+  await expect(page.locator('#wheel-state')).toHaveText('3/3');
   const [attempt] = await logOf(page);
   expect(attempt).toMatchObject({ demo: true, ok: true, tier: 'full', gears: 3 });
   await expect(page.locator('#best-state')).toHaveText('—');
@@ -63,11 +64,21 @@ async function playRhythm(page, hops, pressAt = 280, holdFor = 490) {
 
 test('real input: the one rhythm rings the bell and records a clear', async ({ page }) => {
   await page.goto('/dev/clock-tower.html?lang=ja');
-  await playRhythm(page, 10);
+  await playRhythm(page, 13);
   const attempt = (await logOf(page)).at(-1);
   expect(attempt.reason, JSON.stringify(attempt)).toBe('ok');
   await expect(page.locator('#outcome')).toContainText('鐘を鳴らした');
   await expect(page.locator('#best-state')).toHaveText(/★/);
+  // Nobody presses any more, and the clock keeps its beat.
+  await expect(state(page)).toHaveAttribute('data-beat', '1', { timeout: 3000 });
+  await expect(state(page)).toHaveAttribute('data-beat', '4', { timeout: 4000 });
+  await expect(state(page)).toHaveAttribute('data-state', 'done');
+  // A later climb finds it remembered, and a press starts over.
+  await page.reload();
+  await expect(page.locator('#outcome')).toContainText('動き続けている');
+  await page.keyboard.press('Space');
+  await expect(state(page)).toHaveAttribute('data-state', 'ready');
+  await expect(state(page)).not.toHaveAttribute('data-beat');
 });
 
 test('real input: pressing right after take-off meets a pendulum, then three misses bring the hint', async ({ page }) => {
