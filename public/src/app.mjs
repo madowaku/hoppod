@@ -377,7 +377,10 @@ function draw(now) {
 }
 function frame(now) {
   const dt = lastTime === null ? 0 : Math.max(0, (now - lastTime) / 1000);
-  lastTime = now; worldTime += Math.min(dt, .05);
+  // After a start or RESUME, count from when this frame runs. Its stamp can predate
+  // the press (first audio setup can hold the page), and that hold is not a run stall.
+  lastTime = lastTime === null ? Math.max(now, performance.now()) : now;
+  worldTime += Math.min(dt, .05);
   if (running && !paused) {
     if (dt > .25) pause();
     else {

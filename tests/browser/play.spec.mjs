@@ -1,6 +1,6 @@
 import {test,expect} from '@playwright/test';
 import {mkdir} from 'node:fs/promises';
-import {Terrain} from '../../public/src/engine.mjs';
+import {Terrain,SLOW_SPEED,newRun} from '../../public/src/engine.mjs';
 const artifacts='output/playwright';
 async function open(page,query='?mode=free&seed=42') {
   await page.clock.install({time:new Date('2026-11-01T03:00:00Z')});
@@ -129,6 +129,41 @@ test('blocked storage, reduced motion, and a long frame stall remain playable',a
   await page.clock.fastForward(2000);await expect(page.locator('#action')).toHaveText('RESUME');
   await page.locator('#action').click();await page.clock.runFor(6800);
   await expect(page.locator('#share-actions')).toBeVisible();
+});
+// Real frames only: page.clock has no stale rAF stamps, so it cannot reproduce a held press.
+const readRun=page=>page.evaluate(()=>window.__rapippoProbe.read());
+const pollHops=page=>expect.poll(async()=>(await readRun(page)).hops,{timeout:5000});
+async function holdFirstAudio(page,ms) {
+  await page.addInitScript(ms=>{
+    window.__rapippoProbe={};if(!ms) return;
+    const Real=window.AudioContext;
+    window.AudioContext=class extends Real{constructor(){const from=performance.now();while(performance.now()-from<ms);super();window.__answeredAt=performance.now();}};
+  },ms);
+}
+for(const [input,press] of [['START button',page=>page.locator('#action').click()],['R key',page=>page.keyboard.press('r')]]) test(`first audio setup holding the page does not pause a start from the ${input}`,async({page})=>{
+  await holdFirstAudio(page,500);await page.goto('/?mode=free&seed=42');await press(page);
+  await pollHops(page).toBeGreaterThanOrEqual(1);
+  await expect(page.locator('#overlay')).toBeHidden();
+  // Nor may the held time reach the simulation: progress must fit the time since the page answered.
+  const {x,since}=await page.evaluate(()=>({x:window.__rapippoProbe.read().x,since:performance.now()-window.__answeredAt}));
+  expect(x-newRun().x).toBeLessThan(SLOW_SPEED*(since/1000+.05));
+});
+test('a RESUME press that holds the page does not pause again',async({page})=>{
+  await holdFirstAudio(page,0);await page.goto('/?mode=free&seed=42');await page.locator('#action').click();
+  await page.evaluate(()=>window.dispatchEvent(new Event('blur')));await expect(page.locator('#action')).toHaveText('RESUME');
+  const {hops}=await readRun(page);
+  await page.evaluate(()=>window.addEventListener('click',()=>{const from=performance.now();while(performance.now()-from<500);},{capture:true,once:true}));
+  await page.locator('#action').click();
+  await pollHops(page).toBeGreaterThan(hops);
+  await expect(page.locator('#overlay')).toBeHidden();
+});
+for(const [start,ms] of [['plain',0],['held',500]]) test(`a stall during a real-time run still pauses after a ${start} start`,async({page})=>{
+  await holdFirstAudio(page,ms);await page.goto('/?mode=free&seed=42');await page.locator('#action').click();
+  await pollHops(page).toBeGreaterThanOrEqual(1);
+  const before=await page.evaluate(()=>{const run=window.__rapippoProbe.read(),from=performance.now();while(performance.now()-from<500);return run;});
+  await expect(page.locator('#overlay')).toBeVisible();await expect(page.locator('#overlay')).toHaveAttribute('data-screen','pause');
+  await expect(page.locator('#action')).toHaveText('RESUME');
+  expect((await readRun(page)).x-before.x).toBeLessThan(SLOW_SPEED*.25);
 });
 test('PNG download has expected dimensions; X composer receives exact replay URL and best',async({page})=>{
   await open(page);await start(page);await page.clock.runFor(6800);
