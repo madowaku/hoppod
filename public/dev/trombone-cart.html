@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>トロンボーン台車ラボ · RAPIPPO</title>
+<style>
+  :root{color-scheme:dark;font-family:system-ui,sans-serif;color:#fff0d0;background:#0b1626}*{box-sizing:border-box}body{margin:0;padding:20px 12px 32px}main{max-width:680px;margin:auto}header{display:flex;justify-content:space-between;gap:12px;align-items:center}h1{font-size:clamp(19px,4.5vw,27px);margin:5px 0}small,.quiet{color:#a8bbce}p{line-height:1.7;margin:10px 0}button{font:inherit;color:inherit;background:#24394c;border:1px solid #658197;border-radius:10px;min-height:44px;padding:9px 14px;cursor:pointer}button:focus-visible{outline:3px solid #ffe38e;outline-offset:3px}button[aria-pressed=true]{border-color:#ffe38e;background:#4c452f}.choices,.tools{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.choices button{flex:1}canvas{display:block;width:100%;background:#0d1b2b;border:1px solid #405467;border-radius:14px;touch-action:none;user-select:none;-webkit-user-select:none}#outcome{min-height:3.4em;color:#ffe38e}#hold{width:100%;min-height:68px;font-size:20px;touch-action:none;user-select:none;-webkit-user-select:none;background:#4d422c;border:2px solid #d2b77c}#hold.active{background:#665b39}#notes{letter-spacing:.08em;min-height:1.7em}.metrics{display:flex;gap:14px;flex-wrap:wrap;font-variant-numeric:tabular-nums}.tools button{flex:1}footer{border-top:1px solid #34495b;margin-top:22px;padding-top:12px;font-size:13px}@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
+</style>
+<main>
+  <header><div><small>月の楽器工房 / EXPERIMENT</small><h1>トロンボーン台車ラボ</h1></div><span aria-hidden="true">☾</span></header>
+  <p>離すと台車の左へ。押すと右へ。<br>着地した場所で、低い音と高い音を弾き分けよう。</p>
+  <div class="choices" aria-label="演奏するフレーズ"><button id="up" aria-pressed="true">低 → 高 → 低</button><button id="down" aria-pressed="false">高 → 低 → 高</button></div>
+  <canvas id="scene" width="640" height="460" aria-label="移動する台車。左は低音、右は高音。中央の線と目盛りを頼りに着地します。"></canvas>
+  <p id="outcome" role="status" aria-live="polite">スタート後、1拍待って出発。最初は離したままで低音へ。</p>
+  <button id="hold">押している間 FAST →</button>
+  <p class="quiet">← SLOW：離す ／ FAST：押す →<br>画面の台車・ボタン・Spaceキーで操作できます。</p>
+  <div class="metrics"><span id="hops">0 HOPS</span><span id="position">台車の中央から +32px</span></div>
+  <p id="notes" aria-label="実際に演奏した音">まだ音はありません</p>
+  <div class="tools"><button id="start">スタート</button><button id="pause" disabled>一時停止</button><button id="sound" aria-pressed="false">音 ON</button></div>
+  <p id="audio-status" class="quiet"></p>
+  <footer>研究用の独立画面。台車から外れて着地すると落下します。<br>0.78秒 / HOP · 台車 187.5px/s · 左右の目盛りは台車基準。月面は背景です。<br>音はオリジナルの合成音。保存・送信はしません。</footer>
+</main>
+<script type="module" src="./trombone-cart.mjs"></script>
+</html>
