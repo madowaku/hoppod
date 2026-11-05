@@ -45,7 +45,7 @@ The bell strike stays. Then, with no input from there on:
 
 1. The pod falls from the bell and keeps hopping on the spot. Each landing is a tick, exactly `PERIOD` apart.
 2. Each beat, two more gears of a train mesh and turn across the wall. Music layers build on the beat.
-3. Five beats on, the view pulls back to the whole clock, stopped at five to midnight. The pod hops at its centre as the heart, and the minute hand advances once per hop.
+3. Five beats on, the view opens close on the pod at the clock's centre and settles back to the whole clock, stopped at five to midnight. The pod hops there as the heart. The minute hand advances once per hop, and the second hand one mark.
 4. It carries on until the player presses. The music thins out after 24 beats and leaves the tick. The first second after the bell ignores presses.
 5. Later climbs on this device show the big clock already running and a small pulse in the corner (`?fresh` plays as a first visit).
 
@@ -54,6 +54,18 @@ The bell strike stays. Then, with no input from there on:
 | ★ | The face is lit and running, with one inlaid gear per gear woken, and a sky of stars that grows with them |
 | wheel complete | The great wheel also turns behind the face, with a counter line in the music |
 | ★★ | The face stands open: the wheel and all gears turn inside, a full sky, and a top line in the music |
+
+## Making the meaning readable
+
+Three things had to be understood without being explained. Each has a rule behind it, and a test where a test can say anything.
+
+**A landing drives the wheel.** The wheel drifts slowly behind the chamber and is whole in view at every pallet (tested). An arrow and "land here" mark the next pallet, and a dashed line joins it to the wheel. On a landing the power runs up that line, the wheel flashes and snaps one tooth with an overshoot, and the "tick" appears at the wheel, not at the feet.
+
+**The pod is what drives the clock.** The pull-back starts close on the pod and settles over four beats, while the caption says every hop moves the hands. The pod sits at the hub at its full playing size. A second hand wears the pod's colour, moves one twelfth of a turn only at a landing (tested), and flares in that instant.
+
+**When ★★ is gone, and what to do.** `fullReach` answers `open`, `needsWheel` or `lost`. The exhaustive search confirms it never calls a reachable result lost, that every save it does not call lost really can reach ★★, and that `lost` never costs the clear. Losing it is said once, as a change of plan and not a failure. A resume that cannot reach ★★ says so, and the "from the start" button lights and names ★★. With one gear behind, the entry text says the wheel can wake it, and its slot in the top row blinks.
+
+`?room=2..4` starts in that room, and `&gears=1,2` holds those gears, to test one moment quickly: `?room=4&fresh` for the first tooth, `?room=4&gears=2&fresh` for the guidance.
 
 ## What was measured
 
@@ -76,15 +88,18 @@ A first layout was rejected because 35ms of lateness was fatal at the last pendu
 
 ## Questions for the playtest
 
-1. Does a player find the late rhythm unaided? Hints appear after three misses.
-2. Are the gears noticed now? In the first session they were not. Once ★ is reached, does anyone chase ★★ unprompted? The goal text mentions gears, so this needs a first-time player to answer cleanly.
-3. Does going for ★★ make people think about the flight and not only the landing spot? Compare `segments` before and after in the attempt log.
-4. Is the ★ too easy once the rhythm is known? 87.8% to 96.4% says it may be, and that could be fine or could make the pendulums feel empty.
-5. Do the pendulums read in time? The first one only comes into view after the first hop.
-6. Does a hit feel fair at this forgiveness, on a real phone?
-7. Do players try for the near pallets without being told, and does the wheel feel like their own hops driving it? Compare `teeth` in the log across attempts.
-8. Does leaving the clock running feel like leaving something behind, and is the wait until the pull-back too long?
-9. Does the strike feel like the ending, including the sound, and does it feel earned when it happens without a final input?
+1. **Causality first:** after the first tooth, ask what moved and why. Can the player say that their landing turned the wheel? Do they try for the next pallet on purpose?
+2. Does a player find the late rhythm unaided? Hints appear after three misses.
+3. Are the gears noticed now? In the first session they were not. Once ★ is reached, does anyone chase ★★ unprompted? The goal text mentions gears, so this needs a first-time player to answer cleanly.
+4. Does going for ★★ make people think about the flight and not only the landing spot? Compare `segments` before and after in the attempt log.
+5. Is the ★ too easy once the rhythm is known? 87.8% to 96.4% says it may be, and that could be fine or could make the pendulums feel empty.
+6. Do the pendulums read in time? The first one only comes into view after the first hop.
+7. Does a hit feel fair at this forgiveness, on a real phone?
+8. After the ending, ask what the pod became. Is "it is running the clock" said unprompted, or only after reading the caption? Is the opening close-up too long?
+9. With two gears missed and a resume: is the way back to ★★ found, or does the button go unread? Does "no ★★ this time" discourage or redirect?
+10. Do players try for the near pallets without being told, and does the wheel feel like their own hops driving it? Compare `teeth` in the log across attempts.
+11. Does leaving the clock running feel like leaving something behind, and is the wait until the pull-back too long?
+12. Does the strike feel like the ending, including the sound, and does it feel earned when it happens without a final input?
 
 ## Limits
 

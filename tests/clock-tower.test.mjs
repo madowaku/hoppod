@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { PERIOD, SLOW_SPEED, FAST_SPEED, footing, COURSE_VERSION } from '../public/src/engine.mjs';
 import { LAB, feetY, podTopY } from '../public/dev/string-trajectory.mjs';
 import {
-  COURSE, TOWER, FIRST_SAVE, newAttempt, advanceAttempt, advanceWithPlan, simulate, judge, bobAt, swingAngle, palletSpan, revival
+  COURSE, TOWER, FIRST_SAVE, newAttempt, advanceAttempt, advanceWithPlan, simulate, judge, bobAt, swingAngle, palletSpan, revival,
+  WHEEL, HEART, wheelScreenX, heartPose, fullReach
 } from '../public/dev/clock-tower-model.mjs';
 
 const near = (actual, expected, epsilon = 1e-6) =>
@@ -180,29 +181,39 @@ test('gears are optional: the clear never requires one, and only all of them mak
   assert.equal(judge({ status: 'fall', miss: 'short', gears: [true, true, true] }).ok, false);
 });
 
-test('a reachable state is never a dead end, and the full result stays reachable from the start', () => {
-  const key = (x, got, teeth) => Math.round(x / 4) + '|' + got + '|' + teeth;
-  const mask = gears => gears.reduce((m, on, i) => m | (on ? 1 << i : 0), 0);
+// One search over every way of standing: the start and each save, with every set of
+// gears it could hold. A state is clear or full if some one-press hop sequence gets there.
+const bits = flags => flags.reduce((m, on, i) => m | (on ? 1 << i : 0), 0);
+const flags = (mask, list) => list.map((_, i) => Boolean(mask & (1 << i)));
+const standing = ({ x, got, teeth }) => ({ course: COURSE, x, gears: flags(got, COURSE.gears), pallets: flags(teeth, COURSE.pallets) });
+let graphCache = null;
+function towerGraph() {
+  if (graphCache) return graphCache;
   const nodes = new Map();
   const node = (x, got, teeth, beat) => {
-    const id = key(x, got, teeth);
+    const id = Math.round(x / 4) + '|' + got + '|' + teeth;
     if (!nodes.has(id)) nodes.set(id, { x, got, teeth, beat, out: [], clear: false, full: false, done: false });
     return nodes.get(id);
   };
-  const queue = [node(75, 0, 0, 0)];
-  const start = queue[0];
+  const roots = [];
+  for (const checkpoint of COURSE.checkpoints) {
+    const behind = COURSE.gears.flatMap((gear, index) => gear.x < checkpoint.spawn ? [index] : []);
+    for (let pick = 0; pick < 1 << behind.length; pick++) {
+      const got = behind.reduce((m, gear, bit) => pick & (1 << bit) ? m | (1 << gear) : m, 0);
+      roots.push(node(checkpoint.spawn, got, 0, checkpoint.platform));
+    }
+  }
+  const queue = [...roots];
   while (queue.length) {
     const here = queue.pop();
     if (here.done) continue;
     here.done = true;
     onePress(6, (on, off) => {
-      const gears = COURSE.gears.map((_, i) => Boolean(here.got & (1 << i)));
-      const pallets = COURSE.pallets.map((_, i) => Boolean(here.teeth & (1 << i)));
-      const run = hop(here.x, here.beat * PERIOD, on, off, gears, pallets);
+      const run = hop(here.x, here.beat * PERIOD, on, off, flags(here.got, COURSE.gears), flags(here.teeth, COURSE.pallets));
       if (run.status === 'hit' || run.status === 'fall') return;
-      const got = mask(run.gears);
+      const got = bits(run.gears);
       if (run.status === 'rang') { here.clear = true; if (got === 7) here.full = true; return; }
-      const next = node(run.x, got, mask(run.pallets), here.beat + 1);
+      const next = node(run.x, got, bits(run.pallets), here.beat + 1);
       assert.equal(next.beat, here.beat + 1, 'hop n happens on beat n');
       here.out.push(next);
       if (!next.done) queue.push(next);
@@ -215,9 +226,71 @@ test('a reachable state is never a dead end, and the full result stays reachable
       if (!n.full && n.out.some(m => m.full)) { n.full = true; changed = true; }
     }
   }
+  graphCache = { nodes, roots };
+  return graphCache;
+}
+
+test('a reachable state is never a dead end, from the start or from any save with any gears', () => {
+  const { nodes, roots } = towerGraph();
   const stuck = [...nodes.values()].filter(n => !n.clear);
   assert.deepEqual(stuck.map(n => Math.round(n.x)), [], 'dead ends');
-  assert.equal(start.full, true);
+  assert.equal(roots[0].x, 75);
+  assert.equal(roots[0].full, true);
+});
+
+test('what the game says about the full result is true: at every save, and at every state it calls lost', () => {
+  const { nodes, roots } = towerGraph();
+  for (const root of roots) {
+    const reach = fullReach(standing(root));
+    assert.equal(root.full, reach !== 'lost', `spawn ${root.x}, gears ${root.got}: said ${reach}`);
+  }
+  const lost = [...nodes.values()].filter(n => fullReach(standing(n)) === 'lost');
+  assert.ok(lost.length > 0);
+  assert.deepEqual(lost.filter(n => n.full).map(n => [n.x, n.got, n.teeth]), [], 'called lost, yet reachable');
+  assert.ok(lost.every(n => n.clear), 'losing the full result never costs the clear');
+});
+
+test('the full result is lost by two missed gears, or by one with a pallet already passed', () => {
+  const room = 4, x = COURSE.checkpoints[room - 1].spawn;
+  const at = (gears, pallets = [false, false, false], where = x) => fullReach({ course: COURSE, x: where, gears, pallets });
+  assert.equal(at([true, true, true]), 'open');
+  assert.equal(at([true, true, false]), 'needsWheel');
+  assert.equal(at([false, true, false]), 'lost');
+  assert.equal(at([true, false, false], [false, false, false], 60), 'open', 'nothing is behind the pod yet');
+  const pastFirst = palletSpan(COURSE, 0)[1] + 1;
+  assert.equal(at([true, true, false], [true, false, false], pastFirst), 'needsWheel', 'the first pallet was stood on');
+  assert.equal(at([true, true, false], [false, false, false], pastFirst), 'lost', 'the first pallet was passed');
+  const played = simulate(COURSE, [[0, .5], [0, .5], [0, .5], [0, .5]], { save: { checkpoint: 3, time: 9 * PERIOD, collected: [0] } });
+  assert.equal(judge(played).tier, 'clear', 'the clear is still there');
+});
+
+test('the wheel is whole in view at every landing that can move it, and moves on screen without a jump', () => {
+  for (const index of COURSE.pallets.keys()) {
+    const [from, to] = palletSpan(COURSE, index);
+    for (let x = from; x <= to; x += 2) {
+      const at = wheelScreenX(x), reach = WHEEL.radius + WHEEL.toothHeight;
+      assert.ok(at - reach >= 0 && at + reach <= 360, `pallet ${index} at x=${x}: wheel at ${at}`);
+    }
+  }
+  for (let x = 1400; x < 2300; x += 1) assert.ok(Math.abs(wheelScreenX(x + 1) - wheelScreenX(x)) <= 1, 'x=' + x);
+  assert.ok(wheelScreenX(1000) > 360 + WHEEL.radius, 'out of sight in the earlier rooms');
+});
+
+test('the heart: the second hand moves only at a landing, and the view settles on the whole clock', () => {
+  for (let step = 0; step < 24; step++) {
+    near(heartPose(step).second, step / 12);
+    near(heartPose(step + .2).second, (step + 1) / 12);
+    near(heartPose(step + .99).second, (step + 1) / 12);
+    near(heartPose(step).minutes, 55 + step);
+    near(heartPose(step).lift, 0);
+    near(heartPose(step + .5).lift, 1);
+    assert.equal(heartPose(step).landing, 1);
+    assert.equal(heartPose(step + .5).landing, 0);
+  }
+  near(heartPose(0).zoom, HEART.zoomFrom);
+  near(heartPose(HEART.zoomBeats).zoom, 1);
+  near(heartPose(100).zoom, 1);
+  for (let beat = 0; beat < 5; beat += .1) assert.ok(heartPose(beat + .1).zoom <= heartPose(beat).zoom + 1e-9);
 });
 
 test('human-sized timing error, room by room: a band of late rhythms gets through', () => {

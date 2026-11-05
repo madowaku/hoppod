@@ -21,6 +21,30 @@ export const TOWER = Object.freeze({
 const EPS = 1e-10;
 const PALLET_ZONES = Object.freeze({ near: [0, 32], far: [44, 80] }); // from the footing's left edge
 
+// The great wheel is drawn far behind the chamber: on screen it moves slower than the
+// platforms, so it stays whole in view at every landing where a tooth can move it.
+export const WHEEL = Object.freeze({ y: 118, radius: 96, teeth: 15, toothHeight: 15, enterX: 1554, leaveX: 2080, drift: .25, centreX: 1850, screenX: 190 });
+export function wheelScreenX(x) {
+  const inside = Math.max(WHEEL.enterX, Math.min(WHEEL.leaveX, x));
+  return WHEEL.screenX - (inside - WHEEL.centreX) * WHEEL.drift - (x - inside);
+}
+
+// The pull-back, counted in beats from its start. Landings fall on whole beats. The view
+// starts close on the pod and settles; the second hand only ever moves at a landing.
+export const HEART = Object.freeze({ zoomFrom: 2.2, zoomBeats: 4 });
+export function heartPose(beat) {
+  const at = Math.max(0, beat), step = Math.floor(at), into = at - step;
+  const snap = step + Math.min(1, into * 6);
+  return {
+    into,
+    zoom: 1 + (HEART.zoomFrom - 1) * (1 - Math.min(1, at / HEART.zoomBeats)) ** 2,
+    second: snap / 12,
+    minutes: 55 + snap,
+    lift: Math.sin(Math.PI * into),
+    landing: 1 - Math.min(1, into * 3)
+  };
+}
+
 export function palletSpan(course, index) {
   const pallet = course.pallets[index];
   const left = footing(course.platforms[pallet.platform])[0];
@@ -197,6 +221,16 @@ export function advanceAttempt(run, dt, fast) {
     if (run.status === 'playing' && run.phase >= PERIOD - EPS) land(run, events);
   }
   return events;
+}
+
+// Can this attempt still end in the full result? A gear behind the pod is gone unless
+// the wheel wakes it, and the wheel wakes only one, and only if no pallet has been passed.
+export function fullReach(run) {
+  const { course, x, gears, pallets } = run;
+  const missed = course.gears.filter((gear, index) => !gears[index] && x > gear.x + TOWER.gearReach).length;
+  if (!missed) return 'open';
+  const wheelLeft = course.pallets.every((_, index) => pallets[index] || x <= palletSpan(course, index)[1]);
+  return missed === 1 && wheelLeft ? 'needsWheel' : 'lost';
 }
 
 // What the bell starts. The tower always comes alive; how much of its inside shows

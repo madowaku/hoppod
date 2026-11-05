@@ -4,7 +4,8 @@ import { createAudio } from '../src/audio.mjs';
 import { chooseLanguage } from '../src/ui-copy.mjs';
 import { LAB, CONTACT_WINDOW, feetY } from './string-trajectory.mjs';
 import {
-  COURSE, TOWER, FIRST_SAVE, newAttempt, advanceAttempt, advanceWithPlan, planIsFast, judge, bobAt, palletSpan, revival
+  COURSE, TOWER, FIRST_SAVE, newAttempt, advanceAttempt, advanceWithPlan, planIsFast, judge, bobAt, palletSpan, revival,
+  WHEEL, wheelScreenX, heartPose, fullReach
 } from './clock-tower-model.mjs';
 
 const GEAR_COUNT = COURSE.gears.length, PALLET_COUNT = COURSE.pallets.length;
@@ -21,6 +22,11 @@ const TEXT = {
     gearMissed: '歯車に届かなかった。跳びのてっぺんで触れると回る', gearMissedShort: '届かず',
     clear: n => `★ 鐘を鳴らした！ 歯車 ${n}/${GEAR_COUNT}。全部回すと★★`, full: '★★ 歯車を全部回して、鐘を鳴らした！',
     chamber: '脱進機の間。金の板に着地すると大歯車が進む。長短で跳び分けよう',
+    chamberRescue: '脱進機の間。金の板を3つ踏むと大歯車が回り切り、逃した歯車を1つ起こせる',
+    stepHere: 'ここに着地', heartCause: 'ラピッポが跳ねるたび、針が進む',
+    fullLost: '今回はもう★★に届かない。このまま鐘へ進もう（★★は「最初から」で）',
+    resumeLost: '★★を狙うなら「最初から」へ', idleLost: '踊り場から再開します。★はここから届きます。★★を狙うなら「最初から」へ',
+    idleRescue: '踊り場から再開します。逃した歯車1つは、脱進機で起こせます', restartFull: '最初から（★★も狙える）',
     tooth: n => `カチッ！ 大歯車 ${n}/${PALLET_COUNT}`, tick: 'カチッ', longer: '→ もっと長く', shorter: '← もっと短く',
     palletMissed: { longer: '金の板の手前。もう少し長く押そう', shorter: '金の板を越えた。もう少し短く押そう' },
     wheelWoke: '大歯車が回り切った！ 眠っていた歯車が目覚めた', wheelFull: '大歯車が回り切った！ 動力が塔じゅうに伝わった', woke: '目覚めた！',
@@ -48,6 +54,11 @@ const TEXT = {
     gearMissed: 'Missed a gear. Touch it at the top of a hop to turn it', gearMissedShort: 'MISSED',
     clear: n => `★ You rang the bell! Gears ${n}/${GEAR_COUNT}. Turn them all for ★★`, full: '★★ Every gear turned, and the bell rang!',
     chamber: 'The escapement. Land on a gold pallet to advance the great wheel. Mix long and short flights',
+    chamberRescue: 'The escapement. Three gold pallets bring the great wheel round and wake one gear you missed',
+    stepHere: 'LAND HERE', heartCause: 'Every hop moves the hands',
+    fullLost: 'No ★★ this time. Carry on to the bell (★★ is open from the start)',
+    resumeLost: 'For ★★, go back to the start', idleLost: 'Resuming from the landing. ★ is in reach from here. For ★★, go back to the start',
+    idleRescue: 'Resuming from the landing. The escapement can still wake the gear you missed', restartFull: 'FROM THE START (★★ OPEN)',
     tooth: n => `Tick! Great wheel ${n}/${PALLET_COUNT}`, tick: 'TICK', longer: '→ LONGER', shorter: '← SHORTER',
     palletMissed: { longer: 'Short of the pallet. Hold a little longer', shorter: 'Past the pallet. Hold a little less' },
     wheelWoke: 'The great wheel came round! A sleeping gear woke', wheelFull: 'The great wheel came round! Power runs through the tower', woke: 'AWAKE!',
@@ -75,19 +86,27 @@ const GEAR_RADIUS = 13, GEAR_CENTRE_Y = TOWER.gearY - GEAR_RADIUS; // its lowest
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 const audio = createAudio();
 const readPref = key => { try { return localStorage.getItem(key); } catch { return null; } };
-const fresh = new URL(location.href).searchParams.has('fresh'); // play as if for the first time
+const params = new URL(location.href).searchParams;
+const fresh = params.has('fresh'); // play as if for the first time
+// ?room=4&gears=1,2 starts in a room holding those gears, to test one moment quickly.
+function openingSave() {
+  const checkpoint = Number(params.get('room')) - 1;
+  if (!(checkpoint >= 1 && COURSE.checkpoints[checkpoint])) return FIRST_SAVE;
+  const collected = (params.get('gears') ?? '').split(',').filter(Boolean).map(gear => Number(gear) - 1).filter(gear => COURSE.gears[gear]);
+  return { checkpoint, time: COURSE.checkpoints[checkpoint].platform * PERIOD, collected };
+}
 let language = chooseLanguage(location.href, readPref('hoppod.pref.lang'), navigator.language);
 const tr = () => TEXT[language];
 
 let state = 'idle'; // idle | ready | run | done
-let save = FIRST_SAVE;
+let save = openingSave();
 let run = newAttempt(COURSE, save);
 let clock = 0, readyLeft = 0, appliedFast = false, edges = [], doneAt = -1, lastPaint = null, worldTime = 0;
 let trail = [], ghost = [], plan = null;
 let fails = 0, particles = [], landAge = 10, deathAge = 0, banner = '', bellAge = -1, gearAges = [], missAges = [], floats = [], struckY = 0, best = null;
 let lastInput = 'none';
 let revivedBefore = !fresh && readPref(MEMORY_KEY) === '1';
-let fallTime = 0, lastBeat = -1, wheelShown = 0, toothAge = 10, palletAges = [], revived = null;
+let fallTime = 0, lastBeat = -1, toothAge = 10, toothPallet = 0, wakeAge = 10, wakeGear = 0, reachSeen = 'open', palletAges = [], revived = null;
 let toneContext = null;
 const pressedKeys = new Set(), pressedPointers = new Set();
 const log = [];
@@ -160,13 +179,19 @@ function resetField() {
   gearAges = COURSE.gears.map(() => -1);
   missAges = COURSE.gears.map(() => -1);
   palletAges = COURSE.pallets.map(() => -1);
-  fallTime = 0; lastBeat = -1; wheelShown = 0; toothAge = 10; revived = null;
+  fallTime = 0; lastBeat = -1; toothAge = 10; wakeAge = 10; revived = null; reachSeen = fullReach(run);
   delete document.body.dataset.beat;
 }
-function toIdle(message = revivedBefore ? tr().remembered : tr().idle) {
+function idleText() {
+  const reach = fullReach(run), text = tr();
+  if (save !== FIRST_SAVE && reach === 'lost') return text.idleLost;
+  if (save !== FIRST_SAVE && reach === 'needsWheel') return text.idleRescue;
+  return revivedBefore ? text.remembered : text.idle;
+}
+function toIdle(message) {
   state = 'idle'; plan = null;
   resetField();
-  say(message);
+  say(message ?? idleText());
   refresh();
 }
 function startReady(now, demoPlan = null) {
@@ -231,12 +256,16 @@ function handle(events) {
       audio.play('land', event.hops);
       burst(event.x, FLOOR - 5, 8, ['#efdaad', '#ffc38e'], 17);
     }
-    if (event.type === 'checkpoint' && !plan) say(event.checkpoint === COURSE.checkpoints.length - 1 ? tr().chamber : tr().saved);
+    if (event.type === 'checkpoint' && !plan) {
+      const chamber = event.checkpoint === COURSE.checkpoints.length - 1;
+      say(!chamber ? tr().saved : fullReach(run) === 'needsWheel' ? tr().chamberRescue : tr().chamber);
+    }
     if (event.type === 'tooth') {
-      palletAges[event.pallet] = 0; toothAge = 0;
+      palletAges[event.pallet] = 0; toothAge = 0; toothPallet = event.pallet;
       tones(SOUND.tooth(event.teeth));
       burst(run.x, FLOOR - 4, 12, ['#ffe9a8', '#ffd27a'], 22);
-      floats.push({ x: run.x, y: FLOOR - 92, text: tr().tick, colour: '#ffe9a8', age: 0 });
+      // Said at the wheel, not at the feet: this is where the eye should go.
+      floats.push({ atWheel: true, y: WHEEL.y - 30, size: 24, text: tr().tick, colour: '#fff0d0', age: 0 });
       if (!plan) say(tr().tooth(event.teeth));
     }
     if (event.type === 'palletMissed') {
@@ -246,7 +275,7 @@ function handle(events) {
     }
     if (event.type === 'wheelDriven') {
       tones(SOUND.driven);
-      if (event.woke !== null) gearAges[event.woke] = 0;
+      if (event.woke !== null) { gearAges[event.woke] = 0; wakeAge = 0; wakeGear = event.woke; }
       floats.push({ x: run.x, y: FLOOR - 112, text: tr().woke, colour: '#fff0d0', age: 0 });
       if (!plan) say(event.woke !== null ? tr().wheelWoke : tr().wheelFull);
     }
@@ -262,6 +291,10 @@ function handle(events) {
       if (run.gears.every(Boolean)) tones(SOUND.full);
     }
   }
+  // Said once, at the moment it happens, and never as a failure: the bell is still ahead.
+  const reach = fullReach(run);
+  if (reach === 'lost' && reachSeen !== 'lost' && !plan && run.status === 'playing') say(tr().fullLost);
+  reachSeen = reach;
   if (run.status !== 'playing') finish();
 }
 function finish() {
@@ -287,18 +320,22 @@ function finish() {
     save = run.save;
     fails += 1;
     const why = verdict.reason === 'hit' ? text.hit : text[verdict.reason];
-    say(fails >= 3 ? why + ' / ' + text.hint : why);
+    const lost = fullReach(newAttempt(COURSE, save)) === 'lost';
+    say(fails >= 3 ? why + ' / ' + text.hint : lost ? why + ' / ' + text.resumeLost : why);
   }
   refresh();
 }
 
+// The first press sets up audio, which can hold the page for half a second. The run-up
+// starts once the page answers: it is not a timed input, and it must not read as a stall.
+const answeredAt = event => Math.max(event.timeStamp, performance.now()) / 1000;
 function press(event, source) {
   unlock();
   lastInput = source;
   const now = event.timeStamp / 1000;
   // A long guard after the bell: a press still held from the climb must not cut the ending short.
   if (state === 'done' && now - doneAt < (run.status === 'rang' ? 1 : .18)) return;
-  if (state === 'idle' || state === 'done' || plan) { startReady(now); return; }
+  if (state === 'idle' || state === 'done' || plan) { startReady(answeredAt(event)); return; }
   if (state === 'run') audio.play('fast');
   edges.push({ t: now, fast: true });
 }
@@ -334,7 +371,10 @@ function refresh() {
   $('demo-clear').textContent = text.demoClear;
   $('demo-full').textContent = text.demoFull;
   $('retry').textContent = text.retry;
-  $('restart').textContent = text.restart;
+  const suggestStart = !plan && run.status !== 'rang' && fullReach(run) === 'lost';
+  $('restart').textContent = suggestStart ? text.restartFull : text.restart;
+  $('restart').classList.toggle('suggest', suggestStart);
+  document.body.dataset.fullReach = fullReach(run);
   $('sound').textContent = text.sound[audio.muted ? 1 : 0];
   $('language').textContent = text.language;
   $('label-gears').textContent = text.labelGears;
@@ -393,7 +433,7 @@ function paintPlatforms(screen) {
     ctx.fillStyle = saves ? '#ffd27a' : '#b7a693'; ctx.fillRect(l, FLOOR, r - l, 6);
     ctx.fillStyle = '#7d6a66'; ctx.fillRect(l, FLOOR + 6, r - l, 8);
   });
-  const next = run.pallets.indexOf(false);
+  const next = nextPallet();
   COURSE.pallets.forEach((_, index) => {
     const [from, to] = palletSpan(COURSE, index), l = screen(from), r = screen(to);
     if (r < -10 || l > W + 10) return;
@@ -405,26 +445,42 @@ function paintPlatforms(screen) {
     ctx.fillRect(l, FLOOR - rise, r - l, rise + 3);
     ctx.globalAlpha = 1;
     ctx.fillStyle = pressed ? '#c79a4e' : '#9a6c22'; ctx.fillRect(l, FLOOR + 1, r - l, 2);
+    if (index !== next) return;
+    // Points at the next one. Before any tooth has moved, it also says what to do.
+    const middle = (l + r) / 2, bob = reducedMotion.matches ? 0 : Math.abs(Math.sin(worldTime * 4)) * 8;
+    ctx.fillStyle = '#ffd27a';
+    ctx.beginPath(); ctx.moveTo(middle - 8, FLOOR - 34 - bob); ctx.lineTo(middle + 8, FLOOR - 34 - bob); ctx.lineTo(middle, FLOOR - 21 - bob); ctx.closePath(); ctx.fill();
+    if (!run.pallets.some(Boolean)) {
+      ctx.font = 'bold 12px monospace'; ctx.textAlign = 'center';
+      ctx.fillText(tr().stepHere, middle, FLOOR - 42 - bob);
+      ctx.textAlign = 'left';
+    }
   });
+}
+function nextPallet() {
+  return COURSE.pallets.findIndex((_, index) => !run.pallets[index] && run.x <= palletSpan(COURSE, index)[1]);
 }
 // The great escape wheel behind the chamber. One tooth per pallet, and a rod that
 // carries its power on to the bell and back through the tower.
-const WHEEL = { x: 1868, y: 118, radius: 96, teeth: 15 };
+function backOut(t) { // arrives, overshoots a little and settles: the snap of one tooth
+  const c = 3.4, u = t - 1;
+  return 1 + (c + 1) * u ** 3 + c * u ** 2;
+}
 function paintEscapement(screen) {
-  const x = screen(WHEEL.x), teeth = run.pallets.filter(Boolean).length, driven = teeth === PALLET_COUNT;
-  const rodY = 16;
+  const still = reducedMotion.matches;
+  const x = wheelScreenX(run.x), teeth = run.pallets.filter(Boolean).length, driven = teeth === PALLET_COUNT;
+  const rodY = 16, reach = WHEEL.radius + WHEEL.toothHeight;
   ctx.fillStyle = driven ? '#ffd27a' : '#3a3038';
   ctx.fillRect(screen(1400), rodY, screen(COURSE.bell.x) - screen(1400), 4);
-  if (x < -WHEEL.radius - 40 || x > W + WHEEL.radius + 40) return;
-  wheelShown += (teeth - wheelShown) * (reducedMotion.matches ? 1 : .28);
-  const overshoot = toothAge < .18 && !reducedMotion.matches ? Math.sin(toothAge * 34) * .03 * (1 - toothAge / .18) : 0;
-  const angle = wheelShown * 2 * Math.PI / WHEEL.teeth + overshoot, lit = teeth > 0;
+  if (x < -reach - 40 || x > W + reach + 40) return;
+  const moved = teeth === 0 ? 0 : still ? teeth : teeth - 1 + backOut(Math.min(1, toothAge / .14));
+  const angle = moved * 2 * Math.PI / WHEEL.teeth, lit = teeth > 0, flash = toothAge < .22;
   ctx.strokeStyle = driven ? '#ffd27a' : '#a58a56'; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.moveTo(x, rodY); ctx.lineTo(x, WHEEL.y); ctx.stroke();
-  ctx.fillStyle = driven ? '#c79a4e' : lit ? '#7d6335' : '#3f3440';
+  ctx.fillStyle = flash ? '#ffe9a8' : driven ? '#c79a4e' : lit ? '#8d6f3a' : '#4a3e4c';
   for (let i = 0; i < WHEEL.teeth; i++) {
     ctx.save(); ctx.translate(x, WHEEL.y); ctx.rotate(angle + i * 2 * Math.PI / WHEEL.teeth);
-    ctx.beginPath(); ctx.moveTo(-9, -WHEEL.radius + 4); ctx.lineTo(9, -WHEEL.radius + 4); ctx.lineTo(13, -WHEEL.radius - 15); ctx.lineTo(1, -WHEEL.radius - 11); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(-9, -WHEEL.radius + 4); ctx.lineTo(9, -WHEEL.radius + 4); ctx.lineTo(13, -reach); ctx.lineTo(1, -WHEEL.radius - 11); ctx.closePath(); ctx.fill();
     ctx.restore();
   }
   ctx.beginPath(); ctx.arc(x, WHEEL.y, WHEEL.radius, 0, Math.PI * 2); ctx.arc(x, WHEEL.y, WHEEL.radius - 16, 0, Math.PI * 2, true); ctx.fill();
@@ -435,16 +491,39 @@ function paintEscapement(screen) {
   }
   ctx.beginPath(); ctx.arc(x, WHEEL.y, 15, 0, Math.PI * 2); ctx.fill();
   // The rocking anchor: it flips with every tooth, tick and tock.
-  const side = teeth % 2 ? 1 : -1, rock = side * .16;
-  ctx.save(); ctx.translate(x, WHEEL.y - WHEEL.radius - 2); ctx.rotate(rock);
-  ctx.strokeStyle = lit ? '#ffd27a' : '#6a5a50'; ctx.lineWidth = 5;
+  const side = teeth % 2 ? 1 : -1, rock = side * .16 * (still ? 1 : Math.min(1, toothAge / .08) * 2 - 1 + (teeth ? 0 : 2));
+  ctx.save(); ctx.translate(x, WHEEL.y - reach + 13); ctx.rotate(rock);
+  ctx.strokeStyle = lit ? '#ffd27a' : '#7d6a66'; ctx.lineWidth = 5;
   ctx.beginPath(); ctx.moveTo(-58, 4); ctx.lineTo(0, -14); ctx.lineTo(58, 4); ctx.stroke();
   ctx.restore();
-  // One lamp per tooth, so the count is on the wheel itself.
+  // Before a landing, a faint line from the next pallet to the wheel says they are joined.
+  const middle = index => { const [a, b] = palletSpan(COURSE, index); return screen((a + b) / 2); };
+  const next = nextPallet();
+  if (next >= 0 && middle(next) < W + 20) {
+    ctx.strokeStyle = '#a58a56'; ctx.lineWidth = 2; ctx.setLineDash([3, 7]);
+    ctx.beginPath(); ctx.moveTo(middle(next), FLOOR - 9); ctx.lineTo(x, WHEEL.y); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  // At a landing the power visibly runs up that line, and the wheel takes it.
+  if (toothAge < .45) {
+    const from = middle(toothPallet), travel = Math.min(1, toothAge / .1), fade = Math.min(1, (.45 - toothAge) / .25);
+    ctx.globalAlpha = fade; ctx.strokeStyle = '#fff0d0'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(from, FLOOR - 4); ctx.lineTo(from + (x - from) * travel, FLOOR - 4 + (WHEEL.y - FLOOR + 4) * travel); ctx.stroke();
+    if (travel === 1 && !still) {
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(x, WHEEL.y, 18 + (toothAge - .1) * 300, 0, Math.PI * 2); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+  // One lamp per tooth and the count, so the wheel itself says what just changed.
   for (let i = 0; i < PALLET_COUNT; i++) {
     ctx.fillStyle = i < teeth ? '#ffe9a8' : '#201926';
-    ctx.beginPath(); ctx.arc(x + (i - 1) * 15, WHEEL.y, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x + (i - 1) * 15, WHEEL.y, 5, 0, Math.PI * 2); ctx.fill();
   }
+  ctx.fillStyle = 'rgba(18,15,28,.72)'; ctx.fillRect(x - 44, WHEEL.y + 24, 88, 18);
+  ctx.fillStyle = lit ? '#ffe9a8' : '#c9bfae'; ctx.font = 'bold 12px monospace'; ctx.textAlign = 'center';
+  ctx.fillText(`${tr().labelWheel} ${teeth}/${PALLET_COUNT}`, x, WHEEL.y + 37);
+  ctx.textAlign = 'left';
 }
 // The train the bell sets going: gears meshing outward from the pod, one pair a beat.
 const TRAIN = (() => {
@@ -464,9 +543,16 @@ function paintTrain(beat) {
   if (bellAge < 0) return;
   const still = reducedMotion.matches, count = Math.max(0, Math.floor(beat) + 1) * 2;
   const tick = Math.max(0, Math.floor(beat)) + Math.min(1, ((beat % 1) + 1) % 1 * 5);
+  const into = ((beat % 1) + 1) % 1;
+  if (beat >= 0 && !still) {
+    // Each landing sends a ring out of the pod, and the next gears take it up.
+    ctx.strokeStyle = '#ffd27a'; ctx.lineWidth = 3; ctx.globalAlpha = (1 - into) * .8;
+    ctx.beginPath(); ctx.arc(HERO_X, FLOOR, 16 + into * 90, Math.PI, 0); ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
   TRAIN.forEach((gear, index) => {
-    const lit = index < count;
-    ctx.fillStyle = lit ? '#b98d46' : '#2a2230';
+    const lit = index < count, waking = lit && index >= count - 2 && into < .3;
+    ctx.fillStyle = waking ? '#ffe9a8' : lit ? '#b98d46' : '#2a2230';
     for (let i = 0; i < 8; i++) {
       ctx.save(); ctx.translate(gear.x, gear.y); ctx.rotate((still || !lit ? 0 : tick * gear.spin * .4) + i * Math.PI / 4);
       ctx.fillRect(-gear.radius * .18, -gear.radius - 4, gear.radius * .36, 8);
@@ -481,27 +567,29 @@ function paintTrain(beat) {
 const HEART_BEAT = 5;
 const STARS = Array.from({ length: 44 }, (_, i) => [(i * 83.7) % 360, (i * 47.3) % 150, 1 + i % 2]);
 function paintHeart(beat, parts) {
-  const cx = W / 2, cy = 272, radius = 128, step = Math.floor(beat), now = beat % 1;
-  const still = reducedMotion.matches, inside = parts.inside;
-  const eased = step + Math.min(1, now * 6);
+  const cx = W / 2, cy = 272, radius = 128, still = reducedMotion.matches, inside = parts.inside;
+  const pose = heartPose(beat), hub = 48;
+  const zoom = (still ? 1 : pose.zoom) * (still ? 1 : 1 + pose.landing * .012);
   ctx.fillStyle = '#0d1630'; ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = '#fff0d0';
   STARS.slice(0, inside ? 44 : 14 + parts.gears * 6).forEach(([x, y, size]) => ctx.fillRect(x, y, size, size));
   ctx.fillStyle = '#ead6a4'; ctx.beginPath(); ctx.arc(312, 66, 22, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = '#0d1630'; ctx.beginPath(); ctx.arc(321, 59, 19, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#231b2e'; ctx.fillRect(24, 104, W - 48, H - 104);
+  ctx.save();
+  ctx.translate(cx, cy); ctx.scale(zoom, zoom); ctx.translate(-cx, -cy);
+  ctx.fillStyle = '#231b2e'; ctx.fillRect(24, 104, W - 48, H);
   ctx.beginPath(); ctx.moveTo(10, 106); ctx.lineTo(cx, 30); ctx.lineTo(W - 10, 106); ctx.closePath(); ctx.fill();
   // The beat leaves the pod and crosses the tower.
   if (!still) {
-    ctx.strokeStyle = inside ? '#ffd27a' : '#ffb17b'; ctx.lineWidth = 3; ctx.globalAlpha = (1 - now) * .8;
-    ctx.beginPath(); ctx.arc(cx, cy, 34 + now * 150, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = inside ? '#ffd27a' : '#ffb17b'; ctx.lineWidth = 3; ctx.globalAlpha = (1 - pose.into) * .8;
+    ctx.beginPath(); ctx.arc(cx, cy, hub + pose.into * 150, 0, Math.PI * 2); ctx.stroke();
     ctx.globalAlpha = 1;
   }
   ctx.fillStyle = inside ? '#2f2436' : '#efe0b8';
   ctx.beginPath(); ctx.arc(cx, cy, radius, 0, Math.PI * 2); ctx.fill();
   ctx.strokeStyle = '#d8a84e'; ctx.lineWidth = 6; ctx.stroke();
   // Behind a full result the face is open: the great wheel and every gear turning.
-  const turn = still ? 0 : eased * Math.PI / 8;
+  const turn = still ? 0 : pose.second * 12 * Math.PI / 8;
   if (parts.wheel) {
     ctx.strokeStyle = inside ? '#7d6335' : '#d9c594'; ctx.lineWidth = 8;
     ctx.save(); ctx.translate(cx, cy); ctx.rotate(-turn * .5);
@@ -511,38 +599,42 @@ function paintHeart(beat, parts) {
     ctx.restore();
   }
   // Inlaid: one gear for each the journey woke. All of them, and the face stands open.
-  const places = [[-52, 34, 24], [52, 34, 24], [0, -60, 28]];
+  const places = [[-73, 42, 22], [73, 42, 22], [0, -84, 22]];
   places.forEach(([dx, dy, size], index) => {
     const on = index < parts.gears;
-    if (!on && inside) return;
-    const lit = inside || on;
-    paintGear(cx + dx, cy + dy, size * (inside ? 1 : .72), lit ? (index % 2 ? -turn : turn) : 0, lit, !lit);
+    paintGear(cx + dx, cy + dy, size * (inside ? 1 : .8), on ? (index % 2 ? -turn : turn) : 0, on, !on);
   });
-  const tickMark = inside ? '#ffd27a' : '#5c4636';
-  ctx.fillStyle = tickMark;
+  ctx.fillStyle = inside ? '#ffd27a' : '#5c4636';
   for (let hour = 0; hour < 12; hour++) {
     const a = hour * Math.PI / 6, size = hour % 3 ? 3 : 5;
     ctx.fillRect(cx + Math.sin(a) * (radius - 13) - size / 2, cy - Math.cos(a) * (radius - 13) - size / 2, size, size);
   }
-  // It stopped at five to midnight. One minute for every hop from here.
-  const hand = (angle, length, width, colour) => {
+  // It stopped at five to midnight. One minute, and one mark of the second hand, per hop.
+  const hand = (angle, length, width, colour, tail = 0) => {
     ctx.strokeStyle = colour; ctx.lineWidth = width;
-    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.sin(angle) * length, cy - Math.cos(angle) * length); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx - Math.sin(angle) * tail, cy + Math.cos(angle) * tail);
+    ctx.lineTo(cx + Math.sin(angle) * length, cy - Math.cos(angle) * length); ctx.stroke();
   };
-  const minutes = 55 + (still ? step : eased);
-  const handColour = inside ? '#fff0d0' : '#2a1c18';
-  hand((minutes / 720 + 11 / 12) * 2 * Math.PI, radius - 72, 8, handColour);
-  hand(minutes / 60 * 2 * Math.PI, radius - 28, 5, handColour);
-  // The pod is the heart: a lit arbor at the centre, hopping on the same 0.78s.
+  const handColour = inside ? '#fff0d0' : '#2a1c18', secondAngle = pose.second * 2 * Math.PI;
+  hand((pose.minutes / 720 + 11 / 12) * 2 * Math.PI, radius - 50, 8, handColour);
+  hand(pose.minutes / 60 * 2 * Math.PI, radius - 22, 5, handColour);
+  // The second hand wears the pod's colour and flares in the instant the pod lands.
+  hand(secondAngle, radius - 12, 3 + pose.landing * 3, pose.landing > .1 ? '#ffe2c8' : '#ff8a5c');
+  ctx.fillStyle = pose.landing > .1 ? '#ffe2c8' : '#ff8a5c';
+  ctx.beginPath(); ctx.arc(cx + Math.sin(secondAngle) * (radius - 13), cy - Math.cos(secondAngle) * (radius - 13), 4 + pose.landing * 5, 0, Math.PI * 2); ctx.fill();
+  // The pod is the heart: a lit arbor at the centre, at its full size, on the same 0.78s.
   ctx.fillStyle = inside ? '#4a3524' : '#231b2e';
-  ctx.beginPath(); ctx.arc(cx, cy, 36, 0, Math.PI * 2); ctx.fill();
-  const swell = still ? 0 : (1 - Math.min(1, now * 3)) * 5;
+  ctx.beginPath(); ctx.arc(cx, cy, hub, 0, Math.PI * 2); ctx.fill();
   ctx.strokeStyle = '#ffb17b'; ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.arc(cx, cy, 36 + swell, 0, Math.PI * 2); ctx.stroke();
-  const lift = still ? 0 : 13 * Math.sin(Math.PI * now);
-  drawPod(ctx, cx, cy + 26 - lift, 1, { phase: still ? 0 : now, fast: false, land: Math.max(0, 1 - now * 5), dead: 0, time: worldTime, idle: false });
-  ctx.fillStyle = '#fff0d0'; ctx.font = 'bold 16px monospace'; ctx.textAlign = 'center';
-  ctx.fillText(inside ? tr().captionInside : tr().caption, cx, 438);
+  ctx.beginPath(); ctx.arc(cx, cy, hub + (still ? 0 : pose.landing * 5), 0, Math.PI * 2); ctx.stroke();
+  drawPod(ctx, cx, cy + 36 - (still ? 0 : pose.lift * 12), 2, { phase: still ? 0 : pose.into, fast: false, land: still ? 0 : Math.max(0, 1 - pose.into * 5), dead: 0, time: worldTime, idle: false });
+  ctx.restore();
+  // First what is happening, and then what it has become.
+  const settled = beat >= 4, title = settled ? (inside ? tr().captionInside : tr().caption) : tr().heartCause;
+  ctx.fillStyle = 'rgba(18,15,28,.72)'; ctx.fillRect(0, 418, W, settled ? 54 : 32);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#fff0d0'; ctx.font = 'bold 16px monospace'; ctx.fillText(title, cx, 440);
+  if (settled) { ctx.fillStyle = '#ffb17b'; ctx.font = '12px monospace'; ctx.fillText(tr().heartCause, cx, 461); }
   ctx.textAlign = 'left';
 }
 function paintGear(cx, cy, radius, angle, lit, small = false) {
@@ -583,11 +675,17 @@ function paintGears(screen, time) {
   });
 }
 function paintFloats(screen) {
-  ctx.font = 'bold 15px monospace'; ctx.textAlign = 'center';
+  ctx.textAlign = 'center';
   for (const item of floats) {
+    const x = item.atWheel ? wheelScreenX(run.x) : screen(item.x);
+    ctx.font = `bold ${item.size ?? 15}px monospace`;
     ctx.globalAlpha = Math.max(0, 1 - item.age / .9);
-    ctx.fillStyle = '#120f1c'; ctx.fillText(item.text, screen(item.x) + 1, item.y - item.age * 22 + 1);
-    ctx.fillStyle = item.colour; ctx.fillText(item.text, screen(item.x), item.y - item.age * 22);
+    if (item.atWheel) { // it appears over a flashing wheel, so it brings its own ground
+      const width = ctx.measureText(item.text).width + 16, size = item.size ?? 15;
+      ctx.fillStyle = '#120f1c'; ctx.fillRect(x - width / 2, item.y - item.age * 22 - size, width, size + 7);
+    }
+    ctx.fillStyle = '#120f1c'; ctx.fillText(item.text, x + 1, item.y - item.age * 22 + 1);
+    ctx.fillStyle = item.colour; ctx.fillText(item.text, x, item.y - item.age * 22);
   }
   ctx.globalAlpha = 1; ctx.textAlign = 'left';
 }
@@ -645,13 +743,27 @@ function paintTrail(points, screen, colour, width, alpha) {
   points.forEach((p, i) => (i ? ctx.lineTo(screen(p.x), p.y - 26) : ctx.moveTo(screen(p.x), p.y - 26)));
   ctx.stroke(); ctx.globalAlpha = 1;
 }
-function paintHud() {
+function hudX(index) {
   const size = 22, gap = 10, start = (W - GEAR_COUNT * size - (GEAR_COUNT - 1) * gap) / 2;
+  return start + index * (size + gap) + size / 2;
+}
+function paintHud() {
+  const rescuable = fullReach(run) === 'needsWheel' && run.status === 'playing';
   COURSE.gears.forEach((_, i) => {
     const age = gearAges[i] ?? -1, missed = missAges[i] ?? -1;
     const grow = age >= 0 && age < .35 ? 1 + (.35 - age) * 1.5 : missed >= 0 && missed < .35 ? 1 + (.35 - missed) * .6 : 1;
-    paintGear(start + i * (size + gap) + size / 2, 22, 7 * grow, 0, run.gears[i], !run.gears[i]);
+    const behind = !run.gears[i] && run.x > COURSE.gears[i].x;
+    if (rescuable && behind && !reducedMotion.matches) ctx.globalAlpha = .45 + .55 * Math.abs(Math.sin(worldTime * 4));
+    paintGear(hudX(i), 22, 7 * grow, 0, run.gears[i], !run.gears[i]);
+    ctx.globalAlpha = 1;
   });
+  // The wheel's power reaching the gear it wakes.
+  if (wakeAge < .5) {
+    const fromX = wheelScreenX(run.x), t = Math.min(1, wakeAge / .3);
+    ctx.globalAlpha = Math.min(1, (.5 - wakeAge) / .2); ctx.strokeStyle = '#fff0d0'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(fromX, WHEEL.y); ctx.lineTo(fromX + (hudX(wakeGear) - fromX) * t, WHEEL.y + (22 - WHEEL.y) * t); ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
 }
 // Back on later climbs: a small steady beat, so the tower shows it was left running.
 function paintPulse() {
@@ -723,7 +835,7 @@ function paint(now) {
   if (revived && beat >= HEART_BEAT) {
     const main = ctx;
     ctx = heartCtx; paintHeart(beat - HEART_BEAT, revived); ctx = main;
-    ctx.globalAlpha = Math.min(1, (beat - HEART_BEAT) / (reducedMotion.matches ? .2 : 1.2));
+    ctx.globalAlpha = Math.min(1, (beat - HEART_BEAT) / (reducedMotion.matches ? .2 : .6));
     ctx.drawImage(heartCanvas, 0, 0);
     ctx.globalAlpha = 1;
   }
@@ -752,6 +864,7 @@ function frame(ms) {
   gearAges = gearAges.map(age => age >= 0 ? age + dt : age);
   palletAges = palletAges.map(age => age >= 0 ? age + dt : age);
   toothAge += dt;
+  wakeAge += dt;
   if (revived && bellAge >= fallTime) {
     const beat = Math.floor((bellAge - fallTime) / PERIOD);
     if (beat > lastBeat) {
@@ -810,7 +923,7 @@ for (const [id, demo] of [['demo-clear', COURSE.demos.clear], ['demo-full', COUR
     unlock();
     clearInput();
     ghost = []; trail = [];
-    startReady(e.timeStamp / 1000, demo);
+    startReady(answeredAt(e), demo);
   });
 }
 $('retry').addEventListener('click', e => { e.currentTarget.blur(); toIdle(); });

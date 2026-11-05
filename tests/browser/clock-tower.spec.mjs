@@ -44,6 +44,7 @@ test('a press arms the jump, and no input falls short and says so', async ({ pag
 });
 
 // Real key events, timed inside the page from the arming press: take-off is one beat later.
+// The page's state only updates on a frame, so 'ready' may still show just after take-off.
 async function playRhythm(page, hops, pressAt = 280, holdFor = 490) {
   await expect(state(page)).toHaveAttribute('data-state', 'idle');
   await page.evaluate(async ([count, at, hold, period]) => {
@@ -53,7 +54,7 @@ async function playRhythm(page, hops, pressAt = 280, holdFor = 490) {
     const takeOff = performance.now() + period;
     for (let hop = 0; hop < count; hop++) {
       await wait(takeOff + hop * period + at - performance.now());
-      if (document.body.dataset.state !== 'run') return;
+      if (document.body.dataset.state === 'done') return;
       key('keydown');
       await wait(takeOff + hop * period + at + hold - performance.now());
       key('keyup');
@@ -95,6 +96,60 @@ test('real input: pressing right after take-off meets a pendulum, then three mis
     await expect(state(page)).toHaveAttribute('data-state', 'done', { timeout: 6000 });
   }
   await expect(page.locator('#outcome')).toContainText('wait a moment after take-off');
+});
+
+test('a first press that holds the page while audio starts is not thrown away', async ({ page }) => {
+  await page.addInitScript(() => {
+    const Real = window.AudioContext;
+    window.AudioContext = class extends Real {
+      constructor() { const from = performance.now(); while (performance.now() - from < 500); super(); }
+    };
+  });
+  await page.goto('/dev/clock-tower.html?lang=ja&fresh');
+  await expect(state(page)).toHaveAttribute('data-state', 'idle');
+  await page.keyboard.press('Space');
+  await expect(state(page)).toHaveAttribute('data-state', 'ready');
+  await expect(state(page)).toHaveAttribute('data-state', 'done', { timeout: 6000 });
+  await expect(page.locator('#outcome')).not.toContainText('処理が止まった');
+  expect((await logOf(page))[0]).toMatchObject({ reason: 'short' });
+});
+
+test('real input: the first gold pallet moves the great wheel by one tooth', async ({ page }) => {
+  await page.goto('/dev/clock-tower.html?lang=ja&room=4&fresh');
+  await expect(state(page)).toHaveAttribute('data-state', 'idle');
+  await expect(page.locator('#wheel-state')).toHaveText('0/3');
+  await page.evaluate(async ([holdFor, period]) => {
+    const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+    const key = type => window.dispatchEvent(new KeyboardEvent(type, { code: 'Space', bubbles: true, cancelable: true }));
+    key('keydown'); key('keyup');
+    const takeOff = performance.now() + period;
+    await wait(takeOff + 10 - performance.now());
+    key('keydown');
+    await wait(takeOff + 10 + holdFor - performance.now());
+    key('keyup');
+  }, [260, 780]);
+  await expect(page.locator('#wheel-state')).toHaveText('1/3');
+  await expect(page.locator('#outcome')).toContainText('カチッ');
+});
+
+test('two gears behind and the full result is gone: the game says so, points to the start, and it works', async ({ page }) => {
+  await page.goto('/dev/clock-tower.html?lang=ja&room=4&gears=2&fresh');
+  await expect(state(page)).toHaveAttribute('data-full-reach', 'lost');
+  await expect(page.locator('#outcome')).toContainText('最初から');
+  await expect(page.locator('#restart')).toHaveClass(/suggest/);
+  await expect(page.locator('#restart')).toContainText('★★');
+  await page.locator('#restart').click();
+  await expect(state(page)).toHaveAttribute('data-full-reach', 'open');
+  await expect(page.locator('#restart')).not.toHaveClass(/suggest/);
+  await expect(page.locator('#restart')).toHaveText('最初から');
+  await expect(page.locator('#room-state')).toHaveText('1/4');
+});
+
+test('one gear behind: the game says the escapement can still wake it', async ({ page }) => {
+  await page.goto('/dev/clock-tower.html?lang=ja&room=4&gears=1,2&fresh');
+  await expect(state(page)).toHaveAttribute('data-full-reach', 'needsWheel');
+  await expect(page.locator('#outcome')).toContainText('起こせます');
+  await expect(page.locator('#restart')).not.toHaveClass(/suggest/);
 });
 
 test('touch: the stage and the button are hold surfaces, and everything fits a phone screen', async ({ page }) => {
