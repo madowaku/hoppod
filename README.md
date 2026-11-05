@@ -18,6 +18,10 @@ Small bouncing space capsule with rabbit-ear antennas, a face-display, and a spr
 
 A separate five-minute STORY page, `story.html`, is being built on `feature/story-jam-02`. Hops and original Web Audio music share one beat clock. On that branch the bare top address opens STORY in English; every FREE RUN and DAILY address (mode, date, seed, shared replay links) still opens FREE RUN unchanged. See [STORY design and status](docs/STORY_JAM02.md).
 
+## MOON WORKSHOP / 月の楽器工房 (in progress)
+
+A separate episode on `feature/moon-workshop`, at `workshop.html`: wake sleeping instruments with FAST and SLOW, land on the metronome as its missing weight, and let go while your own song keeps going. Not linked from STORY or FREE RUN, and not yet played by a person. See [Moon Workshop design and status](docs/MOON_WORKSHOP.md).
+
 ## Play locally
 
 Requires Python 3. From this folder:
