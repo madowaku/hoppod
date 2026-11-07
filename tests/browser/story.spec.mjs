@@ -16,9 +16,9 @@ async function open(page,query='') {
 }
 const read=page=>page.evaluate(()=>globalThis.__rapippoStoryProbe.read());
 
-test('FREE RUN links to STORY without changing its own controls',async({page})=>{
+test('FREE RUN links to the stages without changing its own controls',async({page})=>{
   await page.goto('/?mode=free&seed=42');
-  await expect(page.locator('#story')).toHaveAttribute('href','story.html?lang=en');
+  await expect(page.locator('#story')).toHaveAttribute('href','select.html?lang=en');
   await expect(page.locator('#daily')).toBeVisible();await expect(page.locator('#free')).toBeVisible();
 });
 
@@ -142,13 +142,13 @@ test('from the dock on, FAST/SLOW takes no input; a FAST held into the dock is r
   expect(errors).toEqual([]);
 });
 
-for(const [width,height] of [[360,640],[390,844]]) test(`STORY header at ${width}×${height}: PAUSE beside FREE RUN, clear of the brand and the screen`,async({page})=>{
+for(const [width,height] of [[360,640],[390,844]]) test(`STORY header at ${width}×${height}: PAUSE beside STAGES, clear of the brand and the screen`,async({page})=>{
   await page.setViewportSize({width,height});
   const errors=await open(page);
   await page.locator('#action').click();await page.clock.runFor(500);
   const b=async sel=>page.locator(sel).boundingBox();
   for(const lang of ['en','ja']) {
-    if(lang==='ja'){await page.locator('#language').click();await expect(page.locator('#to-free')).toHaveText('フリーラン ›');}
+    if(lang==='ja'){await page.locator('#language').click();await expect(page.locator('#to-free')).toHaveText('ステージ ›');}
     const brand=await b('.brand'),pauseBox=await b('#pause'),free=await b('#to-free'),area=await b('.play-area');
     expect(pauseBox.x).toBeGreaterThanOrEqual(brand.x+brand.width);
     expect(pauseBox.x+pauseBox.width).toBeLessThanOrEqual(free.x);

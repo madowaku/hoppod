@@ -4,7 +4,7 @@ import { PERIOD as BEAT, SLOW_SPEED, FAST_SPEED } from '../public/src/engine.mjs
 import { COURSE, U, CART_SPEED, CART_FOOT, CART_HALF, platformAt, stationAt, RUNG_TICKS, BARE_TICK } from '../public/src/workshop/course.mjs';
 import { newRun, runFrom, advance, ASSIST_FAILS } from '../public/src/workshop/sim.mjs';
 import { playHop, solve, HOLDS } from './helpers/workshop-solver.mjs';
-import { chordAtBar, pc, PARTS, finaleBar, ENTRY, TUTTI_END, CARD_BAR, TUTTI_FROM, encodeTake, decodeTake, demoRecording, makeTake, bandBar, nearest, freeBar, BUDGET } from '../public/src/workshop/arrange.mjs';
+import { chordAtBar, pc, PARTS, finaleBar, ENTRY, TUTTI_END, CARD_BAR, TUTTI_FROM, encodeTake, decodeTake, demoRecording, makeTake, bandBar, nearest, freeBar, BUDGET, replayPartAt, loopFraction, BAR } from '../public/src/workshop/arrange.mjs';
 
 const after = (run, id) => { const i = COURSE.stations.findIndex(s => s.id === id); return COURSE.stations[i]; };
 const events = list => list.map(e => e.type);
@@ -200,6 +200,23 @@ test('the form: parts enter in order, a silent first bar, a tail with only the h
   assert.ok(finaleBar(rec, CARD_BAR + 4).length + finaleBar(rec, CARD_BAR + 5).length > 0, 'still breathing');
   assert.ok(freeBar(rec, 400).length > 0);
 });
+test('the finale points at the part coming in, and its replay runs with its own notes', () => {
+  assert.equal(replayPartAt(0), null); assert.equal(replayPartAt(1), null);
+  for (const [part, bar] of Object.entries(ENTRY)) assert.equal(replayPartAt(bar), part);
+  assert.equal(replayPartAt(TUTTI_FROM), 'all'); assert.equal(replayPartAt(TUTTI_END - 1), 'all');
+  assert.equal(replayPartAt(TUTTI_END), 'wood'); assert.equal(replayPartAt(CARD_BAR + 40), 'wood');
+  // At the moment each player's note sounds, the replay's cursor stands on that very mark.
+  const song = demoRecording(); let checked = 0;
+  for (let bar = 2; bar < TUTTI_END; bar++) for (const n of finaleBar(song, bar)) {
+    if (n.by !== 'player' || n.part === 'harp') continue;
+    const take = song[n.part], at = loopFraction(bar * BAR + n.t, ENTRY[n.part], take.len);
+    const slots = take.len * 4, off = Math.abs(at * slots - n.slot);
+    assert.ok(Math.min(off, slots - off) < 1e-6, `${n.part} bar ${bar} slot ${n.slot}: cursor ${at * slots}`);
+    checked++;
+  }
+  assert.ok(checked > 200);
+});
+
 test('every note is finite and in range for any legal take', () => {
   for (const name of ['slow', 'fast', 'random']) for (const notes of render(persona(name))) for (const n of notes) {
     if (n.midi !== null) assert.ok(Number.isFinite(n.midi) && n.midi >= 30 && n.midi <= 96, `${n.part} ${n.midi}`);
@@ -216,4 +233,14 @@ test('a shared take survives the round trip and hostile input is refused or clam
   assert.ok(hostile.wood.events[0].s < 32 && hostile.wood.events[0].d <= 4);
   for (const bar of [0, 6, 12, 20, 30]) for (const n of finaleBar(hostile, bar)) if (n.midi !== null) assert.ok(Number.isFinite(n.midi));
   void nearest; void bandBar;
+});
+
+test('every lantern gives two landings with no input, so nobody must press as they reappear', () => {
+  COURSE.checkpoints.forEach((cp, i) => {
+    if (i === 0) return;
+    const run = runFrom(COURSE, i, {});
+    for (let k = 1; k <= 2; k++) { advance(run, COURSE, k * BEAT, false, []); assert.equal(run.status, 'playing', `lantern ${i} (${COURSE.stations[cp.station].id}), landing ${k}`); }
+    // A lantern on its own rest ground also catches a FAST still held from before.
+    if (platformAt(cp.x).b - platformAt(cp.x).a === 250) { const held = runFrom(COURSE, i, {}); advance(held, COURSE, BEAT, true, []); assert.equal(held.status, 'playing', `lantern ${i}, FAST held`); }
+  });
 });

@@ -26,6 +26,10 @@ function build() {
   const station = id => stations.push({ id, from: x, to: 0 });
   const checkpoint = (at = x + 40) => checkpoints.push({ x: at, from: at - 30, station: stations.length - 1 });
   const close = () => { stations.at(-1).to = x; };
+  // A lantern you come back to mid-station stands on ground that takes two SLOW hops,
+  // so nobody has to press in the instant they reappear; a FAST still held lands on it too.
+  const REST = 250, REST_AT = 20;
+  const rest = (kind = 'plain') => { add(REST, kind); checkpoint(x - REST + REST_AT); };
 
   // 0. The silent hall: long safe ground, only the hero's tick.
   station('hall'); checkpoints.push({ x: 75, from: 0, station: 0 });
@@ -45,7 +49,7 @@ function build() {
   const order = ['B', 'E', 'G', 'D', 'A', 'E', 'B', 'D', 'G', 'A'];
   for (const name of order) add(50, 'tongue', { name, m: TONGUE_PITCH[name], flush: true });
   for (const [a, b] of [['G', 'D'], ['E', 'A'], ['B', 'G'], ['D', 'E']]) {
-    add(120, 'plain'); checkpoint(x - 70);
+    rest();
     add(90, 'tongue', { name: a, m: TONGUE_PITCH[a] }); gap(14);
     add(90, 'tongue', { name: b, m: TONGUE_PITCH[b] }); gap(12);
     add(80, 'res', { name: a, m: TONGUE_PITCH[a] }); gap(14);
@@ -67,22 +71,22 @@ function build() {
 
   // 5. Strings: pads and single strings. The same pad, a different sound.
   station('strings'); checkpoint();
-  add(150, 'plain');
-  for (let room = 0; room < 10; room++) { strings.push(x + 28); gap(58); add(room % 2 ? 120 : 160, 'pad'); if (room % 4 === 3) checkpoint(x - 60); }
+  add(220, 'plain');
+  for (let room = 0; room < 10; room++) { strings.push(x + 28); gap(58); if (room % 4 === 3) rest('pad'); else add(room % 2 ? 120 : 160, 'pad'); }
   add(120, 'plain'); close();
 
   // 6. Woodwind: every press is a note, and the ground writes the rhythm:
   // a wide gap asks for a long tone, a narrow one leaves room for short ones.
   station('wood'); checkpoint();
   add(150, 'plain');
-  [24, 24, 104, 24, 88, 24, 24, 112, 24, 72, 24, 112, 24, 24, 96, 24, 24, 24, 104, 24, 72, 24, 112].forEach((w, i) => { gap(w); add(i % 3 === 2 ? 120 : 104, 'stone'); if (i % 8 === 7) checkpoint(x - 60); });
+  [24, 24, 104, 24, 88, 24, 24, 112, 24, 72, 24, 112, 24, 24, 96, 24, 24, 24, 104, 24, 72, 24, 112].forEach((w, i) => { gap(w); if (i % 8 === 7) rest('stone'); else add(i % 3 === 2 ? 120 : 104, 'stone'); });
   add(120, 'plain'); close();
 
   // 7. Bellows: FAST pushes, SLOW draws; each plate takes one direction.
   station('bellows'); checkpoint();
   add(150, 'plain');
   ['pull', 'pull', 'push', 'pull', 'push', 'pull', 'pull', 'push', 'push', 'pull', 'push', 'pull', 'pull', 'push', 'pull', 'push'].forEach((dir, i) => {
-    gap(14); add(dir === 'push' ? 214 : 96, dir); if (i % 6 === 5) checkpoint(x - 50);
+    gap(14); add(dir === 'push' ? 214 : 96, dir); if (i % 6 === 5) { gap(14); rest(); }
   });
   gap(14); add(150, 'plain'); close();
 
@@ -97,10 +101,9 @@ function build() {
   station('cymbal'); checkpoint();
   add(130, 'plain');
   for (let round = 0; round < 6; round++) {
-    add(110, 'cymbal');
+    if (round === 3) rest('cymbal'); else add(110, 'cymbal');
     for (let n = 0; n < (round % 2 ? 2 : 1) + 1; n++) { gap(30); add(96, 'stone'); }
     gap(30);
-    if (round === 2) checkpoint(x + 50);
   }
   add(150, 'cymbal', { last: true }); add(60, 'plain'); close();
 

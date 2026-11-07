@@ -1,6 +1,6 @@
 # RAPIPPO: the Moon Instrument Workshop / 月の楽器工房
 
-**Status:** playable from start to end card. Branch `feature/moon-workshop`, based on `feature/story-jam-02`. Not merged, deployed or linked from STORY or FREE RUN. **No person has played it yet**: every number below comes from scripts and headless Chromium.
+**Status:** playable from start to end card. Branch `feature/moon-workshop`, based on `feature/story-jam-02`. Reached from the stage select (`select.html`), which the owner decided on 2026-11-07 should ship in the jam build. Not merged or deployed yet. The owner played it through twice (2026-11-07, see "Playtests"); every number below comes from scripts and headless Chromium.
 
 Play locally: `npm run dev`, then open `http://127.0.0.1:8000/workshop.html?lang=ja`.
 
@@ -40,8 +40,8 @@ Layout unit: **U = 32.175px**, what one sixteenth note (0.195s) of FAST adds to 
 | 4 | Harp | The sky has strings | Tip crossings within the high window. SLOW about 5 strings, FAST about 10 | Length of the run |
 | 5 | Strings | Same pad, different sound | From String Valley. Ringing is never required, because silence proved frustrating there | Plucked phrase |
 | 6 | Woodwind | Every press is a note | Wide gaps ask for long tones, narrow ones leave room for short ones: the ground is the score | Rhythm: the signature |
-| 7 | Bellows | Push and draw are the instrument | Gold plates take FAST at touchdown, blue take SLOW (0.12s grace, as HOPSCROLL's bridges). Open after 3 falls | Stabs |
-| 8 | Trombone | You can go back | A cart at 187.5px/s: ±64.35px a hop, half a hop holds still. Camera on the cart, seven painted positions. Guard rail after 2 falls | Countermelody |
+| 7 | Bellows | Push and draw are the instrument | Gold plates take FAST at touchdown, blue take SLOW (0.12s grace, as HOPSCROLL's bridges). The plates say which in words, and the hero wears the colour its input can land on. Open after 3 falls | Stabs |
+| 8 | Trombone | You can go back | A cart at 187.5px/s: ±64.35px a hop, half a hop holds still. Camera on the cart, seven painted positions, the hero works the slide of a trombone mounted above. Guard rail after 2 falls | Countermelody |
 | 9 | Cymbals | The ring is the only light | Light fades over four beats (328px at SLOW, 842px at FAST). Footing edges stay faintly visible; a return brings one more look | Only the crash at the full band |
 | 10 | Metronome | It has lost its weight | Three rungs slow the rod's tick to the hop's. Cannot be fallen from | The ending |
 
@@ -65,8 +65,18 @@ One millimetre there moves a tick by about 3.3ms in that model, which is why the
 2. The final landing sets 0.78s; the rod leans to meet the hero, so it cannot be missed. The legs fold out and **the control goes off, with no prompt**.
 3. One beat of silence.
 4. The first tick. Parts enter in the order they were woken, at bars 2, 4, 6, 8, 10, 11, 12, 14. The band is full from bar 16, with a crash.
-5. As the band fills, the camera moves on to the hero: the hero holds still and the world swings. (With reduced motion the camera stays put and the swing is small.)
-6. From bar 24 only the tick and **the player's own breath** remain. The card comes at bar 28 and the sound does not stop: "It keeps going without you."
+5. The room warms as the band fills and the camera never moves: the rod swings with the hero on it, inside a still frame. (With reduced motion the swing is small.)
+6. From bar 24 only the tick and **the player's own breath** remain. The card comes at bar 28 with no line of its own, and the sound does not stop.
+
+The goal is announced from the moment it is in view: the hero drops back in the frame, a shaft of light stands on the case, lamps run towards it and each rung lights the rod further up. The landing itself is one flash, a burst and a heavier lock whose bell has rung out by the first tick, so the silent beat stays. The control still goes off with no prompt.
+
+### Telling the player it is theirs
+
+Playtest: the song was not recognisable as the player's own. So the finale now says it, without changing a note:
+
+- As each part enters, a panel names what the player did ("Your landings became the drums") and runs that part's actual loop with an echo of the hero hopping through it; each mark lights as its note sounds.
+- A small pale echo of the hero stands on each instrument and hops only on the player's notes, never on the workshop's.
+- From the full band all eight loops run together ("All of this is what you left here"), then only the breath. A part the player left empty says the workshop kept it. A shared song credits someone else.
 
 ## How a poor player still gets a good song
 
@@ -110,7 +120,7 @@ Distance between any two of them is 0.73 to 0.85 (0 identical, 1 nothing shared)
 ```
 npm test                  # includes tests/workshop.test.mjs
 npm run check
-npm run test:workshop     # its own port and config: 11 browser tests
+npm run test:workshop     # its own port and config: 14 browser tests
 npm run render:workshop   # server on 8033
 ```
 
@@ -120,14 +130,34 @@ Phone-sized page (390×844, DPR 3) with the CPU throttled 4×, headless Chromium
 
 `node tests/helpers/workshop-noisy-player.mjs` runs a player who reads ahead perfectly but has an imprecise finger, to find unfair stations relative to each other. It never misreads the ground, so its falls are a floor, not a forecast.
 
+## Playtests (owner, 2026-11-07)
+
+### Second
+
+"Moved me." A signature stage, says the owner. Removed the waiting outline at the goal and the last line of the end card. Coming back at a lantern needed an instant press: `tests/workshop.test.mjs` now requires two landings with no input from every lantern. Mid-station lanterns in the tongue drum, strings, woodwind, bellows and cymbals stand on 250px rest ground (the strings' first plain ground is 220px). Dark difficulty stays as it is, by decision.
+
+### First
+
+"Really fun." What was found and what changed:
+
+| Found | Change |
+|---|---|
+| Backwards reads, but it should feel more like a cart; the trombone did not read as one | A flatcar with spoked wheels, rods, stakes, lamps and springs on a trestle; a rail clack on the half beat; the camera trail no longer pushes it off screen. A side-on trombone rides over it and the hero works the slide |
+| Woodwind delay noticed at first, then fine | No change |
+| The dark was not hard at all | No change. The owner has since decided to keep it |
+| The metronome should feel more like the goal | See "The ending" |
+| The swinging frame in the finale could cause motion sickness | The camera no longer moves |
+| Not easy to notice the song was your own | See "Telling the player it is theirs" |
+| On the bellows, which colour is which got lost | Plates say 押す / 離す (HOLD / LET GO). The hero and the hold button wear the colour of the plates the current input can land on |
+
 ## What only people can answer
 
 1. Do first-time players understand each discovery with one line of text?
-2. **Cart:** does SLOW going backwards read as backwards, and can a novice hold still on purpose?
+2. **Cart:** can a novice hold still on purpose?
 3. **Woodwind:** is the press-to-sound delay acceptable on a real Android phone? Unmeasured, and this station depends on it.
-4. **Dark:** STORY's first playtest found the dark hard. Is four beats of light enough?
-5. **Ending:** does taking the control away, with no prompt, feel like release or like being cut off?
-6. **Finale:** can players pick out their own song among others' without being told?
+4. **Dark:** the owner found it easy. Does a first-time player, given that STORY's playtest found its dark hard?
+5. **Ending:** does taking the control away, with no prompt, feel like release or like being cut off? Does the new arrival read as a goal?
+6. **Finale:** now that it says so, do players feel it is theirs, or do the panels get in the way of listening?
 7. Length: scripted runs take about 2 to 5 minutes before the 1.5-minute ending. Is each station long enough to repeat and reverse its discovery?
 
 ## Known limits
@@ -135,4 +165,4 @@ Phone-sized page (390×844, DPR 3) with the CPU throttled 4×, headless Chromium
 - A press inside the last 0.15s before a landing can make a predicted landing note wrong, as in STORY. An unpredicted event still sounds.
 - Bluetooth makes the woodwind's press-to-sound delay longer; landings are unaffected because they are scheduled ahead.
 - The art is code-drawn placeholders-plus: readable and consistent, not final illustration.
-- Not linked from STORY or FREE RUN, by choice, while the jam build is open. `scripts/build-itch.mjs` ships every file in `public/`, so merging would put these pages in the ZIP.
+- `scripts/build-itch.mjs` ships every file in `public/` except `dev/`, so this page is in the ZIP.

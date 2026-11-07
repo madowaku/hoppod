@@ -113,9 +113,10 @@ function refreshOverlay() {
 }
 function refreshCopy() {
   document.documentElement.lang = language;
-  get('story-tag').textContent = tr('tag'); get('to-free').textContent = tr('free'); get('end-free').textContent = tr('free');
+  get('story-tag').textContent = tr('tag'); get('to-free').textContent = tr('stages'); get('end-free').textContent = tr('free');
   // FREE RUN (never DAILY) in the same language, even where nothing is saved.
-  for (const id of ['to-free', 'end-free', 'title-free']) get(id).setAttribute('href', 'index.html?mode=free&lang=' + language);
+  for (const id of ['end-free', 'title-free']) get(id).setAttribute('href', 'index.html?mode=free&lang=' + language);
+  get('to-free').setAttribute('href', 'select.html?lang=' + language);
   get('title-free').textContent = tr('freeRun');
   get('auto-hop').textContent = tr('autoHop');
   get('intro-hold').textContent = tr('hold'); get('intro-release').textContent = tr('release');

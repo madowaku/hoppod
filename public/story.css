@@ -58,3 +58,4 @@ html[lang=ja] .story .overlay[data-screen=start] p:not(.headphones){font-size:12
 .story .overlay:not([data-screen=start]) .title-actions .action::before{content:none}
 /* The title already names the game and offers FREE RUN: the header steps aside. */
 body.story:has(.overlay[data-screen=start]:not([hidden])) .top>*{visibility:hidden}
+body.story:has(.overlay[data-screen=start]:not([hidden])) .to-free{visibility:visible}

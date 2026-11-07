@@ -97,8 +97,16 @@ export function createWorkshopAudio(offline = null) {
     tick(at, tock = false, v = 1) { if (!ctx) return; hiss(buses.tick, 4000, at, .035, .09 * v); sine(buses.tick, tock ? 1760 : 2350, at, .03, .03 * v, 0, 'square'); },
     hopTick(at) { if (!ctx) return; hiss(buses.tick, 4000, at, .03, .075); sine(buses.tick, 2350, at, .03, .02, 0, 'square'); },
     chatter(at) { if (ctx) sine(buses.tick, 3100, at, .025, .05); },
-    // The lock: two clamps and a low settle, then silence.
-    lock(at) { if (!ctx) return; sine(buses.cue, 196, at, .3, .14, .9, 'triangle'); sine(buses.cue, 98, at + .02, .5, .12); hiss(buses.cue, 900, at, .2, .07, 'bandpass'); sine(buses.cue, 1320, at + .06, .05, .05, 0, 'square'); },
+    // The lock: a clamp, a second clamp and a bell that has rung out by the first tick.
+    lock(at) {
+      if (!ctx) return;
+      sine(buses.cue, 196, at, .3, .18, .9, 'triangle'); sine(buses.cue, 98, at + .02, .5, .16); hiss(buses.cue, 900, at, .2, .1, 'bandpass'); sine(buses.cue, 1320, at + .06, .05, .07, 0, 'square');
+      hiss(buses.cue, 1400, at + .1, .08, .08, 'bandpass'); sine(buses.cue, 1760, at + .11, .04, .06, 0, 'square');
+      for (const [f, peak] of [[392, .07], [587, .06], [784, .05], [1175, .03]]) sine(buses.cue, f, at + .12, .6, peak);
+    },
+    // Wheels over a rail joint, a soft double beat; and the cart taking up the slack.
+    clack(at, strong = false) { if (!ctx) return; sine(buses.tick, strong ? 118 : 96, at, .07, strong ? .1 : .07); hiss(buses.tick, 650, at, .03, strong ? .05 : .035, 'bandpass'); },
+    couple(at) { if (!ctx || at === null) return; sine(buses.cue, 130, at, .16, .14, .8, 'triangle'); hiss(buses.cue, 800, at, .1, .08, 'bandpass'); sine(buses.cue, 880, at + .05, .04, .04, 0, 'square'); },
     wake(at) { if (!ctx) return; for (const [i, f] of [392, 587, 784].entries()) sine(buses.cue, f, at + i * .07, .3, .045); },
     chime(at) { if (ctx) { sine(buses.cue, 1047, at, .14, .05); sine(buses.cue, 1568, at + .06, .22, .04); } },
     fall(at, brass = false) {

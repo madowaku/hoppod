@@ -3,12 +3,12 @@
 import { PERIOD as BEAT } from '../engine.mjs';
 import { drawPod } from '../pod.mjs';
 import { BeatClock, TimedInput, heardFromContext, beatIndex } from '../story/beat.mjs';
-import { COURSE, stationAt, heightAt, rodLean, ROD_LENGTH, CART_HALF } from './course.mjs';
+import { COURSE, stationAt, heightAt, rodLean, ROD_LENGTH, CART_HALF, CART_SPEED } from './course.mjs';
 import { newRun, runFrom, advance, cloneRun, cartTarget, FALL_BEATS } from './sim.mjs';
-import { STEP, BAR, PARTS, TUTTI_FROM, CARD_BAR, finaleBar, freeBar, bandBar, bedBar, brassPitch, liveNote, encodeTake, decodeTake, demoRecording, WOOD_MOTIF } from './arrange.mjs';
+import { STEP, BAR, PARTS, ENTRY, TUTTI_FROM, TUTTI_END, CARD_BAR, finaleBar, freeBar, bandBar, bedBar, brassPitch, liveNote, encodeTake, decodeTake, demoRecording, WOOD_MOTIF, replayPartAt, loopFraction } from './arrange.mjs';
 import { createWorkshopAudio } from './audio.mjs';
 import { workshopCopy, chooseLanguage, withLanguage } from './copy.mjs';
-import { W, H, FLOOR, drawBackdrop, drawStationBack, drawPlatforms, drawHarp, drawStrings, drawCart, drawSlideOnHero, drawDarkness, crashRing, drawMetronome, drawLockedHero, rodTip, drawBand, drawScore, drawLanterns, drawFallHint } from './draw.mjs';
+import { W, H, FLOOR, drawBackdrop, drawStationBack, drawPlatforms, drawHarp, drawStrings, drawCart, drawTrombone, drawBellowsAura, drawDarkness, crashRing, drawMetronome, drawGoalStage, drawRunway, drawBurst, drawLockedHero, rodTip, drawBand, drawReplay, drawAllReplay, drawScore, drawLanterns, drawFallHint } from './draw.mjs';
 
 const $ = id => document.getElementById(id);
 const canvas = $('play'), ctx = canvas.getContext('2d');
@@ -47,7 +47,7 @@ let screen = 'start', mode = 'play', run = newRun(), ahead = null, s = 0, nextSt
 let cam = 0, camDelta = 0;
 const rings = new Map(), plucks = new Map(), particles = [];
 const cued = new Set();
-let finaleT0 = null, flash = {}, heardParts = new Set(), scheduledBar = new Map();
+let finaleT0 = null, flash = {}, echoes = {}, heardParts = new Set(), scheduledBar = new Map(), bursts = [];
 let takeForFinale = null, freeWide = 0, crashes = [], lockAt = null, cardShown = false, copiedAt = -9;
 const perfNow = () => performance.now() / 1000;
 const fast = () => pointers.size + keys.size > 0;
@@ -68,7 +68,7 @@ function demoSubset(stationNo) {
 
 function reset() {
   rings.clear(); plucks.clear(); particles.length = 0; cued.clear(); crashes = []; litLanterns.clear(); fallGap = null; hint = null; toast = null;
-  cam = 0; camDelta = 0; finaleT0 = null; flash = {}; heardParts = new Set(); scheduledBar = new Map(); banner = null; lockAt = null; cardShown = false; freeWide = 0;
+  cam = 0; camDelta = 0; finaleT0 = null; flash = {}; echoes = {}; bursts = []; heardParts = new Set(); scheduledBar = new Map(); banner = null; lockAt = null; cardShown = false; freeWide = 0;
 }
 function start(fromSave = null) {
   audio.unlock(); audio.cancel(); reset();
@@ -125,14 +125,14 @@ function press(on, stamp) {
   const now = perfNow(), at = Math.abs(stamp / 1000 - now) < .25 ? Math.min(now, stamp / 1000) : now;
   input.push(clock.at(at), on);
 }
-function showBanner(id) { banner = { id, at: s }; $('chapter-label').textContent = tr('stations')[id] || ''; }
+function showBanner(id) { banner = { id, at: s }; $('chapter-label').textContent = tr('stations')[id] || ''; updateHud(); }
 
 function refreshOverlay() {
   const kind = $('overlay').dataset.screen;
   $('intro-mark').textContent = '✦ ' + tr('tag') + ' ✦';
   $('title-text').textContent = kind === 'pause' ? tr('pauseTitle') : tr('title');
   $('work-title').textContent = tr('tag');
-  $('overlay-subtitle').textContent = kind === 'pause' ? tr('pauseText') : kind === 'end' ? (run.listen ? tr('listening') : tr('thanks')) : kind === 'free' ? tr('freeHint') : sharedTake ? tr('listening') : tr('subtitle');
+  $('overlay-subtitle').textContent = kind === 'pause' ? tr('pauseText') : kind === 'end' ? (run.listen ? tr('listening') : '') : kind === 'free' ? tr('freeHint') : sharedTake ? tr('listening') : tr('subtitle');
   $('action').textContent = kind === 'pause' ? tr('resume') : sharedTake ? '▶' : tr('begin');
   $('continue').textContent = sharedTake ? tr('listenOwn') : tr('cont');
   $('continue').hidden = kind !== 'start' || (!sharedTake && (!saved || saved.checkpoint <= 0));
@@ -149,7 +149,7 @@ function refreshCopy() {
   $('auto-hop').textContent = tr('autoHop'); $('intro-hold').textContent = tr('hold'); $('intro-release').textContent = tr('release');
   $('headphones').textContent = tr('headphones'); $('again').textContent = tr('again'); $('save-png').textContent = tr('savePng');
   $('copy-link').textContent = tr('copyLink'); $('footer-tag').textContent = tr('footer'); $('footer-keys').textContent = tr('keys');
-  $('pause').setAttribute('aria-label', tr('pause'));
+  $('pause').setAttribute('aria-label', tr('pause')); const stages = $('to-select'); if (stages) { stages.textContent = tr('stages'); stages.href = 'select.html?lang=' + language; } // an old cached page may lack it
   $('language').textContent = language === 'ja' ? 'EN' : '日本語'; $('language').setAttribute('aria-label', tr('switchLanguage'));
   $('buzz').textContent = tr(buzzOn ? 'buzzOn' : 'buzzOff'); $('buzz').setAttribute('aria-pressed', String(buzzOn));
   $('sound').textContent = tr(audio.muted ? 'soundOff' : 'soundOn'); $('sound').setAttribute('aria-pressed', String(!audio.muted));
@@ -160,6 +160,8 @@ function updateHud() {
   const on = fast();
   $('hold').disabled = !steering(); $('pause').hidden = !playing();
   $('hold').classList.toggle('active', on); $('hold').setAttribute('aria-pressed', String(on));
+  // On the bellows the button wears the colour of the plate this input can land on.
+  if (playing() && mode === 'play' && run.stationId === 'bellows') $('hold').dataset.tint = on ? 'push' : 'pull'; else delete $('hold').dataset.tint;
   $('hold-state').textContent = on ? 'FAST' : 'SLOW';
   $('hold-instruction').textContent = tr(on ? 'toSlow' : 'toFast');
 }
@@ -282,6 +284,8 @@ function scheduleMusic() {
         const beatRel = Math.round(rel / STEP);
         const bar = Math.floor(beatRel / 16);
         if (beatRel % 4 === 0 && finaleT0 !== null) { audio.tick(at, beatRel % 8 === 4); probeNote('tick', at, t); }
+        // Rail joints pass every half beat at the cart's speed: its wheels keep time.
+        if (finaleT0 === null && beatRel % 2 === 0 && run.cart.state === 'ride' && run.status === 'playing') audio.clack(at, beatRel % 4 === 0);
         for (const n of barNotes(bar)) {
           const slot = Math.round(n.slotT / STEP * 3);
           if (Math.floor(slot / 3) !== beatRel % 16) continue;
@@ -289,6 +293,7 @@ function scheduleMusic() {
           audio.note(n, exact, finaleT0 !== null ? 'live' : 'bed');
           probeNote(n.part, exact, t + (n.slotT - (beatRel % 16) * STEP), { by: n.by, bar });
           flash[n.part] = t; if (PARTS.includes(n.part)) heardParts.add(n.part);
+          if (n.by === 'player') echoes[n.part] = t + (n.slotT - (beatRel % 16) * STEP);
         }
       }
     }
@@ -301,7 +306,7 @@ function markHeard() {
   if (finaleT0 === null || audio.running) return;
   const rel = s - finaleT0; if (rel < 0) return;
   const bar = Math.floor(rel / BAR), into = rel - bar * BAR;
-  for (const n of barNotes(bar)) if (n.slotT <= into && into - n.slotT < .05 && PARTS.includes(n.part)) { flash[n.part] = s; heardParts.add(n.part); }
+  for (const n of barNotes(bar)) if (n.slotT <= into && into - n.slotT < .05 && PARTS.includes(n.part)) { flash[n.part] = s; heardParts.add(n.part); if (n.by === 'player') echoes[n.part] = s; }
 }
 function mixMusic() {
   if (!audio.running) return;
@@ -319,15 +324,16 @@ function handle(events) {
     if (e.string !== undefined && e.part === 'strings') plucks.set('s' + e.string, e.t ?? s);
     if (e.type === 'land' && !reducedMotion.matches) particles.push({ x: run.x, age: 0 });
     if (e.type === 'reed') { if (e.on) audio.reedOn(e.midi); else audio.reedOff(); }
-    if (e.type === 'board') { audio.slideOn(brassPitch(0)); showHint('cartHint'); }
-    if (e.type === 'note' && e.slide) audio.slideTo(e.midi, 1);
+    if (e.type === 'board') { audio.slideOn(brassPitch(0)); audio.couple(when(e.t ?? s)); showHint('cartHint'); }
+    if (e.type === 'note' && e.slide) { audio.slideTo(e.midi, 1); bellAt = e.t ?? s; }
+    if (e.type === 'rung') { const r = COURSE.rungs[e.rung]; bursts.push({ x: (r.a + r.b) / 2, y: FLOOR - r.h, at: e.t ?? s, power: .25 + e.rung * .1 }); }
     if (e.type === 'wake') { flash[e.part] = e.t ?? s; toast = { part: e.part, at: e.t ?? s }; }
     if (e.type === 'station') {
       showBanner(e.id);
       if (e.id !== 'brass') audio.slideOff();
       save();
     }
-    if (e.type === 'fall') { audio.slideOff(); audio.reedOff(); fallGap = run.fails[run.checkpoint] >= 2 ? { x: run.fallX, checkpoint: run.checkpoint } : null; if (run.stationId === 'tongue') showHint('resHint'); }
+    if (e.type === 'fall') { audio.slideOff(); audio.reedOff(); fallGap = run.fails[run.checkpoint] >= 2 ? { x: run.fallX, checkpoint: run.checkpoint } : null; if (run.stationId === 'tongue') showHint('resHint'); if (run.stationId === 'bellows') showHint('bellowsHint'); }
     if (e.type === 'respawn') camDelta = 0;
     if (e.type === 'crash') crashes.push({ x: e.x, at: e.t });
     if (e.type === 'checkpoint') { litLanterns.add(e.index); fallGap = null; save(); }
@@ -345,7 +351,7 @@ function beginFinale(e) {
   saved = { checkpoint: 0, recording: {}, lastTake: run.recording }; write(SAVE_KEY, JSON.stringify(saved));
   showBanner('metronome');
 }
-let hint = null, fallGap = null, toast = null;
+let hint = null, fallGap = null, toast = null, bellAt = -9;
 const litLanterns = new Set();
 function showHint(key) { hint = { key, at: s }; }
 const probe = globalThis.__rapippoWorkshopProbe;
@@ -366,13 +372,18 @@ function heroState() {
   const from = groundH(run.hopStartX), h = from + (base - from) * phase;
   return { y: FLOOR - 2 - h - Math.sin(phase * Math.PI) * 96, phase, land: s - beat * BEAT < .1 ? 1 - (s - beat * BEAT) / .1 : 0, dead: 0 };
 }
+// The camera trails a moving target by speed / rate; on the cart that would push the
+// whole cart off the right edge, so the ride view leads by the same amount.
+const CAMERA_RATE = 4;
 function steerCamera(dt) {
   let target = run.x - HERO_X;
-  if (run.stationId === 'brass' && run.cart.state === 'ride' && run.x > COURSE.cart.x0 - CART_HALF) target = run.cart.x - W / 2;
+  // Towards the goal the hero drops back in the frame, so the metronome is seen coming.
+  if (run.stationId === 'metronome') target = run.x - 62;
+  else if (run.stationId === 'brass' && run.cart.state === 'ride' && run.x > COURSE.cart.x0 - CART_HALF) target = run.cart.x - W / 2 + CART_SPEED / CAMERA_RATE;
   else if (run.stationId === 'brass' && run.cart.state === 'wait' && run.x > COURSE.cart.x0 - CART_HALF - 200) target = Math.max(target, COURSE.cart.x0 - W / 2 - 40);
   target = Math.min(target, COURSE.dockX - W / 2);
   camDelta += cam - (target + camDelta);
-  camDelta *= Math.exp(-dt * 4);
+  camDelta *= Math.exp(-dt * CAMERA_RATE);
   cam = target + camDelta;
 }
 function drawWorld() {
@@ -382,18 +393,29 @@ function drawWorld() {
   const hero = heroState(), screenX = heroDrawX(run.x) - cam;
   if (id === 'harp') drawHarp(ctx, cam, run, s, plucks);
   if (id === 'strings') drawStrings(ctx, cam, run, s, plucks);
-  drawPlatforms(ctx, cam, run, s, rings, 0);
+  const reduced = reducedMotion.matches, plateLabels = id === 'bellows' ? tr('plates') : null;
+  if (id === 'metronome') {
+    // The room the finale happens in, already there: its floor and the sleeping band.
+    const px = COURSE.dockX - cam, floorFrom = Math.max(0, COURSE.rungs[0].a - cam);
+    drawGoalStage(ctx, px);
+    ctx.fillStyle = '#231c1a'; ctx.fillRect(floorFrom, FLOOR + 14, W - floorFrom, H);
+    ctx.fillStyle = '#ffd98a55'; ctx.fillRect(floorFrom, FLOOR + 14, W - floorFrom, 2);
+    ctx.save(); ctx.translate(px - W / 2, 0); drawBand(ctx, {}, s, new Set(), FLOOR + 62); ctx.restore();
+  }
+  drawPlatforms(ctx, cam, run, s, rings, 0, plateLabels);
   drawLanterns(ctx, cam, litLanterns, s);
   if (fallGap) drawFallHint(ctx, cam, fallGap.x, s);
   const rideView = id === 'brass';
-  if (rideView) drawCart(ctx, cam, run, s, run.cart.state === 'ride' ? cartTarget(run, COURSE) : null, run.cart.state === 'ride');
+  if (rideView) drawCart(ctx, cam, run, s, run.cart.state === 'ride' ? cartTarget(run, COURSE) : null, run.cart.state === 'ride', reduced);
   if (id === 'metronome') {
-    const px = COURSE.dockX - cam;
-    const shake = reducedMotion.matches ? 0 : Math.sin(s * Math.PI * 2 / run.rod.tick) * .012;
-    drawMetronome(ctx, px, FLOOR, rodLean(run.x) + shake, { rungAt: run.rod.rung, cam });
+    const px = COURSE.dockX - cam, angle = rodLean(run.x) + (reduced ? 0 : Math.sin(s * Math.PI * 2 / run.rod.tick) * .012);
+    drawRunway(ctx, cam, station.from, COURSE.rungs[0].a, s, reduced);
+    drawMetronome(ctx, px, FLOOR, angle, { rungAt: run.rod.rung, cam });
+    for (const b of bursts) drawBurst(ctx, b.x - cam, b.y, s - b.at, b.power, reduced);
   }
+  if (rideView) { const onCart = run.status === 'playing' && Math.abs(run.x - run.cart.x) <= CART_HALF + 30 && run.cart.state !== 'wait'; drawTrombone(ctx, cam, run, s, screenX, hero.y, onCart, s - bellAt, reduced); }
+  if (id === 'bellows' && run.status === 'playing') drawBellowsAura(ctx, screenX, hero.y, input.fast, s, reduced);
   for (const p of particles) { p.age += 1 / 60; if (p.age < .3) { ctx.globalAlpha = 1 - p.age / .3; ctx.fillStyle = '#efdaad'; ctx.fillRect(p.x - cam - 12 - p.age * 40, hero.y + 2, 3, 2); ctx.fillRect(p.x - cam + 9 + p.age * 40, hero.y + 2, 3, 2); ctx.globalAlpha = 1; } }
-  if (id === 'brass' && run.cart.state !== 'wait' && run.status === 'playing') drawSlideOnHero(ctx, cam, run, screenX, hero.y);
   let dark = 0;
   if (id === 'cymbal') {
     dark = drawDarkness(ctx, cam, run, s, screenX, hero.y - 20);
@@ -422,9 +444,8 @@ function drawHints() {
     ctx.globalAlpha = Math.min(1, (3 - (s - hint.at)) / .4); ctx.fillStyle = '#f6e4c2'; ctx.font = '11px sans-serif'; ctx.fillText(tr(hint.key), W / 2, 216); ctx.globalAlpha = 1;
   }
 }
-// The finale's camera: first the whole machine; from the full band on, the hero
-// holds still in the frame and it is the world that swings. RAPIPPO's oldest
-// rule, the hero stays put and the world moves, in its last form.
+// The finale's camera never moves: playtest found a swinging frame made people
+// queasy. The rod swings, with the hero on it, inside a still room.
 function rodAngle() {
   if (lockAt === null) return 0;
   const reduced = reducedMotion.matches, wide = reduced ? .05 : .2 + (mode === 'free' ? freeWide * .16 : 0);
@@ -433,30 +454,45 @@ function rodAngle() {
 }
 function swingStart() { return rodLean(run.x); }
 function drawFinale() {
-  const angle = rodAngle(), px = W / 2, py = FLOOR, tip = rodTip(px, py, angle), bar = finaleBarNow();
-  const lockView = reducedMotion.matches ? 0 : mode === 'free' ? .35 : smooth01((finaleBeats() - TUTTI_FROM * 4) / 16);
-  ctx.save();
-  // Blend the camera from fixed to riding on the hero.
-  const offX = (px - tip.x) * lockView, offY = ((py - ROD_LENGTH) - tip.y) * lockView;
-  ctx.translate(px, py - ROD_LENGTH); ctx.rotate(-angle * lockView); ctx.translate(-px + offX, -(py - ROD_LENGTH) + offY);
-  ctx.save(); ctx.translate(-30, -30); ctx.scale(1.17, 1.17);
-  drawBackdrop(ctx, COURSE.dockX, 'metronome', s, reducedMotion.matches);
-  ctx.restore();
-  ctx.fillStyle = '#231c1a'; ctx.fillRect(-60, FLOOR + 14, W + 120, H);
-  ctx.fillStyle = '#ffd98a55'; ctx.fillRect(-60, FLOOR + 14, W + 120, 2);
-  drawBand(ctx, flash, s, heardParts);
+  const angle = rodAngle(), px = W / 2, py = FLOOR, tip = rodTip(px, py, angle), bar = finaleBarNow(), reduced = reducedMotion.matches;
+  drawBackdrop(ctx, COURSE.dockX, 'metronome', s, reduced);
+  // The room warms as the band gathers.
+  drawGoalStage(ctx, px, .6 + .5 * (mode === 'free' ? 1 : heardParts.size / PARTS.length));
+  ctx.fillStyle = '#231c1a'; ctx.fillRect(0, FLOOR + 14, W, H);
+  ctx.fillStyle = '#ffd98a55'; ctx.fillRect(0, FLOOR + 14, W, 2);
+  drawBand(ctx, flash, s, heardParts, FLOOR + 62, 1, echoes, reduced);
   drawMetronome(ctx, px, py, angle, { rungs: false, lit: 0 });
-  ctx.restore();
-  const tipNow = rodTip(px, py, angle), hx = tipNow.x + (px - tip.x) * lockView, hy = tipNow.y + ((py - ROD_LENGTH) - tip.y) * lockView;
   const onBeat = finaleT0 !== null && s >= finaleT0 && (s - finaleT0) % BEAT < .12;
   // During the silent beat the legs fold out; the eyes blink from the first tick on.
-  drawLockedHero(ctx, hx, hy, angle * (1 - lockView), s, onBeat, reducedMotion.matches, smooth01((s - lockAt) / .22));
-  if (bar >= CARD_BAR - 1 && mode !== 'free') {
-    const a = smooth01(((finaleBeats() / 4) - (CARD_BAR - 1)) / 1);
-    ctx.globalAlpha = a; ctx.fillStyle = '#0b0a14cc'; ctx.fillRect(10, 8, W - 20, 104);
-    drawScore(ctx, takeForFinale || {}, 14, 12, W - 28, 96, { labels: tr('tags') });
-    ctx.globalAlpha = 1;
+  drawLockedHero(ctx, tip.x, tip.y, angle, s, onBeat, reduced, smooth01((s - lockAt) / .22));
+  if (mode !== 'free') {
+    // The arrival: one flash and a burst from the seat. The silent beat stays silent.
+    const since = s - lockAt;
+    if (since >= 0 && since < .5) { ctx.globalAlpha = (1 - since / .5) * (reduced ? .2 : .55); ctx.fillStyle = '#fff1c9'; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
+    drawBurst(ctx, tip.x, tip.y - 20, since, 1, reduced);
+    const tutti = s - finaleT0 - TUTTI_FROM * BAR;
+    if (tutti >= 0) drawBurst(ctx, tip.x, tip.y - 20, tutti, .8, reduced);
+    drawOwnSong(bar);
   }
+}
+const loopAt = (rel, part, len) => loopFraction(rel, ENTRY[part], len);
+const replayCaption = (part, take) => run.listen ? tr('theirs') + ' · ' + (tr('tags')[part] || '') : take.events.length ? tr('yours')[part] : tr('workshopFill');
+// The song is yours, and it says so: each part comes in with its own loop and the
+// hops you made running through it, then all of them together.
+function drawOwnSong(bar) {
+  const song = takeForFinale || {}, rel = s - finaleT0, bars = finaleBeats() / 4;
+  if (bar >= CARD_BAR - 1) {
+    drawAllReplay(ctx, song, rel, s, tr('tags'), null, loopAt, 14, 12, W - 28, 96, smooth01(bars - (CARD_BAR - 1)));
+    return;
+  }
+  const part = replayPartAt(bar);
+  if (part === 'all') { drawAllReplay(ctx, song, rel, s, tr('tags'), run.listen ? null : tr('allYours'), loopAt, 14, 10, W - 28, 72, smooth01(bars - TUTTI_FROM) * smooth01(TUTTI_END - bars)); return; }
+  const take = part && song[part];
+  // A player who never breathed has an honest tail: the tick alone, with nothing claimed.
+  if (!take || (bar >= TUTTI_END && !take.events.length)) return;
+  const entered = bar >= TUTTI_END ? TUTTI_END : ENTRY[part];
+  const fade = smooth01((bars - entered) * 2) * (bar >= TUTTI_END ? 1 - smooth01(bars - (CARD_BAR - 1.5)) : 1);
+  drawReplay(ctx, part, take, loopAt(rel, part, take.len), s, bar >= TUTTI_END && !run.listen ? tr('breathLast') : replayCaption(part, take), fade);
 }
 function drawTitle(t) {
   drawBackdrop(ctx, 2200, 'metronome', t, reducedMotion.matches);
@@ -482,7 +518,6 @@ function saveCard() {
   g.strokeStyle = '#e8b95a'; g.lineWidth = 6; g.beginPath(); g.moveTo(0, 60); g.lineTo(0, -80); g.stroke();
   g.restore();
   drawPod(g, 540, 1076, 4, { land: 1 });
-  g.fillStyle = '#f6e4c2'; g.font = '700 32px sans-serif'; g.fillText(tr('thanks'), 540, 1290);
   const link = document.createElement('a'); link.download = 'rapippo-moon-workshop.png'; link.href = out.toDataURL('image/png'); link.click();
 }
 function frame() {
@@ -521,5 +556,5 @@ run = newRun(); ahead = run; refreshCopy();
 requestAnimationFrame(frame);
 if (globalThis.__rapippoWorkshopProbe) globalThis.__rapippoWorkshopProbe.read = () => ({
   screen, mode, s, x: run.x, beat: run.beat, status: run.status, station: run.stationId, checkpoint: run.checkpoint, hops: run.hops, fails: run.fails, cart: run.cart,
-  recording: run.recording, finaleBar: finaleBarNow(), angle: rodAngle(), heard: [...heardParts], card: cardShown, domain: clock.domain, audio: audio.debug(), cam, resonance: run.resonance, wide: freeWide, take: takeForFinale,
+  recording: run.recording, finaleBar: finaleBarNow(), replay: finaleT0 === null || mode === 'free' ? null : replayPartAt(finaleBarNow()), echoes: { ...echoes }, tint: $('hold').dataset.tint ?? null, angle: rodAngle(), heard: [...heardParts], card: cardShown, domain: clock.domain, audio: audio.debug(), cam, resonance: run.resonance, wide: freeWide, take: takeForFinale,
 });

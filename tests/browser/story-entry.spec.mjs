@@ -1,35 +1,48 @@
 import {test,expect} from '@playwright/test';
 import {readFile,mkdir} from 'node:fs/promises';
 import {extname,join} from 'node:path';
-// Release entry: the bare address opens STORY in English; FREE RUN and DAILY
+// Release entry: the bare address opens the stage select in English; FREE RUN and DAILY
 // keep every old address; the language follows the player between pages.
 const dir='output/playwright/entry';
 const errorsOf=page=>{const errors=[];page.on('pageerror',e=>errors.push(e.message));return errors;};
 const lang=page=>page.locator('html').getAttribute('lang');
 
-test('the top address opens STORY in English, before any game code loads',async({page})=>{
+test('the top address opens the stage select in English, before any game code loads',async({page})=>{
   const errors=errorsOf(page),scripts=[];
   page.on('request',r=>{if(r.url().includes('/src/'))scripts.push(new URL(r.url()).pathname);});
   await page.goto('/');
-  await expect(page).toHaveURL(/\/story\.html$/);
+  await expect(page).toHaveURL(/\/select\.html$/);
   expect(await lang(page)).toBe('en');
-  await expect(page.locator('#auto-hop')).toHaveText('It hops by itself. Hold to go farther.');
-  await expect(page.locator('#to-free')).toHaveAttribute('href','index.html?mode=free&lang=en');
-  await expect(page.locator('#end-free')).toHaveAttribute('href','index.html?mode=free&lang=en');
-  await expect(page.locator('#title-free')).toHaveAttribute('href','index.html?mode=free&lang=en');
-  await expect(page.locator('#title-free')).toHaveText('FREE RUN');await expect(page.locator('#action')).toHaveText('STORY');
+  await expect(page.locator('#story')).toHaveAttribute('href','story.html?lang=en');
+  await expect(page.locator('#workshop')).toHaveAttribute('href','workshop.html?lang=en');
+  await expect(page.locator('#tower')).toHaveAttribute('href','clocktower.html?lang=en');
+  await expect(page.locator('#free')).toHaveAttribute('href','index.html?mode=free&lang=en');
   expect(scripts.filter(p=>p==='/src/app.mjs'),'FREE RUN code never loads on the way').toEqual([]);
   await page.goto('/?lang=ja');
-  await expect(page).toHaveURL(/\/story\.html\?lang=ja$/);
+  await expect(page).toHaveURL(/\/select\.html\?lang=ja$/);
   expect(await lang(page)).toBe('ja');
-  await expect(page.locator('#auto-hop')).toHaveText('自動でジャンプ。押し続けると遠くへ。');
-  await page.goto('/?lang=zz');await expect(page).toHaveURL(/\/story\.html$/);expect(await lang(page)).toBe('en');
+  await expect(page.locator('#workshop strong')).toHaveText('月の楽器工房');
+  await page.goto('/?lang=zz');await expect(page).toHaveURL(/\/select\.html$/);expect(await lang(page)).toBe('en');
   // Parameters that are not ours (itch.io's build stamp, trackers) never mean FREE RUN.
-  for(const [query,to] of [['?v=1785088796','/story.html'],['?v=1785088796&lang=ja','/story.html?lang=ja'],['?utm_source=itch&ref=abc','/story.html'],['?v=4','/story.html']]) {
+  for(const [query,to] of [['?v=1785088796','/select.html'],['?v=1785088796&lang=ja','/select.html?lang=ja'],['?utm_source=itch&ref=abc','/select.html'],['?v=4','/select.html']]) {
     await page.goto('/'+query);
     expect(new URL(page.url()).pathname+new URL(page.url()).search,query).toBe(to);
-    await expect(page.locator('#title-free')).toBeVisible();
+    await expect(page.locator('#free')).toBeVisible();
   }
+  expect(errors).toEqual([]);
+});
+
+test('every stage opens from the select, and each leads back with the language kept',async({page})=>{
+  const errors=errorsOf(page);
+  for(const [id,path,back] of [['story','/story.html','#to-free'],['workshop','/workshop.html','#to-select'],['tower','/clocktower.html','#to-select'],['free','/index.html','#story']]) {
+    await page.goto('/select.html?lang=ja');
+    await page.locator('#'+id).click();
+    await expect(page).toHaveURL(new RegExp(path.replace('.','\.')));
+    await expect(page.locator(back)).toHaveAttribute('href','select.html?lang=ja');
+    expect(await lang(page)).toBe('ja');
+  }
+  await page.goto('/clocktower.html?lang=en');
+  await expect(page.locator('#demo-clear')).toBeHidden();await expect(page.locator('details')).toBeHidden();
   expect(errors).toEqual([]);
 });
 
@@ -70,18 +83,18 @@ test('old FREE RUN and DAILY addresses stay on FREE RUN with the same course',as
   // The shared replay link still carries no language, and DAILY keeps its record key.
   await page.goto('/?mode=daily&date=2026-11-01&lang=ja');
   expect(new URL(page.url()).searchParams.has('lang')).toBe(false);
-  await expect(page.locator('#story')).toHaveAttribute('href','story.html?lang=ja');
+  await expect(page.locator('#story')).toHaveAttribute('href','select.html?lang=ja');
   expect(errors).toEqual([]);
 });
 
 test('STORY → FREE RUN → STORY keeps the language even where nothing can be saved',async({page})=>{
   const errors=errorsOf(page);
   await page.addInitScript(()=>{Object.defineProperty(window,'localStorage',{configurable:true,get(){throw new DOMException('blocked','SecurityError');}});});
-  await page.goto('/');expect(await lang(page)).toBe('en');
+  await page.goto('/story.html');expect(await lang(page)).toBe('en');
   await page.locator('#language').click();
   expect(await lang(page)).toBe('ja');
   expect(new URL(page.url()).searchParams.get('lang'),'the address follows the switch').toBe('ja');
-  await expect(page.locator('#to-free')).toHaveAttribute('href','index.html?mode=free&lang=ja');
+  await expect(page.locator('#to-free')).toHaveAttribute('href','select.html?lang=ja');
   await expect(page.locator('#title-free')).toHaveAttribute('href','index.html?mode=free&lang=ja');
   await page.reload();expect(await lang(page)).toBe('ja');
   await page.locator('#title-free').click();
@@ -94,6 +107,8 @@ test('STORY → FREE RUN → STORY keeps the language even where nothing can be 
   await page.locator('#language').click();expect(await lang(page)).toBe('en');
   expect(page.url()).toBe(replay);
   await page.reload();expect(await lang(page)).toBe('en');
+  await page.locator('#story').click();
+  await expect(page).toHaveURL(/\/select\.html\?lang=en$/);expect(await lang(page)).toBe('en');
   await page.locator('#story').click();
   await expect(page).toHaveURL(/\/story\.html\?lang=en$/);expect(await lang(page)).toBe('en');
   // Switching back in STORY never leaves a stale ?lang= that would win on reload.
@@ -123,7 +138,8 @@ test('inside an itch.io-style ZIP (a sub-folder, explicit index.html) every path
     catch{route.fulfill({status:404,body:'missing '+path});}
   });
   await page.goto('https://itch.test/html/123/index.html');
-  await expect(page).toHaveURL('https://itch.test/html/123/story.html');
+  await expect(page).toHaveURL('https://itch.test/html/123/select.html');
+  await page.locator('#story').click();
   await expect(page.locator('#action')).toBeVisible();
   await page.locator('#title-free').click();
   await expect(page.locator('#free')).toHaveAttribute('aria-pressed','true');
@@ -131,14 +147,17 @@ test('inside an itch.io-style ZIP (a sub-folder, explicit index.html) every path
   expect(page.url()).toMatch(/^https:\/\/itch\.test\/html\/123\/index\.html\?mode=free&seed=\d+&v=4$/);
   expect(await lang(page)).toBe('en');
   await page.locator('#story').click();
+  await expect(page).toHaveURL('https://itch.test/html/123/select.html?lang=en');
+  for(const id of ['workshop','tower']){await page.locator('#'+id).click();await expect(page.locator('#to-select')).toBeVisible();await page.locator('#to-select').click();await expect(page).toHaveURL('https://itch.test/html/123/select.html?lang=en');}
+  await page.locator('#story').click();
   await expect(page).toHaveURL('https://itch.test/html/123/story.html?lang=en');
   expect(errors).toEqual([]);
 });
 
-test('Cloudflare assets: the top opens STORY and index.html?mode=free opens FREE RUN',async({page})=>{
+test('Cloudflare assets: the top opens the select and index.html?mode=free opens FREE RUN',async({page})=>{
   await page.goto('http://127.0.0.1:8011/');
-  await expect(page.locator('#title-free')).toBeVisible();expect(new URL(page.url()).pathname).toMatch(/^\/story(\.html)?$/);
-  await page.locator('#title-free').click();
+  await expect(page.locator('#free')).toBeVisible();expect(new URL(page.url()).pathname).toMatch(/^\/select(\.html)?$/);
+  await page.locator('#free').click();
   await expect(page.locator('#free')).toHaveAttribute('aria-pressed','true');
   const url=new URL(page.url());expect(url.searchParams.get('mode')).toBe('free');expect(url.searchParams.get('lang')).toBe(null);
   expect(await lang(page)).toBe('en');

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { COURSE } from '../../public/src/workshop/course.mjs';
+import { COURSE, CART_HALF } from '../../public/src/workshop/course.mjs';
 import { newRun } from '../../public/src/workshop/sim.mjs';
 import { solve, HOLDS } from '../helpers/workshop-solver.mjs';
 import { CARD_BAR, TUTTI_FROM, encodeTake, demoRecording } from '../../public/src/workshop/arrange.mjs';
@@ -17,6 +17,8 @@ async function open(page, query = '', { audio = false } = {}) {
   await page.clock.pauseAt(new Date('2026-11-05T03:00:01Z'));
   return errors;
 }
+// These walk a whole finale, longer than the default config's 30s.
+test.setTimeout(240000);
 const read = page => page.evaluate(() => globalThis.__rapippoWorkshopProbe.read());
 const shot = (page, name) => page.locator('#play').screenshot({ path: `${OUT}/${name}.png` });
 
@@ -157,6 +159,48 @@ test('reduced motion: the rod barely swings and the camera stays put', async ({ 
   let most = 0;
   for (let i = 0; i < 40; i++) { await page.clock.runFor(195); most = Math.max(most, Math.abs((await read(page)).angle)); }
   expect(most).toBeLessThan(.08);
+  expect(errors).toEqual([]);
+});
+
+test('the finale room holds still while the rod swings, and names each part as the player\'s', async ({ page }) => {
+  const errors = await open(page, '&end=1');
+  await page.locator('#action').click();
+  await page.clock.runFor(Math.round(3120 * 3));
+  let r = await read(page); expect(r.replay).toBe('drums'); expect(r.echoes.drums).toBeGreaterThan(0);
+  await page.clock.runFor(Math.round(3120 * (TUTTI_FROM - 3 + 3)));
+  r = await read(page); expect(r.replay).toBe('all');
+  // The floor's edge at both sides of the frame: any camera motion would move it.
+  const edge = () => page.evaluate(() => { const g = document.getElementById('play').getContext('2d'), k = g.canvas.width / 360; return [4, 356].map(x => [...g.getImageData(x * k, 397 * k, 1, 1).data].join()); });
+  const first = await edge(); let swing = 0;
+  for (let i = 0; i < 8; i++) { await page.clock.runFor(195); expect(await edge()).toEqual(first); swing = Math.max(swing, Math.abs((await read(page)).angle)); }
+  expect(swing).toBeGreaterThan(.1);
+  await shot(page, 'tutti-still');
+  expect(errors).toEqual([]);
+});
+
+test('bellows: the hold button wears the colour of the plates its input can land on', async ({ page }) => {
+  const errors = await open(page, '&cp=' + COURSE.checkpoints.findIndex(c => COURSE.stations[c.station].id === 'bellows'));
+  await page.locator('#action').click();
+  expect((await read(page)).tint).toBe('pull');
+  await page.keyboard.down('Space'); await expect(page.locator('#hold')).toHaveAttribute('data-tint', 'push');
+  await page.keyboard.up('Space'); await expect(page.locator('#hold')).toHaveAttribute('data-tint', 'pull');
+  expect(errors).toEqual([]);
+});
+
+test('cart: while it runs the whole cart stays in the frame', async ({ page }) => {
+  const at = COURSE.checkpoints.findIndex(c => COURSE.stations[c.station].id === 'brass');
+  const { path } = solve(COURSE, (await import('../../public/src/workshop/sim.mjs')).runFrom(COURSE, at), { order: [[.25, .75], ...HOLDS] });
+  const errors = await open(page, '&cp=' + at);
+  await page.locator('#action').click();
+  let riding = 0;
+  for (const [on, off] of path.slice(0, 16)) {
+    const a = Math.round(on * 780), b = Math.round(off * 780);
+    if (b > a) { if (a) await page.clock.runFor(a); await page.keyboard.down('Space'); await page.clock.runFor(b - a); await page.keyboard.up('Space'); if (780 - b) await page.clock.runFor(780 - b); } else await page.clock.runFor(780);
+    const r = await read(page);
+    if (r.cart.state === 'ride' && ++riding > 5) { const cx = r.cart.x - r.cam; expect(cx - CART_HALF).toBeGreaterThanOrEqual(-4); expect(cx + CART_HALF).toBeLessThanOrEqual(364); }
+  }
+  expect(riding).toBeGreaterThan(5);
+  await shot(page, 'cart-ride');
   expect(errors).toEqual([]);
 });
 

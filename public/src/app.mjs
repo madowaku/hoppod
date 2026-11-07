@@ -57,7 +57,7 @@ function refreshResult() {
 }
 function refreshCopy() {
   document.documentElement.lang = language;
-  get('story').setAttribute('href', 'story.html?lang=' + language);
+  get('story').setAttribute('href', 'select.html?lang=' + language); get('story').textContent = language === 'ja' ? 'ステージ ›' : 'STAGES ›';
   get('language').textContent = language === 'ja' ? 'EN' : '日本語';
   get('language').setAttribute('aria-label',tr('switchLanguage'));
   get('daily').textContent = tr('daily'); get('free').textContent = tr('free');

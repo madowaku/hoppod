@@ -87,6 +87,20 @@ export function spotlightAt(bar) {
   return Object.entries(ENTRY).filter(([, b]) => b <= bar && bar < b + FEATURE_BARS).map(([k]) => k)[0] ?? null;
 }
 const wrap = (bar, entry, len) => { const bars = len / 4; return ((bar - entry) % bars + bars) % bars; };
+// What the finale shows as the player's own at this bar: the newest part while the
+// band gathers, every part at the full band, and the breath in the tail.
+const BY_ENTRY = Object.entries(ENTRY).sort((a, b) => a[1] - b[1]);
+export function replayPartAt(bar) {
+  if (bar >= TUTTI_END) return 'wood';
+  if (bar >= TUTTI_FROM) return 'all';
+  return BY_ENTRY.filter(([, b]) => b <= bar).at(-1)?.[0] ?? null;
+}
+// Where a part's loop stands, rel seconds after the first tick: 0 to 1, the same
+// count partBar uses, so a mark lights as its own note sounds.
+export function loopFraction(rel, entryBar, len) {
+  const period = len * BEAT, into = (rel - entryBar * BAR) % period;
+  return ((into + period) % period) / period;
+}
 
 // Everything a part plays in this bar, t in seconds from the start of the bar.
 function partBar(part, take, bar, entry) {

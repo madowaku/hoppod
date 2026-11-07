@@ -3,7 +3,7 @@
 export { chooseLanguage, withLanguage } from '../ui-copy.mjs';
 const TEXT = Object.freeze({
   en: Object.freeze({
-    tag: 'STORY', free: 'FREE RUN ›', title: 'RAPIPPO', subtitle: 'One hop. One beat. A song is born.',
+    tag: 'STORY', stages: 'STAGES ›', free: 'FREE RUN ›', title: 'RAPIPPO', subtitle: 'One hop. One beat. A song is born.',
     autoHop: 'It hops by itself. Hold to go farther.',
     begin: 'STORY', freeRun: 'FREE RUN', headphones: '♪ Sound on. Headphones recommended.', hold: 'HOLD', release: 'LET GO',
     pause: 'Pause', pauseTitle: 'PAUSED', pauseText: 'The beat waits for you.', resume: 'RESUME', again: 'PLAY AGAIN',
@@ -14,7 +14,7 @@ const TEXT = Object.freeze({
     thanks: 'THANK YOU FOR PLAYING',
   }),
   ja: Object.freeze({
-    tag: 'ストーリー', free: 'フリーラン ›', title: 'RAPIPPO', subtitle: 'ひとりのジャンプから、月面に音楽が生まれる。',
+    tag: 'ストーリー', stages: 'ステージ ›', free: 'フリーラン ›', title: 'RAPIPPO', subtitle: 'ひとりのジャンプから、月面に音楽が生まれる。',
     autoHop: '自動でジャンプ。押し続けると遠くへ。',
     begin: 'ストーリー', freeRun: 'フリーラン', headphones: '♪ 音を出して遊んでください。ヘッドホン推奨。', hold: '押す', release: '離す',
     pause: '一時停止', pauseTitle: 'ひとやすみ', pauseText: '拍は待っています。', resume: 'つづける', again: 'もう一度',

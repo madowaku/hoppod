@@ -22,7 +22,7 @@ const GAME='https://html.itch.test/html/123/';
 // itch.io loads the game with a build stamp: index.html?v=<number>.
 const embed=src=>`<!doctype html><title>itch</title><body style="margin:0;background:#222"><iframe id="game" src="${GAME}${src}" width="360" height="640" allow="autoplay; fullscreen" style="border:0"></iframe></body>`;
 
-test("the itch.io ZIP opens on the STORY title inside an embed iframe (with itch.io's ?v= stamp) and plays",async({page})=>{
+test("the itch.io ZIP opens on the stage select inside an embed iframe (with itch.io's ?v= stamp) and plays",async({page})=>{
   const zip=await buildZip(await playableFiles()),files=unzip(zip),missing=[],errors=[];
   await mkdir('output/itch',{recursive:true});await writeFile('output/itch/rapippo.zip',zip);
   expect([...files.keys()].some(n=>n.startsWith('dev/')||n.startsWith('.')),'no developer files').toBe(false);
@@ -38,9 +38,11 @@ test("the itch.io ZIP opens on the STORY title inside an embed iframe (with itch
   await page.setViewportSize({width:400,height:700});
   await page.goto('https://itch.test/game');
   const game=page.frameLocator('#game');
+  // To the stage select: the stamp is not a FREE RUN address.
+  await expect(game.locator('#story')).toBeVisible();
+  expect(page.frames().find(f=>f.url().startsWith(GAME)).url()).toBe(GAME+'select.html');
+  await game.locator('#story').click();
   await expect(game.locator('#action')).toHaveText('STORY');
-  // Straight to the STORY title: the stamp is not a FREE RUN address.
-  expect(page.frames().find(f=>f.url().startsWith(GAME)).url()).toBe(GAME+'story.html');
   await expect(game.locator('#title-free')).toBeVisible();await expect(game.locator('#daily')).toHaveCount(0);
   // It plays: a few beats in, pause and resume from the touch button.
   await game.locator('#action').click();
@@ -51,7 +53,9 @@ test("the itch.io ZIP opens on the STORY title inside an embed iframe (with itch
   await page.screenshot({path:'output/itch/embed-play.png'});
   // FREE RUN and back, all inside the folder, in the same language.
   await game.locator('#pause').click();await game.locator('#to-free').click();
+  await expect(game.locator('#tower')).toBeVisible();await game.locator('#free').click();
   await expect(game.locator('#free')).toHaveAttribute('aria-pressed','true');
+  await game.locator('#story').click();await expect(game.locator('#tower')).toBeVisible();
   await game.locator('#story').click();await expect(game.locator('#action')).toHaveText('STORY');
   expect(missing,'every request is a file in the ZIP').toEqual([]);
   expect(errors).toEqual([]);
