@@ -1,7 +1,7 @@
-import { PERIOD, INSET, footing } from '../engine.mjs';
-import { drawPod } from '../pod.mjs';
-import { createAudio } from '../audio.mjs';
-import { chooseLanguage } from '../ui-copy.mjs';
+import { PERIOD, INSET, footing } from '../../src/engine.mjs';
+import { drawPod } from '../../src/pod.mjs';
+import { createAudio } from '../../src/audio.mjs';
+import { chooseLanguage } from '../../src/ui-copy.mjs';
 import { LAB, CONTACT_WINDOW, feetY } from './string-trajectory.mjs';
 import {
   COURSE, TOWER, FIRST_SAVE, newAttempt, advanceAttempt, advanceWithPlan, planIsFast, judge, bobAt, palletSpan, revival,
@@ -379,7 +379,7 @@ function refresh() {
   document.body.dataset.fullReach = fullReach(run);
   $('sound').textContent = text.sound[audio.muted ? 1 : 0];
   $('language').textContent = text.language;
-  const stages = $('to-select'); if (stages) { stages.textContent = language === 'ja' ? 'ステージ ›' : 'STAGES ›'; stages.href = 'select.html?lang=' + language; }
+  const stages = $('to-select'); if (stages) { stages.textContent = language === 'ja' ? 'ステージ ›' : 'STAGES ›'; stages.href = '../select.html?lang=' + language; }
   $('label-gears').textContent = text.labelGears;
   $('label-room').textContent = text.labelRoom;
   $('label-best').textContent = text.labelBest;

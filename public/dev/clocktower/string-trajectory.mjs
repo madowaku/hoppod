@@ -2,7 +2,7 @@
 // and STORY. No sound, DOM, rendering, storage or randomness in this module.
 // Geometry is the production game's: 1 world px = 1 canvas px, a 96px hop, and
 // the same footing and landing rules, so what is learned here transfers.
-import { PERIOD, SLOW_SPEED, FAST_SPEED, footing, isSafe, landingMiss } from '../engine.mjs';
+import { PERIOD, SLOW_SPEED, FAST_SPEED, footing, isSafe, landingMiss } from '../../src/engine.mjs';
 
 export const LAB = Object.freeze({
   period: PERIOD,

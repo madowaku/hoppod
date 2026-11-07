@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { PERIOD, SLOW_SPEED, FAST_SPEED, footing, COURSE_VERSION } from '../public/src/engine.mjs';
-import { LAB, feetY, podTopY } from '../public/src/clocktower/string-trajectory.mjs';
+import { LAB, feetY, podTopY } from '../public/dev/clocktower/string-trajectory.mjs';
 import {
   COURSE, TOWER, FIRST_SAVE, newAttempt, advanceAttempt, advanceWithPlan, simulate, judge, bobAt, swingAngle, palletSpan, revival,
   WHEEL, HEART, wheelScreenX, heartPose, fullReach
-} from '../public/src/clocktower/clock-tower-model.mjs';
+} from '../public/dev/clocktower/clock-tower-model.mjs';
 
 const near = (actual, expected, epsilon = 1e-6) =>
   assert.ok(Math.abs(actual - expected) <= epsilon, actual + ' is not near ' + expected);

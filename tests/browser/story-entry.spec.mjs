@@ -22,6 +22,7 @@ test('the top address opens the stage select in English, before any game code lo
   await expect(page).toHaveURL(/\/select\.html\?lang=ja$/);
   expect(await lang(page)).toBe('ja');
   await expect(page.locator('#workshop strong')).toHaveText('星明りの楽器工房');
+  await expect(page.locator('#tower strong')).toHaveText('陽周りの時計台');
   await page.goto('/?lang=zz');await expect(page).toHaveURL(/\/select\.html$/);expect(await lang(page)).toBe('en');
   // Parameters that are not ours (itch.io's build stamp, trackers) never mean FREE RUN.
   for(const [query,to] of [['?v=1785088796','/select.html'],['?v=1785088796&lang=ja','/select.html?lang=ja'],['?utm_source=itch&ref=abc','/select.html'],['?v=4','/select.html']]) {
@@ -42,7 +43,7 @@ test('every stage opens from the select, and each leads back with the language k
     expect(await lang(page)).toBe('ja');
   }
   await page.goto('/clocktower.html?lang=en');
-  await expect(page.locator('#demo-clear')).toBeHidden();await expect(page.locator('details')).toBeHidden();
+  await expect(page.locator('#work-title')).toHaveText('THE SUNWISE CLOCK TOWER');
   expect(errors).toEqual([]);
 });
 

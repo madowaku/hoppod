@@ -24,7 +24,7 @@ A separate episode on `feature/moon-workshop`, at `workshop.html`: wake sleeping
 
 ## Stages
 
-The bare address opens `select.html`: 月渡りのラピッポ (STORY), 星明りの楽器工房, 時計台 ([design](docs/CLOCK_TOWER.md)) and フリーラン. Addresses that name a FREE RUN or DAILY course still open it directly.
+The bare address opens `select.html`: 月渡りのラピッポ (STORY), 星明りの楽器工房, 陽周りの時計台 ([design](docs/CLOCK_TOWER.md)) and フリーラン. Addresses that name a FREE RUN or DAILY course still open it directly.
 
 ## Play locally
 

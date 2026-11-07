@@ -1,7 +1,7 @@
 // RAPIPPO clock tower: pure model. No sound, DOM, rendering, storage or randomness.
 // The hop, speeds, footing and landing rules are the production game's. Pendulums
 // are locked to the beat, so a stage reads as a rhythm and not as a reaction test.
-import { PERIOD, SLOW_SPEED, FAST_SPEED, footing, isSafe, landingMiss } from '../engine.mjs';
+import { PERIOD, SLOW_SPEED, FAST_SPEED, footing, isSafe, landingMiss } from '../../src/engine.mjs';
 import { LAB, feetY, podTopY } from './string-trajectory.mjs';
 
 export const TOWER = Object.freeze({

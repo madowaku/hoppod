@@ -7,14 +7,14 @@ const TEXT = Object.freeze({
     tagline: 'One button. One beat. Where will you hop?', switchTo: '日本語', switchLabel: 'Switch to Japanese',
     story: ['ACROSS THE MOON', 'Rescue your friends and come home.'],
     workshop: ['THE STARLIGHT WORKSHOP', 'Wake the instruments. Your hops become the song.'],
-    tower: ['THE CLOCK TOWER', 'Give time back to a stopped clock.'],
+    tower: ['THE SUNWISE CLOCK TOWER', 'Clockwork rooms, one mechanism each. Bring the morning.'],
     free: ['FREE RUN', 'An endless moon. Hop as far as you can.'],
   }),
   ja: Object.freeze({
     tagline: 'ボタンひとつ、拍ひとつ。どこを跳ぶ？', switchTo: 'EN', switchLabel: 'Switch to English',
     story: ['月渡りのラピッポ', '仲間を助けて、いっしょに帰ろう。'],
     workshop: ['星明りの楽器工房', '楽器を起こそう。あなたの跳ねた跡が曲になる。'],
-    tower: ['時計台', '止まった時計に、時間を返そう。'],
+    tower: ['陽周りの時計台', '仕掛けだらけの塔をのぼって、朝を連れてこよう。'],
     free: ['フリーラン', '終わりのない月面を、どこまでも。'],
   }),
 });

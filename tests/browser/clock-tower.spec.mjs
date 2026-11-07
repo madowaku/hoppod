@@ -13,7 +13,7 @@ async function watchDemo(page, id) {
 test('the tower loads, and the one-rhythm demo reaches the bell without earning anything', async ({ page }) => {
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
-  await page.goto('/clocktower.html?lab&lang=en');
+  await page.goto('/dev/clocktower-lab.html?lab&lang=en');
   await expect(page.getByRole('heading', { name: 'CLOCK TOWER' })).toBeVisible();
   await expect(page.locator('#goal')).toContainText('Optional');
   await watchDemo(page, '#demo-clear');
@@ -24,7 +24,7 @@ test('the tower loads, and the one-rhythm demo reaches the bell without earning 
 });
 
 test('the full demo turns all three gears', async ({ page }) => {
-  await page.goto('/clocktower.html?lab&lang=ja');
+  await page.goto('/dev/clocktower-lab.html?lab&lang=ja');
   await watchDemo(page, '#demo-full');
   await expect(page.locator('#gears-state')).toHaveText('3/3');
   await expect(page.locator('#wheel-state')).toHaveText('3/3');
@@ -34,7 +34,7 @@ test('the full demo turns all three gears', async ({ page }) => {
 });
 
 test('a press arms the jump, and no input falls short and says so', async ({ page }) => {
-  await page.goto('/clocktower.html?lab&lang=en');
+  await page.goto('/dev/clocktower-lab.html?lab&lang=en');
   await expect(state(page)).toHaveAttribute('data-state', 'idle');
   await page.keyboard.press('Space');
   await expect(state(page)).toHaveAttribute('data-state', 'ready');
@@ -64,7 +64,7 @@ async function playRhythm(page, hops, pressAt = 280, holdFor = 490) {
 }
 
 test('real input: the one rhythm rings the bell and records a clear', async ({ page }) => {
-  await page.goto('/clocktower.html?lab&lang=ja');
+  await page.goto('/dev/clocktower-lab.html?lab&lang=ja');
   await playRhythm(page, 13);
   const attempt = (await logOf(page)).at(-1);
   expect(attempt.reason, JSON.stringify(attempt)).toBe('ok');
@@ -83,7 +83,7 @@ test('real input: the one rhythm rings the bell and records a clear', async ({ p
 });
 
 test('real input: pressing right after take-off meets a pendulum, then three misses bring the hint', async ({ page }) => {
-  await page.goto('/clocktower.html?lab&lang=en');
+  await page.goto('/dev/clocktower-lab.html?lab&lang=en');
   await playRhythm(page, 3, 5, 530);
   const attempt = (await logOf(page)).at(-1);
   expect(attempt.reason, JSON.stringify(attempt)).toBe('hit');
@@ -105,7 +105,7 @@ test('a first press that holds the page while audio starts is not thrown away', 
       constructor() { const from = performance.now(); while (performance.now() - from < 500); super(); }
     };
   });
-  await page.goto('/clocktower.html?lab&lang=ja&fresh');
+  await page.goto('/dev/clocktower-lab.html?lab&lang=ja&fresh');
   await expect(state(page)).toHaveAttribute('data-state', 'idle');
   await page.keyboard.press('Space');
   await expect(state(page)).toHaveAttribute('data-state', 'ready');
@@ -115,7 +115,7 @@ test('a first press that holds the page while audio starts is not thrown away', 
 });
 
 test('real input: the first gold pallet moves the great wheel by one tooth', async ({ page }) => {
-  await page.goto('/clocktower.html?lab&lang=ja&room=4&fresh');
+  await page.goto('/dev/clocktower-lab.html?lab&lang=ja&room=4&fresh');
   await expect(state(page)).toHaveAttribute('data-state', 'idle');
   await expect(page.locator('#wheel-state')).toHaveText('0/3');
   await page.evaluate(async ([holdFor, period]) => {
@@ -133,7 +133,7 @@ test('real input: the first gold pallet moves the great wheel by one tooth', asy
 });
 
 test('two gears behind and the full result is gone: the game says so, points to the start, and it works', async ({ page }) => {
-  await page.goto('/clocktower.html?lab&lang=ja&room=4&gears=2&fresh');
+  await page.goto('/dev/clocktower-lab.html?lab&lang=ja&room=4&gears=2&fresh');
   await expect(state(page)).toHaveAttribute('data-full-reach', 'lost');
   await expect(page.locator('#outcome')).toContainText('最初から');
   await expect(page.locator('#restart')).toHaveClass(/suggest/);
@@ -146,14 +146,14 @@ test('two gears behind and the full result is gone: the game says so, points to 
 });
 
 test('one gear behind: the game says the escapement can still wake it', async ({ page }) => {
-  await page.goto('/clocktower.html?lab&lang=ja&room=4&gears=1,2&fresh');
+  await page.goto('/dev/clocktower-lab.html?lab&lang=ja&room=4&gears=1,2&fresh');
   await expect(state(page)).toHaveAttribute('data-full-reach', 'needsWheel');
   await expect(page.locator('#outcome')).toContainText('起こせます');
   await expect(page.locator('#restart')).not.toHaveClass(/suggest/);
 });
 
 test('touch: the stage and the button are hold surfaces, and everything fits a phone screen', async ({ page }) => {
-  await page.goto('/clocktower.html?lab&lang=ja');
+  await page.goto('/dev/clocktower-lab.html?lab&lang=ja');
   const hold = await page.locator('#hold').boundingBox();
   expect(hold.y + hold.height).toBeLessThanOrEqual(844);
   const box = await page.locator('#scene').boundingBox();
@@ -166,7 +166,7 @@ test('touch: the stage and the button are hold surfaces, and everything fits a p
 });
 
 test('Space on a focused control does not jump', async ({ page }) => {
-  await page.goto('/clocktower.html?lab&lang=en');
+  await page.goto('/dev/clocktower-lab.html?lab&lang=en');
   await page.locator('#restart').focus();
   await page.keyboard.down('Space');
   await expect(state(page)).toHaveAttribute('data-state', 'idle');
