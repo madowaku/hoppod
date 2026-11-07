@@ -18,13 +18,13 @@ Small bouncing space capsule with rabbit-ear antennas, a face-display, and a spr
 
 A separate five-minute STORY page, `story.html`, is being built on `feature/story-jam-02`. Hops and original Web Audio music share one beat clock. The bare top address opens the stage select in English; every FREE RUN and DAILY address (mode, date, seed, shared replay links) still opens FREE RUN unchanged. See [STORY design and status](docs/STORY_JAM02.md).
 
-## MOON WORKSHOP / 月の楽器工房 (in progress)
+## STARLIGHT WORKSHOP / 星明りの楽器工房
 
 A separate episode on `feature/moon-workshop`, at `workshop.html`: wake sleeping instruments with FAST and SLOW, land on the metronome as its missing weight, and let go while your own song keeps going. Reached from the stage select; the owner has played it twice and it has been revised from that. See [Moon Workshop design and status](docs/MOON_WORKSHOP.md).
 
 ## Stages
 
-The bare address opens `select.html`: 月夜のラピッポ (STORY), 月の楽器工房, 時計台 ([design](docs/CLOCK_TOWER.md)) and フリーラン. Addresses that name a FREE RUN or DAILY course still open it directly.
+The bare address opens `select.html`: 月渡りのラピッポ (STORY), 星明りの楽器工房, 時計台 ([design](docs/CLOCK_TOWER.md)) and フリーラン. Addresses that name a FREE RUN or DAILY course still open it directly.
 
 ## Play locally
 

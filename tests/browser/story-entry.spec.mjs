@@ -21,7 +21,7 @@ test('the top address opens the stage select in English, before any game code lo
   await page.goto('/?lang=ja');
   await expect(page).toHaveURL(/\/select\.html\?lang=ja$/);
   expect(await lang(page)).toBe('ja');
-  await expect(page.locator('#workshop strong')).toHaveText('月の楽器工房');
+  await expect(page.locator('#workshop strong')).toHaveText('星明りの楽器工房');
   await page.goto('/?lang=zz');await expect(page).toHaveURL(/\/select\.html$/);expect(await lang(page)).toBe('en');
   // Parameters that are not ours (itch.io's build stamp, trackers) never mean FREE RUN.
   for(const [query,to] of [['?v=1785088796','/select.html'],['?v=1785088796&lang=ja','/select.html?lang=ja'],['?utm_source=itch&ref=abc','/select.html'],['?v=4','/select.html']]) {

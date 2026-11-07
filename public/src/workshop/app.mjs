@@ -461,10 +461,11 @@ function drawFinale() {
   ctx.fillStyle = '#231c1a'; ctx.fillRect(0, FLOOR + 14, W, H);
   ctx.fillStyle = '#ffd98a55'; ctx.fillRect(0, FLOOR + 14, W, 2);
   drawBand(ctx, flash, s, heardParts, FLOOR + 62, 1, echoes, reduced);
-  drawMetronome(ctx, px, py, angle, { rungs: false, lit: 0 });
+  // During the silent beat it slides onto the rod like the weight; the eyes blink from the first tick on.
+  const seat = smooth01((s - lockAt) / .45);
+  drawMetronome(ctx, px, py, angle, { rungs: false, lit: 0, seat });
   const onBeat = finaleT0 !== null && s >= finaleT0 && (s - finaleT0) % BEAT < .12;
-  // During the silent beat the legs fold out; the eyes blink from the first tick on.
-  drawLockedHero(ctx, tip.x, tip.y, angle, s, onBeat, reduced, smooth01((s - lockAt) / .22));
+  drawLockedHero(ctx, tip.x, tip.y, angle, s, onBeat, reduced, seat);
   if (mode !== 'free') {
     // The arrival: one flash and a burst from the seat. The silent beat stays silent.
     const since = s - lockAt;

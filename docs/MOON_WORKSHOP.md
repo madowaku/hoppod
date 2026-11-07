@@ -1,4 +1,4 @@
-# RAPIPPO: the Moon Instrument Workshop / 月の楽器工房
+# RAPIPPO: the Starlight Instrument Workshop / 星明りの楽器工房 (formerly 月の楽器工房)
 
 **Status:** playable from start to end card. Branch `feature/moon-workshop`, based on `feature/story-jam-02`. Reached from the stage select (`select.html`), which the owner decided on 2026-11-07 should ship in the jam build. Not merged or deployed yet. The owner played it through twice (2026-11-07, see "Playtests"); every number below comes from scripts and headless Chromium.
 
@@ -8,8 +8,8 @@ Play locally: `npm run dev`, then open `http://127.0.0.1:8000/workshop.html?lang
 
 A separate episode in one RAPIPPO world, not a separate game (owner, 2026-11-05):
 
-- 月夜のラピッポ: rescuing friends and coming home.
-- 月の楽器工房: bringing sound back and finishing the music.
+- 月渡りのラピッポ: rescuing friends and coming home.
+- 星明りの楽器工房: bringing sound back and finishing the music.
 - 時計台: giving time back to a stopped machine.
 
 The ending is not "it stops for the first time" (STORY's dock already has a stop). It is: **the world you operated leaves your hands and goes on by itself.**
@@ -62,7 +62,7 @@ The rod and Rapippo follow a real double pendulum: a fixed weight below, a movab
 One millimetre there moves a tick by about 3.3ms in that model, which is why the legs lock. A real metronome also has a spring and an escapement; this is a reason for the staging, not a simulation of one.
 
 1. Each rung slows the out-of-step tick towards the hero's own.
-2. The final landing sets 0.78s; the rod leans to meet the hero, so it cannot be missed. The legs fold out and **the control goes off, with no prompt**.
+2. The final landing sets 0.78s; the rod leans to meet the hero, so it cannot be missed. No legs: like the weight, it slides down the rod, which goes in behind its back, and stays on its spring. **The control goes off, with no prompt**.
 3. One beat of silence.
 4. The first tick. Parts enter in the order they were woken, at bars 2, 4, 6, 8, 10, 11, 12, 14. The band is full from bar 16, with a crash.
 5. The room warms as the band fills and the camera never moves: the rod swings with the hero on it, inside a still frame. (With reduced motion the swing is small.)

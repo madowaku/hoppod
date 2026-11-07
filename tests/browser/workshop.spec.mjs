@@ -25,7 +25,7 @@ const shot = (page, name) => page.locator('#play').screenshot({ path: `${OUT}/${
 test('the title offers the workshop in Japanese and English', async ({ page }) => {
   const errors = await open(page);
   await expect(page.locator('#action')).toHaveText('はいる');
-  await expect(page.locator('#work-title')).toHaveText('月の楽器工房');
+  await expect(page.locator('#work-title')).toHaveText('星明りの楽器工房');
   await page.clock.runFor(200); await shot(page, 'title');
   await page.locator('#language').click(); await expect(page.locator('#action')).toHaveText('ENTER');
   expect(errors).toEqual([]);

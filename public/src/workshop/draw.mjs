@@ -358,7 +358,7 @@ export function drawBurst(g, x, y, age, power = 1, reduced = false) {
   }
   g.globalAlpha = 1;
 }
-export function drawMetronome(g, px, py, angle, { rungs = true, lit = 0, rungAt = -1, cam = 0 } = {}) {
+export function drawMetronome(g, px, py, angle, { rungs = true, lit = 0, rungAt = -1, cam = 0, seat = 0 } = {}) {
   // The wooden case; the rod stands in front of it.
   g.fillStyle = hexBody; g.beginPath(); g.moveTo(px - 118, FLOOR + 22); g.lineTo(px - 52, py - 150); g.lineTo(px + 52, py - 150); g.lineTo(px + 118, FLOOR + 22); g.closePath(); g.fill();
   g.fillStyle = '#28190f'; g.beginPath(); g.moveTo(px - 92, FLOOR + 10); g.lineTo(px - 44, py - 134); g.lineTo(px + 44, py - 134); g.lineTo(px + 92, FLOOR + 10); g.closePath(); g.fill();
@@ -387,29 +387,27 @@ export function drawMetronome(g, px, py, angle, { rungs = true, lit = 0, rungAt 
     rect(g, '#00000040', x, y + 3, r.b - r.a, 3);
     if (on) { g.globalAlpha = .3; rect(g, '#ffe6aa', x, y - 6, r.b - r.a, 6); g.globalAlpha = 1; }
   }
-  // The saddle at the tip: a plate waiting for its weight.
+  // The saddle at the tip: a plate waiting for its weight. Taken, it slides
+  // down the rod under the hero and narrows to its spring.
   g.save(); g.translate(tip.x, tip.y); g.rotate(angle);
-  rect(g, '#6a4a1f', -28, 0, 56, 5); rect(g, '#ffd98a', -28, 0, 56, 2);
-  rect(g, '#ffffff', -3, 2, 6, 3);
+  const down = Math.round(seat * SEAT_SLIDE), half = Math.round(28 - seat * 14);
+  rect(g, '#6a4a1f', -half, down, half * 2, 5); rect(g, '#ffd98a', -half, down, half * 2, 2);
+  rect(g, '#ffffff', -3, down + 2, 6, 3);
   g.restore();
 }
 // Drawn flat first, then turned as one image: rotating its pixels one by one
 // would leave hairline gaps in the sprite.
 let lockedSprite = null;
-export function drawLockedHero(g, x, y, angle, s, blink, reduced, legs = 1) {
+// `seat` 0→1: no legs; like a metronome's weight it slides down the rod, which
+// goes in behind its back, and stays on its spring.
+export const SEAT_SLIDE = 26;
+export function drawLockedHero(g, x, y, angle, s, blink, reduced, seat = 1) {
   const size = 96, foot = 88;
   lockedSprite ??= Object.assign(document.createElement('canvas'), { width: size, height: size });
   const c = lockedSprite.getContext('2d');
   c.clearRect(0, 0, size, size);
   c.save(); c.translate(size / 2, foot);
-  // Two fixed legs, out only now: the first time it has ever stood.
-  const out = Math.round(legs * 22);
-  if (out > 0) for (const side of [-1, 1]) {
-    const a = Math.round(side * (4 + legs * 9));
-    rect(c, '#172638', a - 4, -out, 8, out); rect(c, '#f9d49c', a - 2, -out + 2, 4, Math.max(0, out - 4));
-    rect(c, '#172638', a - 8, -3, 16, 3); rect(c, '#ffe9be', a - 6, -3, 12, 1);
-  }
-  drawPod(c, 0, Math.min(0, -10 * legs), 2, { phase: 0, land: 1, time: s, eyes: true });
+  drawPod(c, 0, 0, 2, { phase: 0, land: 1, time: s, eyes: true });
   // Its light blinks on the beat it no longer has to make.
   if (blink && !reduced) {
     rect(c, '#fff1c9', -13, -66, 6, 5); rect(c, '#fff1c9', 7, -66, 6, 5);
@@ -417,7 +415,7 @@ export function drawLockedHero(g, x, y, angle, s, blink, reduced, legs = 1) {
   }
   c.restore();
   g.save(); g.translate(x, y); g.rotate(angle); g.imageSmoothingEnabled = false;
-  g.drawImage(lockedSprite, -size / 2, -foot);
+  g.drawImage(lockedSprite, -size / 2, -foot + Math.round(seat * SEAT_SLIDE));
   g.restore();
 }
 // A row of small machines, each lit by its part when it sounds.
