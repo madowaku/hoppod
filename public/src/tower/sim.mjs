@@ -15,7 +15,7 @@ export function newRun(course = COURSE) {
   return {
     t: 0, beat: 0, hops: 0, x: course.start, hopStartX: course.start, status: 'playing', station: 0, stationId: course.stations[0].id,
     checkpoint: 0, cpT: 0, fast: false, fallAt: null, fallX: 0, fallKind: null, hitBy: null, dockAt: null, fails: {}, seq: 0,
-    boost: false, sandUsed: [], gears: [], lastLand: null,
+    boost: false, cog: false, sandUsed: [], gears: [], lastLand: null,
   };
 }
 // A run as it stands on reaching checkpoint i, at story beat `beat`.
@@ -43,7 +43,8 @@ export function advance(run, course, to, fast, events = []) {
     const nextBeat = (run.beat + 1) * BEAT, nextGrid = (Math.floor(run.t / STEP + 1e-7) + 1) * STEP;
     const end = Math.min(to, nextBeat, nextGrid), dt = end - run.t;
     const n = events.length, moving = run.status === 'playing';
-    const speed = moving ? (run.fast ? FAST_SPEED : SLOW_SPEED) * (run.boost ? BOOST : 1) : 0;
+    // A hop from a backward cog is carried back by SLOW's speed: SLOW stays put.
+    const speed = moving ? (run.fast ? FAST_SPEED : SLOW_SPEED) * (run.boost ? BOOST : 1) - (run.cog ? SLOW_SPEED : 0) : 0;
     run.x += dt * speed; run.t = end;
     if (moving && end >= nextGrid - 1e-9 && end < nextBeat - 1e-9) contacts(run, course, events);
     if (end >= nextBeat - 1e-9) { run.t = nextBeat; run.beat += 1; touchdown(run, course, events); }
@@ -79,7 +80,7 @@ function fall(run, kind, events) {
 }
 function respawn(run, course, events) {
   const cp = course.checkpoints[run.checkpoint];
-  run.x = run.hopStartX = cp.x; run.status = 'playing'; run.boost = false; run.sandUsed = []; run.hitBy = null; run.fallKind = null;
+  run.x = run.hopStartX = cp.x; run.status = 'playing'; run.boost = false; run.cog = false; run.sandUsed = []; run.hitBy = null; run.fallKind = null;
   events.push({ type: 'respawn', x: cp.x, id: ++run.seq });
 }
 function touchdown(run, course, events) {
@@ -91,7 +92,7 @@ function touchdown(run, course, events) {
   const left = platformAt(run.hopStartX, course);
   if (left?.kind === 'sand' && left !== p && !run.sandUsed.includes(left.i)) run.sandUsed.push(left.i);
   if (p.kind === 'sand' && left === p && !assisted(run)) { run.sandUsed.push(p.i); fall(run, 'sand', events); return; }
-  run.hopStartX = run.x; run.hops += 1; run.lastLand = p.kind; run.boost = p.kind === 'spring';
+  run.hopStartX = run.x; run.hops += 1; run.lastLand = p.kind; run.boost = p.kind === 'spring'; run.cog = p.kind === 'cog';
   events.push({ type: 'land', x: run.x, kind: p.kind, platform: p.i, id: ++run.seq });
   if (p.kind === 'spring') events.push({ type: 'spring', x: run.x, id: ++run.seq });
   const was = run.station, st = stationAt(run.x, course);

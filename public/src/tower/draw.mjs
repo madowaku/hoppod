@@ -88,6 +88,7 @@ export function drawPlatforms(g, cam, run, s, rings, crumble, assist) {
     if (p.kind === 'tick' || p.kind === 'tock') { drawTooth(g, p, x, w, run, s, hit, assist); continue; }
     if (p.kind === 'hand') { drawHand(g, p, x, s, hit, assist); continue; }
     if (p.kind === 'sand') { drawSand(g, p, x, w, s, crumble.get(p.i), ring); continue; }
+    if (p.kind === 'cog') { drawCog(g, x, w, s, hit); continue; }
     const [body, top] = TOP[p.kind] || TOP.plain;
     if (x > W + 20 || x + w < -20) continue;
     rect(g, body, x, y, w, H - y);
@@ -153,7 +154,23 @@ function drawSand(g, p, x, w, s, gone, landed) {
   g.globalAlpha = 1;
   // Cracks across the crust once it is giving way.
   if (on > .3 && fallK === 0) { g.globalAlpha = on; for (let k = 1; k < 4; k++) rect(g, '#5a4020', x + w * k / 4 + (grain(k, p.i) - .5) * 20, FLOOR + 1, 1, 8 + on * 10); g.globalAlpha = 1; }
-}// A clock hand: pivot at its left end, flat to the right on its own beat.
+}// A cog turning backwards (anticlockwise): its top runs back at SLOW's speed, so
+// SLOW hops on the spot. Its teeth along the top show the way it runs.
+function drawCog(g, x, w, s, hit) {
+  const r = w / 2 + 6, cx = x + w / 2, cy = FLOOR + r - 4, turn = s * 105 / r;
+  g.save(); g.beginPath(); g.rect(x - 8, FLOOR - 4, w + 16, H - FLOOR + 4); g.clip();
+  drawGear(g, cx, cy, r, -turn, '#5a4426', 18);
+  drawGear(g, cx, cy, r * .55, -turn, '#7a5a30', 10);
+  g.restore();
+  rect(g, '#c2953f', x, FLOOR, w, 4);
+  // Marks on the rim running back at the floor's own speed.
+  const off = (s * 105) % 20;
+  for (let k = -20; k < w + 20; k += 20) { const mx = x + k - off; if (mx > x && mx < x + w - 4) rect(g, '#ffe6aa', mx, FLOOR + 1, 4, 2); }
+  g.globalAlpha = .55 + .2 * Math.sin(s * 5); g.fillStyle = '#ffe6aa'; g.font = 'bold 12px sans-serif'; g.textAlign = 'center';
+  g.fillText('◀ ◀', cx, FLOOR + 30); g.globalAlpha = 1;
+  if (hit) { g.globalAlpha = hit * .5; rect(g, '#fff1c9', x, FLOOR - 16 * hit, w, 2); g.globalAlpha = 1; }
+}
+// A clock hand: pivot at its left end, flat to the right on its own beat.
 function drawHand(g, p, x, s, hit, assist) {
   const beat = Math.floor(s / BEAT + 1e-9), k = snapIn(s);
   const a0 = handAngle(p, beat * BEAT), a1 = handAngle(p, (beat + 1) * BEAT);
@@ -177,11 +194,10 @@ function drawHand(g, p, x, s, hit, assist) {
       rect(g, on ? (litN === 4 ? '#fff1c9' : '#e8a838') : '#3a2e22', lx, FLOOR + 18, 7, 7);
     }
   }
-  // The same lamps on a post where the ledge begins, read while the hand is still
-  // off screen.
+  // The same lamps on a post just before the cog, in sight while waiting on it.
   const ledge = COURSE.platforms[p.i - 1];
-  if (!assist && ledge && ledge.kind === 'plain') {
-    const wait = ((p.off - (beat + 1)) % 4 + 4) % 4, litN = 4 - wait, px = ledge.a + 26 - (p.a - x);
+  if (!assist && ledge && (ledge.kind === 'plain' || ledge.kind === 'cog')) {
+    const wait = ((p.off - (beat + 1)) % 4 + 4) % 4, litN = 4 - wait, px = (ledge.kind === 'cog' ? ledge.a - 14 : ledge.a + 26) - (p.a - x);
     rect(g, '#2a1d10', px - 2, FLOOR - 64, 4, 64);
     rect(g, '#2a1d10', px - 9, FLOOR - 112, 18, 50);
     for (let k = 0; k < 4; k++) rect(g, k < litN ? (litN === 4 ? '#fff1c9' : '#e8a838') : '#3a2e22', px - 5, FLOOR - 74 - k * 11, 10, 8);

@@ -15,6 +15,10 @@ export const LONG = 330, SHORT = 202;
 // A clock hand turns once every four beats about its pivot and lies flat, as a
 // bridge, only on its own beat.
 export const HAND_BEATS = 4;
+// Before each hand, a cog turning backwards: a hop that starts on it is carried back
+// at SLOW's speed, so SLOW hops on the spot and FAST goes on. Somewhere to wait while
+// counting the lamps (owner's idea, 2026-11-07).
+export const COG = 140;
 // Gears hang where the antennas reach at the top of a hop.
 export const GEAR_Y = 228, GEAR_REACH = 16, GEAR_WINDOW = Object.freeze([.279, .501]);
 export const STATIONS = Object.freeze(['foot', 'pendulum', 'teeth', 'spring', 'sand', 'hands', 'machine', 'bell']);
@@ -83,11 +87,11 @@ function build() {
   station('hands'); checkpoint();
   add(270);
   for (const [w, len, off, g] of [[330, 180, 0, 0], [300, 190, 2, 0], [260, 200, 1, 0]]) {
-    add(w); add(len, 'hand', { off, len }); gap(g);
+    add(w - COG); add(COG, 'cog'); add(len, 'hand', { off, len }); gap(g);
   }
   gear(x - 100);
   rest();
-  for (const [w, len, off] of [[280, 200, 3], [240, 210, 0], [300, 190, 2]]) { add(w); add(len, 'hand', { off, len }); }
+  for (const [w, len, off] of [[280, 200, 3], [240, 210, 0], [300, 190, 2]]) { add(w - COG); add(COG, 'cog'); add(len, 'hand', { off, len }); }
   add(240); close();
 
   // 6. The machine room: everything at once, as a clock really is.
@@ -98,7 +102,7 @@ function build() {
   for (const [w, g] of [[170, 30], [150, 40]]) { add(w, 'sand'); gap(g); }
   gear(x - 150);
   rest();
-  add(340); swing(x - 120, SHORT, .2, 0); add(190, 'hand', { off: 1, len: 190 });
+  add(240); swing(x - 120, SHORT, .2, 0); add(COG, 'cog'); add(190, 'hand', { off: 1, len: 190 });
   teeth([110, 130, 110]); add(120); add(80, 'spring'); gap(260);
   add(200, 'sand'); gap(40); add(160); swing(x - 80, LONG, .2, .75);
   gear(x - 60);

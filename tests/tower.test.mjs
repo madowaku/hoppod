@@ -46,7 +46,7 @@ test('every room asks for something: holding one input all the way through fails
     for (const plan of [[0, 0], [0, 1]]) {
       const run = runFrom(COURSE, cpOf(id)), end = COURSE.stations.find(s => s.id === id).to;
       let n = 0; while (run.status === 'playing' && run.x < end && n++ < 200) playHop(run, COURSE, plan);
-      assert.notEqual(run.status, 'playing', `${id} with ${plan} should not pass on its own`);
+      assert.ok(run.status !== 'playing' || run.x < end, `${id} with ${plan} should not pass on its own`);
     }
   }
 });
@@ -61,6 +61,13 @@ test('a clock hand is a bridge only on its own beat of four', () => {
   const flat = [0, 1, 2, 3].filter(b => handFlat(hand, b));
   assert.equal(flat.length, 1);
   for (let b = 0; b < 8; b++) assert.equal(!!supports(run, COURSE, mid, b), handFlat(hand, b));
+});
+test('a backward cog: SLOW hops on the spot, FAST goes on by the difference', () => {
+  const cog = COURSE.platforms.find(p => p.kind === 'cog'), run = newRun(); run.x = run.hopStartX = cog.a + 20 - SLOW_SPEED * BEAT;
+  advance(run, COURSE, BEAT, false); assert.equal(run.cog, true);
+  const at = run.x; advance(run, COURSE, 2 * BEAT, false); assert.ok(Math.abs(run.x - at) < 1e-6, 'SLOW stays put');
+  advance(run, COURSE, 3 * BEAT, true); assert.ok(Math.abs(run.x - at - (FAST_SPEED - SLOW_SPEED) * BEAT) < 1e-6, 'FAST goes on');
+  for (const hand of COURSE.platforms.filter(p => p.kind === 'hand')) assert.equal(COURSE.platforms[hand.i - 1].kind, 'cog', 'every hand has a cog before it');
 });
 test('sand holds one landing: a second on the same slab falls', () => {
   const sand = COURSE.platforms.find(p => p.kind === 'sand' && p.b - p.a >= 2 * SLOW_SPEED * BEAT + 20);

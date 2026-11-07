@@ -21,7 +21,7 @@ One mechanism a room, each a different reading of the one button. Lanterns save 
 | 脱進機の歯 | gold teeth stand on even beats, silver on odd. The tooth for the coming landing rises just before it | land on the next tooth every hop |
 | ゼンマイ | a coil makes the next hop 1.8 times as long | wide gaps; SLOW still goes far |
 | 砂時計 | sand holds one landing: stood on, it crumbles from below; left, it falls | never land twice on one slab: wide slabs need FAST |
-| 針の橋 | a hand turns a quarter each beat about its pivot and is a bridge only on its beat of four; the bridge shows faintly the beat before. Four lamps, on a post where the ledge begins and under the pivot, fill up to the hand's beat: all four lit means the coming landing is the one. The view moves ahead before a hand | wait on the ledge, count, go |
+| 針の橋 | before each hand, a cog turning backwards: a hop from it is carried back at SLOW's speed, so SLOW hops on the spot and FAST goes on by 165px/s (owner's idea after the second playtest). A hand turns a quarter each beat about its pivot and is a bridge only on its beat of four; the bridge shows faintly the beat before. Four lamps, on a post where the ledge begins and under the pivot, fill up to the hand's beat: all four lit means the coming landing is the one. The view moves ahead before a hand | wait on the cog with SLOW, watch the lamps, FAST on four |
 | 機械室 | all of them together | |
 | 鐘楼 | stairs to the bell. The last landing strikes it | the ending cannot be missed |
 
@@ -57,7 +57,7 @@ Music and ending liked; the mainspring feels good; jumping over the long pendulu
 
 ## Not done / to check in play
 
-- The hand lamps and the new sand have not been replayed.
+- The cog before each hand has not been played. The owner found the hands still hard after the lamps: without a way to stop, FAST could not be judged with the far side off screen.
 - Sound not heard by the author (the tooling cannot listen).
 - No real phone yet.
 - The difficulty of the machine room is untuned.
