@@ -258,7 +258,7 @@ function handle(events) {
       if (fails >= ASSIST_FAILS && assistShown !== run.checkpoint) { assistShown = run.checkpoint; showHint(tr('assist')); }
       else if (fails >= 2) showHint(e.type === 'hit' ? 'hit' : e.kind);
     }
-    if (e.type === 'respawn') { camDelta = 0; crumble.clear(); }
+    if (e.type === 'respawn') { camDelta = 0; crumble.clear(); for (const p of COURSE.platforms) if (p.kind === 'sand') rings.delete(p.i); }
     if (e.type === 'dock') beginMorning(e);
   }
 }
@@ -291,6 +291,10 @@ function heroState() {
 const CAMERA_RATE = 4;
 function steerCamera(dt) {
   let target = run.x - HERO_X;
+  // Before a clock hand the view moves on ahead, so the hand and its lamps are in
+  // sight while there is still ledge to wait on (owner playtest).
+  const hand = COURSE.platforms.find(p => p.kind === 'hand' && p.b > run.x);
+  if (hand && hand.a - run.x < 560) target = run.x - 36;
   if (run.stationId === 'bell') target = Math.min(target, COURSE.bellX - W / 2 - 30);
   camDelta += cam - (target + camDelta);
   camDelta *= Math.exp(-dt * CAMERA_RATE);

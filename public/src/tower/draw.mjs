@@ -87,7 +87,7 @@ export function drawPlatforms(g, cam, run, s, rings, crumble, assist) {
     const y = FLOOR - (p.h || 0);
     if (p.kind === 'tick' || p.kind === 'tock') { drawTooth(g, p, x, w, run, s, hit, assist); continue; }
     if (p.kind === 'hand') { drawHand(g, p, x, s, hit, assist); continue; }
-    if (p.kind === 'sand') { drawSand(g, p, x, w, s, crumble.get(p.i), hit); continue; }
+    if (p.kind === 'sand') { drawSand(g, p, x, w, s, crumble.get(p.i), ring); continue; }
     const [body, top] = TOP[p.kind] || TOP.plain;
     if (x > W + 20 || x + w < -20) continue;
     rect(g, body, x, y, w, H - y);
@@ -121,24 +121,39 @@ function drawSpring(g, x, w, hit, s) {
   rect(g, '#d8fff6', x + 2, FLOOR - 2 + squash * .5, w - 4, 4);
   g.globalAlpha = .3 + .15 * Math.sin(s * 6); rect(g, '#9fe2d8', x + w / 2 - 2, FLOOR - 16, 4, 10); rect(g, '#9fe2d8', x + w / 2 - 6, FLOOR - 12, 12, 3); g.globalAlpha = 1;
 }
-function drawSand(g, p, x, w, s, gone, hit) {
-  const k = gone === undefined ? 0 : Math.min(1, (s - gone) / .6);
-  if (k >= 1) {
+// Sand: a crust on a deep slab. Stood on, it crumbles from below; left, it falls.
+const grain = (i, k) => ((i * 9301 + k * 49297) % 233280) / 233280;
+function drawSand(g, p, x, w, s, gone, landed) {
+  const fallK = gone === undefined ? 0 : (s - gone) / .7;
+  if (fallK >= 1) {
     // Only a dusting where it was, so the hole reads as a hole.
     g.globalAlpha = .35; for (let i = 6; i < w; i += 11) rect(g, '#d9b36a', x + i, FLOOR + 20 + (i * 7 % 13), 2, 2); g.globalAlpha = 1;
     return;
   }
-  const y = FLOOR + k * 90;
-  g.globalAlpha = 1 - k;
-  rect(g, '#6b5230', x, y + 3, w, 30 - k * 20);
-  rect(g, '#e8c27a', x + 2, y, w - 4, 4);
-  for (let i = 5; i < w - 5; i += 9) rect(g, '#f6dfa8', x + i, y + 7 + (i * 5 % 9), 2, 2);
-  // An hourglass waist under each slab: sand pours through it once you leave.
-  g.fillStyle = '#4a3820'; g.beginPath(); g.moveTo(x + w / 2 - 12, y + 30); g.lineTo(x + w / 2 + 12, y + 30); g.lineTo(x + w / 2 + 3, y + 46); g.lineTo(x + w / 2 - 3, y + 46); g.fill();
-  if (gone !== undefined) for (let i = 0; i < 8; i++) rect(g, '#e8c27a', x + w / 2 - 1, y + 46 + ((s * 120 + i * 13) % 60), 2, 3);
+  const on = landed !== undefined && s >= landed ? Math.min(1, (s - landed) / BEAT) : 0;
+  const DEEP = 36, cols = Math.ceil(w / 6);
+  for (let c = 0; c < cols; c++) {
+    const cx = x + c * 6, cw = Math.min(6, x + w - cx);
+    // The underside eats upwards, unevenly, while the hero stands there.
+    const depth = DEEP - on * (14 + grain(c, p.i) * 14);
+    const drop = fallK > 0 ? (fallK * fallK) * (120 + grain(c, 3) * 120) + grain(c, 5) * 6 * fallK : 0;
+    g.globalAlpha = 1 - Math.max(0, fallK - .3) / .7;
+    rect(g, c % 2 ? '#8a6a3a' : '#7d5f33', cx, FLOOR + 3 + drop, cw, depth - 3);
+    rect(g, '#e8c27a', cx, FLOOR + drop, cw, 4);
+    if (grain(c, 7) > .6) rect(g, '#f6dfa8', cx + 2, FLOOR + 9 + grain(c, 9) * 18 + drop, 2, 2);
+    if (on > .2 && fallK === 0 && grain(c, 13) > .8) { const t2 = ((s - landed) * 1.5 + grain(c, 15)) % .6; rect(g, '#7d5f33', cx + 1, FLOOR + depth + t2 * t2 * 300, 4, 4); }
+    // Grains trickling off the bottom.
+    if (on > 0 && fallK === 0 && grain(c, 11) > .45) {
+      for (let k = 0; k < 2; k++) {
+        const t = ((s - landed) * (1.2 + grain(c, k) * .8) + grain(c, k + 20)) % .5, gy = FLOOR + depth + t * t * 400;
+        rect(g, '#e8c27a', cx + 2 + k * 2, gy, 2, 2);
+      }
+    }
+  }
   g.globalAlpha = 1;
-}
-// A clock hand: pivot at its left end, flat to the right on its own beat.
+  // Cracks across the crust once it is giving way.
+  if (on > .3 && fallK === 0) { g.globalAlpha = on; for (let k = 1; k < 4; k++) rect(g, '#5a4020', x + w * k / 4 + (grain(k, p.i) - .5) * 20, FLOOR + 1, 1, 8 + on * 10); g.globalAlpha = 1; }
+}// A clock hand: pivot at its left end, flat to the right on its own beat.
 function drawHand(g, p, x, s, hit, assist) {
   const beat = Math.floor(s / BEAT + 1e-9), k = snapIn(s);
   const a0 = handAngle(p, beat * BEAT), a1 = handAngle(p, (beat + 1) * BEAT);
@@ -152,6 +167,26 @@ function drawHand(g, p, x, s, hit, assist) {
   g.beginPath(); g.moveTo(len - 16, -9); g.lineTo(len + 4, 0); g.lineTo(len - 16, 9); g.fill();
   g.fillStyle = '#e9dcc0'; g.beginPath(); g.arc(len * .55, 0, 6, 0, 7); g.fill();
   g.restore();
+  // Four lamps under the pivot fill up towards the hand's beat: all four lit means
+  // the coming landing is the one it lies flat for.
+  if (!assist) {
+    const wait = ((p.off - (beat + 1)) % 4 + 4) % 4, litN = 4 - wait;
+    for (let k = 0; k < 4; k++) {
+      const on = k < litN, lx = x - 46 + k * 11;
+      rect(g, '#1a1520', lx - 1, FLOOR + 17, 9, 9);
+      rect(g, on ? (litN === 4 ? '#fff1c9' : '#e8a838') : '#3a2e22', lx, FLOOR + 18, 7, 7);
+    }
+  }
+  // The same lamps on a post where the ledge begins, read while the hand is still
+  // off screen.
+  const ledge = COURSE.platforms[p.i - 1];
+  if (!assist && ledge && ledge.kind === 'plain') {
+    const wait = ((p.off - (beat + 1)) % 4 + 4) % 4, litN = 4 - wait, px = ledge.a + 26 - (p.a - x);
+    rect(g, '#2a1d10', px - 2, FLOOR - 64, 4, 64);
+    rect(g, '#2a1d10', px - 9, FLOOR - 112, 18, 50);
+    for (let k = 0; k < 4; k++) rect(g, k < litN ? (litN === 4 ? '#fff1c9' : '#e8a838') : '#3a2e22', px - 5, FLOOR - 74 - k * 11, 10, 8);
+    if (litN === 4) { g.globalAlpha = .3; g.fillStyle = '#fff1c9'; g.beginPath(); g.arc(px, FLOOR - 92, 22, 0, 7); g.fill(); g.globalAlpha = 1; }
+  }
   g.fillStyle = '#8a6b3c'; g.beginPath(); g.arc(x, FLOOR + 4, 11, 0, 7); g.fill();
   g.fillStyle = '#ffd98a'; g.beginPath(); g.arc(x, FLOOR + 4, 4, 0, 7); g.fill();
   if (hit) { g.globalAlpha = hit * .5; rect(g, '#fff1c9', x, FLOOR - 20 * hit, len, 2); g.globalAlpha = 1; }

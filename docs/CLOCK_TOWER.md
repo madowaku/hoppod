@@ -1,6 +1,6 @@
 # RAPIPPO: the Sunwise Clock Tower / 陽周りの時計台
 
-**Status:** playable from title to end card, built on 2026-11-07 for the thatgamejam #02 build at the owner's request. Page `public/clocktower.html`, code `public/src/tower/`. **Nobody has played it yet**; every number below comes from scripts and headless Chromium. The earlier experiment it replaces is kept at `public/dev/clocktower-lab.html` ([CLOCK_TOWER_LAB.md](CLOCK_TOWER_LAB.md)).
+**Status:** playable from title to end card, built on 2026-11-07 for the thatgamejam #02 build at the owner's request. Page `public/clocktower.html`, code `public/src/tower/`. The owner played it once on 2026-11-07 (see "Playtest"); every number below comes from scripts and headless Chromium. The earlier experiment it replaces is kept at `public/dev/clocktower-lab.html` ([CLOCK_TOWER_LAB.md](CLOCK_TOWER_LAB.md)).
 
 Play locally: `npm run dev`, then open `http://127.0.0.1:8000/clocktower.html?lang=ja`. `?cp=N` starts at lantern N; `?end=1&gears=7` shows the morning at once.
 
@@ -17,11 +17,11 @@ One mechanism a room, each a different reading of the one button. Lanterns save 
 | Room | Mechanism | What it asks |
 |---|---|---|
 | 塔のふもと | none | the hop |
-| 振り子の回廊 | pendulums, two hops per swing. Long ones (330) sweep the floor; short ones (236) sweep the top of a hop. A hit knocks the hero off | where you are on which beat |
+| 振り子の回廊 | pendulums, two hops per swing. Long ones (330) sweep the floor; short ones (202) only graze the very top of a hop. A hit knocks the hero off | where you are on which beat |
 | 脱進機の歯 | gold teeth stand on even beats, silver on odd. The tooth for the coming landing rises just before it | land on the next tooth every hop |
 | ゼンマイ | a coil makes the next hop 1.8 times as long | wide gaps; SLOW still goes far |
-| 砂時計 | sand holds one landing, then pours away | never land twice on one slab: wide slabs need FAST |
-| 針の橋 | a hand turns a quarter each beat about its pivot and is a bridge only on its beat of four; the bridge shows faintly the beat before | wait on the ledge, count, go |
+| 砂時計 | sand holds one landing: stood on, it crumbles from below; left, it falls | never land twice on one slab: wide slabs need FAST |
+| 針の橋 | a hand turns a quarter each beat about its pivot and is a bridge only on its beat of four; the bridge shows faintly the beat before. Four lamps, on a post where the ledge begins and under the pivot, fill up to the hand's beat: all four lit means the coming landing is the one. The view moves ahead before a hand | wait on the ledge, count, go |
 | 機械室 | all of them together | |
 | 鐘楼 | stairs to the bell. The last landing strikes it | the ending cannot be missed |
 
@@ -51,9 +51,13 @@ All from the model with scripted input, **not human play**.
 
 Five minutes assumes some falls and the morning; it has not been timed with a person.
 
+## Playtest (owner, 2026-11-07)
+
+Music and ending liked; the mainspring feels good; jumping over the long pendulums is fun. Changed from it: short pendulums shortened (236 to 202; with random input they now cause about 15% of failures, the long ones about 62%), sand crumbles visibly from below, and the hands got the lamps and the camera lead, because without stopping the timing could not be planned with the hand off screen.
+
 ## Not done / to check in play
 
-- Nobody has played it. Readability of the teeth and hands is the main risk: the rule is drawn (lit tooth, faint bridge) but not explained beyond the room's line.
+- The hand lamps and the new sand have not been replayed.
 - Sound not heard by the author (the tooling cannot listen).
 - No real phone yet.
 - The difficulty of the machine room is untuned.

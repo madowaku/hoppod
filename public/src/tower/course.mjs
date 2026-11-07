@@ -9,7 +9,9 @@ export const HOP_MIN = SLOW_SPEED * BEAT, HOP_MAX = FAST_SPEED * BEAT;
 export const BOOST = 1.8;
 // Pendulums: one full swing takes two hops. The pivot beam hangs at PIVOT_Y.
 export const PIVOT_Y = 24, SWING_BEATS = 2, BOB_DRAWN = 14, BOB_HIT = 9, POD_HALF = 9, POD_TOP_INSET = 8;
-export const LONG = 330, SHORT = 236; // a long pendulum sweeps the floor, a short one the top of a hop
+// A long pendulum sweeps the floor; a short one only grazes the very top of a hop
+// (owner playtest: the short ones were too hard to time while never stopping).
+export const LONG = 330, SHORT = 202;
 // A clock hand turns once every four beats about its pivot and lies flat, as a
 // bridge, only on its own beat.
 export const HAND_BEATS = 4;
