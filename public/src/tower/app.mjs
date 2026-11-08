@@ -105,15 +105,25 @@ function press(on, stamp) {
 function showBanner(id) { banner = { id, at: s }; $('chapter-label').textContent = tr('stations')[id] || ''; }
 function showHint(key) { hint = { text: typeof key === 'string' ? (tr('hints')[key] ?? key) : key, at: s }; }
 
+function putFirst(resumable) {
+  const action = $('action'), cont = $('continue');
+  action.classList.toggle('action', !resumable); action.classList.toggle('title-free', resumable);
+  cont.classList.toggle('action', resumable); cont.classList.toggle('title-free', !resumable);
+  if (resumable && action.nextElementSibling === cont) action.before(cont);
+  if (!resumable && cont.nextElementSibling === action) cont.before(action);
+}
 function refreshOverlay() {
   const kind = $('overlay').dataset.screen;
   $('intro-mark').textContent = '✦ ' + tr('tag') + ' ✦';
   $('title-text').textContent = kind === 'pause' ? tr('pauseTitle') : tr('title');
   $('work-title').textContent = tr('tag');
   $('overlay-subtitle').textContent = kind === 'pause' ? tr('pauseText') : kind === 'end' ? tr('end') + '\n' + tr('gearLine')(run.gears.length) : tr('subtitle');
-  $('action').textContent = kind === 'pause' ? tr('resume') : tr('begin');
+  // With a climb saved, CONTINUE comes first and the other button says plainly that it starts over.
+  const resumable = kind === 'start' && !!saved && saved.checkpoint > 0;
+  $('action').textContent = kind === 'pause' ? tr('resume') : resumable ? tr('restart') : tr('begin');
   $('continue').textContent = tr('cont');
-  $('continue').hidden = kind !== 'start' || !saved || saved.checkpoint <= 0;
+  $('continue').hidden = !resumable;
+  putFirst(resumable);
   $('end-actions').hidden = kind !== 'end';
   document.querySelector('.intro-controls').style.display = kind !== 'start' ? 'none' : '';
 }
@@ -142,7 +152,6 @@ $('action').addEventListener('click', () => {
   if (screen === 'pause') { resume(); return; }
   if (params.get('end') === '1') { startMorning(Number(params.get('gears') ?? 7)); return; }
   const cp = Number(params.get('cp'));
-  saved = { checkpoint: 0, gears: [] }; write(SAVE_KEY, JSON.stringify(saved));
   start(Number.isInteger(cp) && cp > 0 && cp < COURSE.checkpoints.length ? { checkpoint: cp, gears: [] } : null);
 });
 $('continue').addEventListener('click', () => { if (saved) start(saved); });
@@ -211,7 +220,12 @@ function predict() {
   ahead = cloneRun(run);
   const front = audio.context.currentTime + LOOKAHEAD - clock.offset, events = [];
   if (front > run.t) advance(ahead, COURSE, front, input.fast, events);
-  for (const e of events) if (PREDICTED.has(e.type) && !cued.has(eventKey(e))) { cued.add(eventKey(e)); playEvent(e); }
+  // Only what happens whichever way the button goes from now is played ahead; a landing
+  // that a press could still turn into a fall waits until it has happened.
+  const other = [];
+  if (front > run.t) advance(cloneRun(run), COURSE, front, !input.fast, other);
+  const sure = new Set(other.map(eventKey));
+  for (const e of events) if (PREDICTED.has(e.type) && sure.has(eventKey(e)) && !cued.has(eventKey(e))) { cued.add(eventKey(e)); playEvent(e); }
 }
 const barCache = new Map();
 function barNotes(bar) {
@@ -262,7 +276,8 @@ function handle(events) {
     if (e.type === 'dock') beginMorning(e);
   }
 }
-function save() { saved = { checkpoint: run.checkpoint, gears: run.gears }; write(SAVE_KEY, JSON.stringify(saved)); }
+// Nothing is written before the first lantern, so a new climb started by mistake loses no saved one.
+function save() { if (run.checkpoint <= 0) return; saved = { checkpoint: run.checkpoint, gears: run.gears }; write(SAVE_KEY, JSON.stringify(saved)); }
 function beginMorning(e) {
   releaseInput(); lockAt = e.t; rangAt = e.t; finaleT0 = e.t + HEART_AFTER * BEAT; nextStep = Math.ceil(finaleT0 / STEP);
   bursts.push({ x: COURSE.bellX, y: FLOOR - 110 - 70, at: e.t, power: 1 });

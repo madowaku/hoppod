@@ -127,15 +127,26 @@ function press(on, stamp) {
 }
 function showBanner(id) { banner = { id, at: s }; $('chapter-label').textContent = tr('stations')[id] || ''; updateHud(); }
 
+function putFirst(resumable) {
+  const action = $('action'), cont = $('continue');
+  action.classList.toggle('action', !resumable); action.classList.toggle('title-free', resumable);
+  cont.classList.toggle('action', resumable); cont.classList.toggle('title-free', !resumable);
+  if (resumable && action.nextElementSibling === cont) action.before(cont);
+  if (!resumable && cont.nextElementSibling === action) cont.before(action);
+}
 function refreshOverlay() {
   const kind = $('overlay').dataset.screen;
   $('intro-mark').textContent = '✦ ' + tr('tag') + ' ✦';
   $('title-text').textContent = kind === 'pause' ? tr('pauseTitle') : tr('title');
   $('work-title').textContent = tr('tag');
   $('overlay-subtitle').textContent = kind === 'pause' ? tr('pauseText') : kind === 'end' ? (run.listen ? tr('listening') : '') : kind === 'free' ? tr('freeHint') : sharedTake ? tr('listening') : tr('subtitle');
-  $('action').textContent = kind === 'pause' ? tr('resume') : sharedTake ? '▶' : tr('begin');
-  $('continue').textContent = sharedTake ? tr('listenOwn') : tr('cont');
-  $('continue').hidden = kind !== 'start' || (!sharedTake && (!saved || saved.checkpoint <= 0));
+  // With a run saved, CONTINUE comes first and the other button says plainly that it starts over.
+  // From a shared song, entering the workshop goes back to the visitor's own saved run.
+  const own = !!saved && saved.checkpoint > 0, resumable = kind === 'start' && own && !sharedTake;
+  $('action').textContent = kind === 'pause' ? tr('resume') : sharedTake ? '▶' : resumable ? tr('restart') : tr('begin');
+  $('continue').textContent = sharedTake ? (own ? tr('cont') : tr('listenOwn')) : tr('cont');
+  $('continue').hidden = kind !== 'start' || (!sharedTake && !own);
+  putFirst(resumable);
   $('free').textContent = kind === 'free' ? tr('leave') : tr('free');
   $('free').hidden = !((kind === 'start' && read(SAVE_KEY + '.cleared') === '1') || kind === 'free');
   $('end-actions').hidden = kind !== 'end';
@@ -170,9 +181,9 @@ $('action').addEventListener('click', () => {
   const dev = devStart();
   if (params.get('end') === '1') startFinale(demoRecording());
   else if (sharedTake && !run.listen && !params.has('play')) startFinale(sharedTake, true);
-  else { saved = { checkpoint: 0, recording: {}, lastTake: saved?.lastTake }; write(SAVE_KEY, JSON.stringify(saved)); start(dev); }
+  else start(dev);
 });
-$('continue').addEventListener('click', () => { if (sharedTake) start(null); else if (saved) start(saved); });
+$('continue').addEventListener('click', () => { if (saved && saved.checkpoint > 0) start(saved); else if (sharedTake) start(null); });
 $('free').addEventListener('click', () => {
   $('free').blur();
   if (mode === 'free') { audio.cancel(); mode = 'play'; screen = 'start'; run = newRun(); $('overlay').dataset.screen = 'start'; refreshOverlay(); updateHud(); return; }
@@ -245,7 +256,12 @@ function predict() {
   ahead = cloneRun(run);
   const front = audio.context.currentTime + LOOKAHEAD - clock.offset, events = [];
   if (front > run.t) advance(ahead, COURSE, front, input.fast, events);
-  for (const e of events) if (PREDICTED.has(e.type) && !cued.has(eventKey(e))) { cued.add(eventKey(e)); playEvent(e); }
+  // Only what happens whichever way the button goes from now is played ahead; a landing
+  // that a press could still turn into a fall waits until it has happened.
+  const other = [];
+  if (front > run.t) advance(cloneRun(run), COURSE, front, !input.fast, other);
+  const sure = new Set(other.map(eventKey));
+  for (const e of events) if (PREDICTED.has(e.type) && sure.has(eventKey(e)) && !cued.has(eventKey(e))) { cued.add(eventKey(e)); playEvent(e); }
 }
 // Each bar's notes are worked out once, then played as their moments come round.
 function barNotes(bar) {
@@ -340,7 +356,9 @@ function handle(events) {
     if (e.type === 'dock') beginFinale(e);
   }
 }
+// Nothing is written before the first lantern, so a new run started by mistake loses no saved one.
 function save() {
+  if (run.checkpoint <= 0) return;
   saved = { checkpoint: run.checkpoint, recording: run.recording, lastTake: saved?.lastTake };
   write(SAVE_KEY, JSON.stringify(saved));
 }

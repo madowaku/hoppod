@@ -1,6 +1,6 @@
 # RAPIPPO: the Starlight Instrument Workshop / 星明りの楽器工房 (formerly 月の楽器工房)
 
-**Status:** playable from start to end card. Branch `feature/moon-workshop`, based on `feature/story-jam-02`. Reached from the stage select (`select.html`), which the owner decided on 2026-11-07 should ship in the jam build. Not merged or deployed yet. The owner played it through twice (2026-11-07, see "Playtests"); every number below comes from scripts and headless Chromium.
+**Status:** playable from start to end card. Developed on `feature/moon-workshop` and merged into the jam build on `feature/story-jam-02`. Reached from the stage select (`select.html`), which the owner decided on 2026-11-07 should ship in the jam build. The owner played it through twice (2026-11-07, see "Playtests"); every number below comes from scripts and headless Chromium.
 
 Play locally: `npm run dev`, then open `http://127.0.0.1:8000/workshop.html?lang=ja`.
 

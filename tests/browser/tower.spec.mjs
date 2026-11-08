@@ -77,3 +77,16 @@ test('a pendulum hit returns to the lantern on the beat, and progress is saved f
   await expect(page.locator('#continue')).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+test('a saved climb comes first, and starting over keeps it until a lantern is reached', async ({ page }) => {
+  await page.addInitScript(() => { if (!sessionStorage.getItem('seeded')) { sessionStorage.setItem('seeded', '1'); localStorage.setItem('hoppod.tower.v1', '{"checkpoint":4,"gears":[1]}'); } });
+  const errors = await open(page);
+  await expect(page.locator('.title-actions > :first-child')).toHaveId('continue');
+  await expect(page.locator('#action')).toHaveText('はじめから');
+  await page.locator('#action').click(); await page.clock.runFor(780 * 2);
+  await page.goto('/clocktower.html?lang=ja');
+  await expect(page.locator('#continue')).toBeVisible();
+  await page.locator('#continue').click(); await page.clock.runFor(100);
+  expect((await read(page)).checkpoint).toBe(4);
+  expect(errors).toEqual([]);
+});

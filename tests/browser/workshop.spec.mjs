@@ -255,3 +255,17 @@ test('real audio: notes land on the beat, and the finale ticks on every beat', a
   expect(r.audio.state).toBe('running');
   expect(errors).toEqual([]);
 });
+
+test('a saved run comes first; starting over or a shared song leaves it until a lantern is reached', async ({ page }) => {
+  await page.addInitScript(() => { if (!sessionStorage.getItem('seeded')) { sessionStorage.setItem('seeded', '1'); localStorage.setItem('hoppod.workshop.v1', '{"checkpoint":4,"recording":{}}'); } });
+  const errors = await open(page);
+  await expect(page.locator('.title-actions > :first-child')).toHaveId('continue');
+  await expect(page.locator('#continue')).toHaveText('つづきから'); await expect(page.locator('#action')).toHaveText('はじめから');
+  await page.locator('#action').click(); await page.clock.runFor(780 * 2);
+  expect(JSON.parse(await page.evaluate(() => localStorage.getItem('hoppod.workshop.v1'))).checkpoint).toBe(4);
+  await page.goto('/workshop.html?lang=ja&take=' + encodeTake(demoRecording()));
+  await expect(page.locator('#continue')).toHaveText('つづきから');
+  await page.locator('#continue').click(); await page.clock.runFor(100);
+  expect((await read(page)).checkpoint).toBe(4);
+  expect(errors).toEqual([]);
+});

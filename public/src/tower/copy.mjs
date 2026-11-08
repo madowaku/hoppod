@@ -4,7 +4,7 @@ const TEXT = Object.freeze({
   en: Object.freeze({
     tag: 'THE SUNWISE CLOCK TOWER', title: 'RAPIPPO', subtitle: 'The clock stopped at five to midnight. Bring it the morning.',
     autoHop: 'It hops by itself. Hold to go farther.', headphones: '♪ Sound on. Headphones recommended.',
-    begin: 'CLIMB', cont: 'CONTINUE', hold: 'HOLD', release: 'LET GO',
+    begin: 'CLIMB', restart: 'START OVER', cont: 'CONTINUE', hold: 'HOLD', release: 'LET GO',
     pause: 'Pause', pauseTitle: 'PAUSED', pauseText: 'The tower waits for you.', resume: 'RESUME', again: 'PLAY AGAIN', stages: 'STAGES ›',
     toFast: 'HOLD TO GO FAST', toSlow: 'RELEASE TO SLOW', soundOn: 'SOUND ON', soundOff: 'SOUND OFF', buzzOn: 'BUZZ ON', buzzOff: 'BUZZ OFF',
     footer: 'A tiny capsule. A clock that stopped.', keys: 'SPACE = HOLD · ESC = PAUSE', switchLanguage: 'Switch to Japanese',
@@ -23,7 +23,7 @@ const TEXT = Object.freeze({
   ja: Object.freeze({
     tag: '陽周りの時計台', title: 'RAPIPPO', subtitle: '真夜中の5分前で止まった時計に、朝を連れてこよう。',
     autoHop: '自動でジャンプ。押し続けると遠くへ。', headphones: '♪ 音を出して遊んでください。ヘッドホン推奨。',
-    begin: 'のぼる', cont: 'つづきから', hold: '押す', release: '離す',
+    begin: 'のぼる', restart: 'はじめから', cont: 'つづきから', hold: '押す', release: '離す',
     pause: '一時停止', pauseTitle: 'ひとやすみ', pauseText: '時計台は待っています。', resume: 'つづける', again: 'もう一度', stages: 'ステージ ›',
     toFast: '押してFAST', toSlow: '離してSLOW', soundOn: '音 ON', soundOff: '音 OFF', buzzOn: '振動 ON', buzzOff: '振動 OFF',
     footer: '小さなカプセルと、止まった時計。', keys: 'SPACE = 押す · ESC = 一時停止', switchLanguage: 'Switch to English',

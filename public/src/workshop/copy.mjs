@@ -4,7 +4,7 @@ const TEXT = Object.freeze({
   en: Object.freeze({
     tag: 'STARLIGHT WORKSHOP', title: 'RAPIPPO', subtitle: 'Wake the instruments. Finish the song.',
     autoHop: 'It hops by itself. Hold to go farther.', headphones: '♪ Sound on. Headphones recommended.',
-    begin: 'ENTER', cont: 'CONTINUE', free: 'FREE PLAY', hold: 'HOLD', release: 'LET GO',
+    begin: 'ENTER', restart: 'START OVER', cont: 'CONTINUE', free: 'FREE PLAY', hold: 'HOLD', release: 'LET GO',
     pause: 'Pause', pauseTitle: 'PAUSED', pauseText: 'The beat waits for you.', resume: 'RESUME', again: 'PLAY AGAIN', toTitle: 'TITLE',
     toFast: 'HOLD TO GO FAST', toSlow: 'RELEASE TO SLOW', soundOn: 'SOUND ON', soundOff: 'SOUND OFF', buzzOn: 'BUZZ ON', buzzOff: 'BUZZ OFF',
     footer: 'A tiny capsule. A workshop full of sleeping sound.', keys: 'SPACE = HOLD · ESC = PAUSE', switchLanguage: 'Switch to Japanese',
@@ -29,7 +29,7 @@ const TEXT = Object.freeze({
   ja: Object.freeze({
     tag: '星明りの楽器工房', title: 'RAPIPPO', subtitle: '音を起こして、曲を完成させる。',
     autoHop: '自動でジャンプ。押し続けると遠くへ。', headphones: '♪ 音を出して遊んでください。ヘッドホン推奨。',
-    begin: 'はいる', cont: 'つづきから', free: '自由演奏', hold: '押す', release: '離す',
+    begin: 'はいる', restart: 'はじめから', cont: 'つづきから', free: '自由演奏', hold: '押す', release: '離す',
     pause: '一時停止', pauseTitle: 'ひとやすみ', pauseText: '拍は待っています。', resume: 'つづける', again: 'もう一度', toTitle: 'タイトル',
     toFast: '押してFAST', toSlow: '離してSLOW', soundOn: '音 ON', soundOff: '音 OFF', buzzOn: '振動 ON', buzzOff: '振動 OFF',
     footer: '小さなカプセルと、眠っている音の工房。', keys: 'SPACE = 押す · ESC = 一時停止', switchLanguage: 'Switch to English',

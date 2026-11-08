@@ -21,9 +21,11 @@ One mechanism a room, each a different reading of the one button. Lanterns save 
 | 脱進機の歯 | gold teeth stand on even beats, silver on odd. The tooth for the coming landing rises just before it | land on the next tooth every hop |
 | ゼンマイ | a coil makes the next hop 1.8 times as long | wide gaps; SLOW still goes far |
 | 砂時計 | sand holds one landing: stood on, it crumbles from below; left, it falls | never land twice on one slab: wide slabs need FAST |
-| 針の橋 | before each hand, a cog turning backwards: a hop from it is carried back at SLOW's speed, so SLOW hops on the spot and FAST goes on by 165px/s (owner's idea after the second playtest). A hand turns a quarter each beat about its pivot and is a bridge only on its beat of four; the bridge shows faintly the beat before. Four lamps, on a post where the ledge begins and under the pivot, fill up to the hand's beat: all four lit means the coming landing is the one. The view moves ahead before a hand | wait on the cog with SLOW, watch the lamps, FAST on four |
+| 針の橋 | before each hand, a cog turning backwards: a hop from it is carried back at SLOW's speed, so SLOW hops on the spot and FAST goes on by 165px/s (owner's idea after the second playtest). The cog is 120px, narrower than FAST's 128.7px hop off it, so FAST on four reaches the hand from anywhere on it (Codex review, 2026-11-08). A hand turns a quarter each beat about its pivot and is a bridge only on its beat of four; the bridge shows faintly the beat before. Four lamps, on a post where the ledge begins and under the pivot, fill up to the hand's beat: all four lit means the coming landing is the one. The view moves ahead before a hand | wait on the cog with SLOW, watch the lamps, FAST on four |
 | 機械室 | all of them together | |
 | 鐘楼 | stairs to the bell. The last landing strikes it | the ending cannot be missed |
+
+With a climb saved, the title puts CONTINUE first and the other button reads START OVER; nothing is saved before the first lantern, so a mistaken start loses no saved climb. The workshop does the same, and its shared-song links enter the visitor's own saved run.
 
 Twelve gears hang where the antennas reach at the top of a hop. They are optional; each found one lights an hour on the face at the end.
 

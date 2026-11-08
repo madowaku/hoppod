@@ -20,7 +20,7 @@ A separate five-minute STORY page, `story.html`, is being built on `feature/stor
 
 ## STARLIGHT WORKSHOP / 星明りの楽器工房
 
-A separate episode on `feature/moon-workshop`, at `workshop.html`: wake sleeping instruments with FAST and SLOW, land on the metronome as its missing weight, and let go while your own song keeps going. Reached from the stage select; the owner has played it twice and it has been revised from that. See [Moon Workshop design and status](docs/MOON_WORKSHOP.md).
+A separate episode at `workshop.html`, in the jam build on `feature/story-jam-02`: wake sleeping instruments with FAST and SLOW, land on the metronome as its missing weight, and let go while your own song keeps going. Reached from the stage select; the owner has played it twice and it has been revised from that. See [Moon Workshop design and status](docs/MOON_WORKSHOP.md).
 
 ## Stages
 

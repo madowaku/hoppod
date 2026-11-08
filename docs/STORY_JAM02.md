@@ -225,6 +225,8 @@ Not measurable here: real speaker/Bluetooth latency and touch latency on Android
 
 ## Release entry and language (2026-11-03, PR #16 review)
 
+**Since 2026-11-07** (owner's decision to ship the stage select): wherever this section says the entry goes to `story.html`, it now goes to `select.html`, and FREE RUN's link reads `STAGES ›`. Links that name a course still open it directly. The rest below is unchanged.
+
 - **Entry.** `index.html` decides before any game code loads: the bare address, or one with only `?lang=`, goes to `story.html` (carrying a valid `lang`). Any other parameter (`mode`, `date`, `seed`, `v`, `marker`, …) stays on FREE RUN, so every old shared or replay link opens exactly as before. All paths are relative (`story.html`, `index.html?mode=free`), so the same files work inside an itch.io ZIP folder and on Cloudflare.
 - **Language.** A valid `?lang=ja|en`, then the player's saved choice, then English. The browser language is not consulted. Switching saves the choice; STORY also rewrites its own `?lang=` (a stale one would win on reload). Links between the pages always carry `lang=`, so the language survives page moves even where storage is blocked. FREE RUN keeps its address the exact replay link (no `lang`; the share link equals the address) and keeps the language in its history entry (`history.state`), so a reload keeps it without storage too.
 - **Known limit.** Without storage, a *new* tab or a typed address starts in English (nothing is remembered outside the tab).
@@ -234,7 +236,7 @@ Not measurable here: real speaker/Bluetooth latency and touch latency on Android
 
 ## itch.io build
 
-`npm run build:itch` writes `output/itch/rapippo-<commit>.zip` (the full SHA is also in the ZIP comment; `-dirty` if `public/` has uncommitted changes): every file under `public/` except `dev/` (the sound bench) and dotfiles, with `index.html` at the root (22 files, about 80 KiB, no build step). `tests/browser/itch-zip.spec.mjs` reads that ZIP back and plays it from a sub-folder of another origin inside an embed iframe: title, play, the touch PAUSE, FREE RUN and back, with every request answered from the ZIP. itch.io loads the game as `index.html?v=<build stamp>`: the entry opens FREE RUN only for its own keys (`mode`, `date`, `seed`, and the developer `marker`, `compare`, `sfx`), so the stamp, or any other foreign parameter, still opens the STORY title.
+`npm run build:itch` writes `output/itch/rapippo-<commit>.zip` (the full SHA is also in the ZIP comment; `-dirty` if `public/` has uncommitted changes): every file under `public/` except `dev/` (the sound bench) and dotfiles, with `index.html` at the root (42 files, about 154 KiB at 041a465, no build step). `tests/browser/itch-zip.spec.mjs` reads that ZIP back and plays it from a sub-folder of another origin inside an embed iframe: title, play, the touch PAUSE, FREE RUN and back, with every request answered from the ZIP. itch.io loads the game as `index.html?v=<build stamp>`: the entry opens FREE RUN only for its own keys (`mode`, `date`, `seed`, and the developer `marker`, `compare`, `sfx`), so the stamp, or any other foreign parameter, still opens the STORY title.
 
 On touch screens PAUSE is a 44px button in the header while playing (hidden on the title and the end card); it releases a FAST held by another finger. From the dock on, the FAST/SLOW control is disabled and a held FAST is released.
 

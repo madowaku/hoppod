@@ -17,8 +17,9 @@ export const LONG = 330, SHORT = 202;
 export const HAND_BEATS = 4;
 // Before each hand, a cog turning backwards: a hop that starts on it is carried back
 // at SLOW's speed, so SLOW hops on the spot and FAST goes on. Somewhere to wait while
-// counting the lamps (owner's idea, 2026-11-07).
-export const COG = 140;
+// counting the lamps (owner's idea, 2026-11-07). Narrower than FAST's hop off it
+// ((270 - 105) * 0.78 = 128.7px), so FAST on four reaches the hand from anywhere on it.
+export const COG = 120;
 // Gears hang where the antennas reach at the top of a hop.
 export const GEAR_Y = 228, GEAR_REACH = 16, GEAR_WINDOW = Object.freeze([.279, .501]);
 export const STATIONS = Object.freeze(['foot', 'pendulum', 'teeth', 'spring', 'sand', 'hands', 'machine', 'bell']);

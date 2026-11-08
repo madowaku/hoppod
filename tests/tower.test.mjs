@@ -68,6 +68,8 @@ test('a backward cog: SLOW hops on the spot, FAST goes on by the difference', ()
   const at = run.x; advance(run, COURSE, 2 * BEAT, false); assert.ok(Math.abs(run.x - at) < 1e-6, 'SLOW stays put');
   advance(run, COURSE, 3 * BEAT, true); assert.ok(Math.abs(run.x - at - (FAST_SPEED - SLOW_SPEED) * BEAT) < 1e-6, 'FAST goes on');
   for (const hand of COURSE.platforms.filter(p => p.kind === 'hand')) assert.equal(COURSE.platforms[hand.i - 1].kind, 'cog', 'every hand has a cog before it');
+  // FAST on four reaches the hand from anywhere on the cog, so the lamps never lie.
+  for (const c of COURSE.platforms.filter(p => p.kind === 'cog')) for (const x of [c.a + .5, c.b - .5]) assert.equal(platformAt(x + (FAST_SPEED - SLOW_SPEED) * BEAT)?.kind, 'hand', `cog at ${c.a}, from ${x}`);
 });
 test('sand holds one landing: a second on the same slab falls', () => {
   const sand = COURSE.platforms.find(p => p.kind === 'sand' && p.b - p.a >= 2 * SLOW_SPEED * BEAT + 20);
