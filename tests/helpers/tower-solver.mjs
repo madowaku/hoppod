@@ -25,7 +25,7 @@ export function solve(course, start, { order = HOLDS, maxHops = 600, stopAt = nu
     if (run.status === 'falling') continue;
     best = Math.max(best, run.x);
     if (run.status === 'docked' || (stopAt !== null && run.x >= stopAt)) return { path, run, best };
-    const key = `${Math.round(run.x / 3)}:${run.beat % 4}:${run.boost}:${run.cog}:${run.sandUsed.join(',')}`;
+    const key = `${Math.round(run.x / 3)}:${run.beat % 4}:${run.boost}:${run.cog}:${run.sandUsed.join(',')}:${run.tick}`;
     if (seen.has(key)) continue;
     seen.add(key);
     stack.push({ run, path, i: 0 });

@@ -53,8 +53,12 @@ test('every room asks for something: holding one input all the way through fails
 test('teeth: gold stands on even beats, silver on odd ones', () => {
   const tick = COURSE.platforms.find(p => p.kind === 'tick'), tock = COURSE.platforms.find(p => p.kind === 'tock');
   assert.ok(toothUp(tick, 0) && !toothUp(tick, 1) && toothUp(tock, 1) && !toothUp(tock, 2));
-  const run = newRun(), mid = (tick.a + tick.b) / 2;
+  const run = newRun(), mid = (tick.a + tick.b) / 2; run.hopStartX = tock.a + 5;
   assert.ok(supports(run, COURSE, mid, 4)); assert.equal(supports(run, COURSE, mid, 5), null);
+  // From outside the run of teeth, the first landing always holds and sets the phase.
+  const fresh = runFrom(COURSE, cpOf('teeth'), { beat: 1 });
+  while (fresh.x < tick.a) playHop(fresh, COURSE, [0, 0]);
+  assert.equal(fresh.status, 'playing'); assert.ok(toothUp(platformAt(fresh.x), fresh.beat, fresh.tick));
 });
 test('a clock hand is a bridge only on its own beat of four', () => {
   const hand = COURSE.platforms.find(p => p.kind === 'hand'), run = newRun(), mid = (hand.a + hand.b) / 2;
@@ -118,7 +122,7 @@ test('every gear can be reached by some climb from its room', () => {
         const next = cloneRun(run); playHop(next, COURSE, plan);
         if (next.gears.includes(i)) { got = true; break; }
         if (next.status !== 'playing' || next.x > gear.x + 260) continue;
-        const key = Math.round(next.x / 4) + ':' + next.beat % 4 + ':' + next.boost + ':' + next.sandUsed.join(',');
+        const key = Math.round(next.x / 4) + ':' + next.beat % 4 + ':' + next.boost + ':' + next.sandUsed.join(',') + ':' + next.tick;
         if (!seen.has(key)) { seen.add(key); stack.push(next); }
       }
     }

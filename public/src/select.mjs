@@ -4,14 +4,14 @@ import { chooseLanguage, withLanguage } from './ui-copy.mjs';
 
 const TEXT = Object.freeze({
   en: Object.freeze({
-    tagline: 'One button. One beat. Where will you hop?', switchTo: '日本語', switchLabel: 'Switch to Japanese',
+    tagline: 'One button. One beat. Where will you hop?', first: 'START HERE', switchTo: '日本語', switchLabel: 'Switch to Japanese',
     story: ['ACROSS THE MOON', 'Rescue your friends and come home.'],
     workshop: ['THE STARLIGHT WORKSHOP', 'Wake the instruments. Your hops become the song.'],
     tower: ['THE SUNWISE CLOCK TOWER', 'Clockwork rooms, one mechanism each. Bring the morning.'],
     free: ['FREE RUN', 'An endless moon. Hop as far as you can.'],
   }),
   ja: Object.freeze({
-    tagline: 'ボタンひとつ、拍ひとつ。どこを跳ぶ？', switchTo: 'EN', switchLabel: 'Switch to English',
+    tagline: 'ボタンひとつ、拍ひとつ。どこを跳ぶ？', first: 'はじめはここから', switchTo: 'EN', switchLabel: 'Switch to English',
     story: ['月渡りのラピッポ', '仲間を助けて、いっしょに帰ろう。'],
     workshop: ['星明りの楽器工房', '楽器を起こそう。あなたの跳ねた跡が曲になる。'],
     tower: ['陽周りの時計台', '仕掛けだらけの塔をのぼって、朝を連れてこよう。'],
@@ -27,7 +27,7 @@ let language = chooseLanguage(location.href, read());
 function refresh() {
   const text = TEXT[language];
   document.documentElement.lang = language;
-  $('tagline').textContent = text.tagline;
+  $('tagline').textContent = text.tagline; $('first').textContent = text.first;
   $('language').textContent = text.switchTo; $('language').setAttribute('aria-label', text.switchLabel);
   for (const [id, page] of Object.entries(PAGES)) {
     const link = $(id);

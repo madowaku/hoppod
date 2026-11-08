@@ -58,8 +58,12 @@ function build() {
   // 2. Escapement teeth: gold stands on the tick, silver on the tock.
   station('teeth'); checkpoint();
   add(270);
-  const teeth = (widths, gaps = []) => widths.forEach((w, k) => { add(w, k % 2 ? 'tock' : 'tick'); if (gaps[k]) gap(gaps[k]); });
-  teeth([110, 110, 110, 110, 110, 110, 110, 110]); gear(x - 420);
+  // A run of teeth waits, all up, until the hero steps on it; from then it ticks in time
+  // with that first landing (owner's playtest, 2026-11-08: arriving on SLOW, the tempo
+  // could be wrong from the start).
+  const teeth = (widths, gaps = []) => { const group = x; widths.forEach((w, k) => { add(w, k % 2 ? 'tock' : 'tick', { group }); if (gaps[k]) gap(gaps[k]); }); };
+  // The first run is one SLOW hop per tooth: SLOW alone ticks across it, to learn the beat.
+  teeth(Array(8).fill(SLOW_SPEED * BEAT)); gear(x - 330);
   rest();
   teeth([120, 90, 150, 90, 120, 160, 90, 130], [20, 0, 30, 0, 20, 0, 30, 0]); gear(x - 500);
   rest();
@@ -104,8 +108,10 @@ function build() {
   gear(x - 150);
   rest();
   add(240); swing(x - 120, SHORT, .2, 0); add(COG, 'cog'); add(190, 'hand', { off: 1, len: 190 });
-  teeth([110, 130, 110]); add(120); add(80, 'spring'); gap(260);
-  add(200, 'sand'); gap(40); add(160); swing(x - 80, LONG, .2, .75);
+  // A third lantern, and no pendulum after the sand (owner's playtest, 2026-11-08: too hard).
+  rest();
+  teeth([110, 130, 110]); add(120); add(80, 'spring'); gap(240);
+  add(200, 'sand'); gap(40); add(200);
   gear(x - 60);
   add(120); close();
 
@@ -144,4 +150,6 @@ export function bobAt(p, t) { const a = swingAngle(p, t); return { x: p.x + p.le
 // The angle of a clock hand: flat to the right (0) on its beat, then up, left, down.
 export function handAngle(p, t) { return -2 * Math.PI * (((t / BEAT - p.off) % HAND_BEATS + HAND_BEATS) % HAND_BEATS) / HAND_BEATS; }
 export const handFlat = (p, beat) => ((beat - p.off) % HAND_BEATS + HAND_BEATS) % HAND_BEATS === 0;
-export const toothUp = (p, beat) => (beat % 2 === 0) === (p.kind === 'tick');
+export const isTooth = p => p?.kind === 'tick' || p?.kind === 'tock';
+// shift is the run's escapement phase, set by its first landing on a run of teeth.
+export const toothUp = (p, beat, shift = 0) => ((beat + shift) % 2 === 0) === (p.kind === 'tick');

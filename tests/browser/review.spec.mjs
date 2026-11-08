@@ -37,7 +37,7 @@ test('review: running and delayed 100-HOPS voices end on mute, retry, pause and 
     if(action==='mute') await page.locator('#sound').click();
     if(action==='retry') await page.keyboard.press('r');
     if(action==='pause') await page.keyboard.press('Escape');
-    if(action==='mode') await page.locator('#daily').click();
+    if(action==='mode') await page.locator('#daily').dispatchEvent('click');
     await expect.poll(()=>page.evaluate(i=>window.__voices.slice(i).every(o=>o.ended),begin),{timeout:1000}).toBe(true);
     if(action==='mute') await page.locator('#sound').click();
     if(action==='pause') await page.locator('#action').click();

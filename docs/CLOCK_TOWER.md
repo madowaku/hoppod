@@ -17,12 +17,12 @@ One mechanism a room, each a different reading of the one button. Lanterns save 
 | Room | Mechanism | What it asks |
 |---|---|---|
 | 塔のふもと | none | the hop |
-| 振り子の回廊 | pendulums, two hops per swing. Long ones (330) sweep the floor; short ones (202) only graze the very top of a hop. A hit knocks the hero off | where you are on which beat |
-| 脱進機の歯 | gold teeth stand on even beats, silver on odd. The tooth for the coming landing rises just before it | land on the next tooth every hop |
+| 振り子の回廊 | pendulums, two hops per swing. Long ones (330) sweep the floor; short ones (202) only graze the very top of a hop. A hit knocks the hero off, except in the first quarter of a hop, where the landing has already decided it (owner's playtest, 2026-11-08) | where you are on which beat |
+| 脱進機の歯 | gold and silver teeth take turns standing, one beat each. A run of teeth waits, all up, until the hero steps on it, and ticks from that landing; the first run is one SLOW hop per tooth, so SLOW alone crosses it (owner's playtest, 2026-11-08: arriving on SLOW, the tempo could be wrong from the start). The tooth for the coming landing rises just before it | land on the next tooth every hop |
 | ゼンマイ | a coil makes the next hop 1.8 times as long | wide gaps; SLOW still goes far |
 | 砂時計 | sand holds one landing: stood on, it crumbles from below; left, it falls | never land twice on one slab: wide slabs need FAST |
 | 針の橋 | before each hand, a cog turning backwards: a hop from it is carried back at SLOW's speed, so SLOW hops on the spot and FAST goes on by 165px/s (owner's idea after the second playtest). The cog is 120px, narrower than FAST's 128.7px hop off it, so FAST on four reaches the hand from anywhere on it (Codex review, 2026-11-08). A hand turns a quarter each beat about its pivot and is a bridge only on its beat of four; the bridge shows faintly the beat before. Four lamps, on a post where the ledge begins and under the pivot, fill up to the hand's beat: all four lit means the coming landing is the one. The view moves ahead before a hand | wait on the cog with SLOW, watch the lamps, FAST on four |
-| 機械室 | all of them together | |
+| 機械室 | all of them together; three lanterns, and no pendulum after the last sand (owner's playtest, 2026-11-08: too hard) | |
 | 鐘楼 | stairs to the bell. The last landing strikes it | the ending cannot be missed |
 
 With a climb saved, the title puts CONTINUE first and the other button reads START OVER; nothing is saved before the first lantern, so a mistaken start loses no saved climb. The workshop does the same, and its shared-song links enter the visitor's own saved run.

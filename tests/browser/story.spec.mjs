@@ -19,7 +19,7 @@ const read=page=>page.evaluate(()=>globalThis.__rapippoStoryProbe.read());
 test('FREE RUN links to the stages without changing its own controls',async({page})=>{
   await page.goto('/?mode=free&seed=42');
   await expect(page.locator('#story')).toHaveAttribute('href','select.html?lang=en');
-  await expect(page.locator('#daily')).toBeVisible();await expect(page.locator('#free')).toBeVisible();
+  await expect(page.locator('#daily')).toBeHidden();await expect(page.locator('#free')).toBeVisible(); // DAILY is on hold (owner, 2026-11-07)
 });
 
 test('STORY starts on the beat, pauses without losing phase',async({page})=>{

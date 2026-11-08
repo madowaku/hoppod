@@ -100,8 +100,9 @@ export function drawPlatforms(g, cam, run, s, rings, crumble, assist) {
 }
 function drawTooth(g, p, x, w, run, s, hit, assist) {
   // Up for the beat after this one only near the landing; otherwise up for now.
-  const beat = Math.floor(s / BEAT + 1e-9), k = snapIn(s), nowUp = toothUp(p, beat), thenUp = toothUp(p, beat + 1);
-  const up = assist ? 1 : nowUp * (1 - k) + thenUp * k;
+  // Teeth not yet stepped on wait, all up.
+  const beat = Math.floor(s / BEAT + 1e-9), k = snapIn(s), nowUp = toothUp(p, beat, run.tick), thenUp = toothUp(p, beat + 1, run.tick);
+  const up = assist || run.hopStartX < p.group ? 1 : nowUp * (1 - k) + thenUp * k;
   const [lit, dark] = TOOTH[p.kind], drop = (1 - up) * 18, y = FLOOR + drop;
   rect(g, dark, x + 2, y + 4, w - 4, H - y);
   // A tooth's slanted face, like the escape wheel's.

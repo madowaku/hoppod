@@ -14,6 +14,7 @@ test('the top address opens the stage select in English, before any game code lo
   await expect(page).toHaveURL(/\/select\.html$/);
   expect(await lang(page)).toBe('en');
   await expect(page.locator('#story')).toHaveAttribute('href','story.html?lang=en');
+  await expect(page.locator('#story .first')).toHaveText('START HERE');
   await expect(page.locator('#workshop')).toHaveAttribute('href','workshop.html?lang=en');
   await expect(page.locator('#tower')).toHaveAttribute('href','clocktower.html?lang=en');
   await expect(page.locator('#free')).toHaveAttribute('href','index.html?mode=free&lang=en');
@@ -23,6 +24,7 @@ test('the top address opens the stage select in English, before any game code lo
   expect(await lang(page)).toBe('ja');
   await expect(page.locator('#workshop strong')).toHaveText('星明りの楽器工房');
   await expect(page.locator('#tower strong')).toHaveText('陽周りの時計台');
+  await expect(page.locator('#story .first')).toHaveText('はじめはここから');
   await page.goto('/?lang=zz');await expect(page).toHaveURL(/\/select\.html$/);expect(await lang(page)).toBe('en');
   // Parameters that are not ours (itch.io's build stamp, trackers) never mean FREE RUN.
   for(const [query,to] of [['?v=1785088796','/select.html'],['?v=1785088796&lang=ja','/select.html?lang=ja'],['?utm_source=itch&ref=abc','/select.html'],['?v=4','/select.html']]) {
@@ -75,7 +77,7 @@ test('old FREE RUN and DAILY addresses stay on FREE RUN with the same course',as
     ['?mode=daily&date=2026-10-30&v=1785088796','daily','date','2026-10-30'],
   ]) {
     await page.goto('/'+query);
-    await expect(page.locator('#daily')).toBeVisible();
+    await expect(page.locator('#free')).toBeVisible();
     const url=new URL(page.url());
     expect(url.pathname,query).toBe('/');
     expect(url.searchParams.get('mode'),query).toBe(mode);expect(url.searchParams.get(key),query).toBe(value);

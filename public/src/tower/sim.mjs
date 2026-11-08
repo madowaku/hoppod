@@ -2,9 +2,9 @@
 // timeline it always produces the same run, and a hop always lands on a beat.
 // Every event carries its story time, so its sound can be scheduled ahead.
 import { SLOW_SPEED, FAST_SPEED, PERIOD as BEAT } from '../engine.mjs';
-import { COURSE, platformAt, stationAt, BOOST, bobAt, BOB_HIT, POD_HALF, POD_TOP_INSET, GEAR_Y, GEAR_REACH, GEAR_WINDOW, handFlat, toothUp } from './course.mjs';
+import { COURSE, platformAt, stationAt, BOOST, bobAt, BOB_HIT, POD_HALF, POD_TOP_INSET, GEAR_Y, GEAR_REACH, GEAR_WINDOW, handFlat, toothUp, isTooth } from './course.mjs';
 
-export const FALL_BEATS = 2, ASSIST_FAILS = 3;
+export const FALL_BEATS = 2, ASSIST_FAILS = 3, HIT_FROM = .25;
 // Contact with pendulums and gears is tested on this fixed grid, never per frame.
 const STEP = 1 / 240;
 const FLOOR = 382, LIFT = 2, HOP_H = 96, TOP_REST = 62, TOP_STRETCH = 4;
@@ -15,7 +15,7 @@ export function newRun(course = COURSE) {
   return {
     t: 0, beat: 0, hops: 0, x: course.start, hopStartX: course.start, status: 'playing', station: 0, stationId: course.stations[0].id,
     checkpoint: 0, cpT: 0, fast: false, fallAt: null, fallX: 0, fallKind: null, hitBy: null, dockAt: null, fails: {}, seq: 0,
-    boost: false, cog: false, sandUsed: [], gears: [], lastLand: null,
+    boost: false, cog: false, sandUsed: [], gears: [], lastLand: null, tick: 0,
   };
 }
 // A run as it stands on reaching checkpoint i, at story beat `beat`.
@@ -31,7 +31,8 @@ export function supports(run, course, x, beat) {
   const p = platformAt(x, course);
   if (!p) return null;
   if (assisted(run)) return p;
-  if ((p.kind === 'tick' || p.kind === 'tock') && !toothUp(p, beat)) return null;
+  // Stepping onto a run of teeth from outside it always holds: the escapement starts there.
+  if (isTooth(p) && isTooth(platformAt(run.hopStartX, course)) && !toothUp(p, beat, run.tick)) return null;
   if (p.kind === 'hand' && !handFlat(p, beat)) return null;
   if (p.kind === 'sand' && run.sandUsed.includes(p.i)) return null;
   return p;
@@ -60,7 +61,9 @@ function contacts(run, course, events) {
       run.gears.push(i); events.push({ type: 'gear', gear: i, x: g.x, id: ++run.seq });
     });
   }
-  if (assisted(run)) return;
+  // Nothing hits in the first part of a hop: by then the landing has already decided
+  // where the hero is, so a hit there could not be avoided (owner's playtest, 2026-11-08).
+  if (assisted(run) || phase < HIT_FROM) return;
   for (const [i, p] of course.pendulums.entries()) {
     if (Math.abs(p.x - run.x) > p.length * .4) continue;
     const bob = bobAt(p, run.t);
@@ -92,6 +95,7 @@ function touchdown(run, course, events) {
   const left = platformAt(run.hopStartX, course);
   if (left?.kind === 'sand' && left !== p && !run.sandUsed.includes(left.i)) run.sandUsed.push(left.i);
   if (p.kind === 'sand' && left === p && !assisted(run)) { run.sandUsed.push(p.i); fall(run, 'sand', events); return; }
+  if (isTooth(p) && !isTooth(left)) run.tick = toothUp(p, run.beat) ? 0 : 1;
   run.hopStartX = run.x; run.hops += 1; run.lastLand = p.kind; run.boost = p.kind === 'spring'; run.cog = p.kind === 'cog';
   events.push({ type: 'land', x: run.x, kind: p.kind, platform: p.i, id: ++run.seq });
   if (p.kind === 'spring') events.push({ type: 'spring', x: run.x, id: ++run.seq });
