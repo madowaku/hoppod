@@ -2,10 +2,10 @@
 // read-only (physics constants, footing, pod artwork).
 import { INSET, FAST_SPEED, footing } from '../engine.mjs';
 import { drawPod } from '../pod.mjs';
-import { drawEarth } from '../earth.mjs';
+import { drawSky, drawRanges, drawGlobe, drawGround, drawPit, drawDust, drawShadow, farRidge, blendMood, MOODS, DUST, drawMotes, speck, wobbleLean, leaning, drawCrumbs } from '../scenery.mjs';
 import { COMPANION_PALETTE } from '../companion.mjs';
 import { BEAT, BeatClock, TimedInput, heardFromContext, beatIndex } from './beat.mjs';
-import { COURSE } from './course.mjs';
+import { COURSE, platformAt } from './course.mjs';
 import { newStory, storyFrom, advanceStory, craneSolid, craneWorking, hopLift, bridgeFront, bridgeSegmentAt, RANGE, FOLLOW_GAP, FALL_BEATS, SOCKET_NEAR, BRIDGE_SEGMENTS, CRANE_CLIMB, FIT_BEATS } from './sim.mjs';
 import { createStoryAudio, notesAt, STEP, ENDING } from './music.mjs';
 import { chooseLanguage, withLanguage, storyCopy } from './copy.mjs';
@@ -39,6 +39,9 @@ const BUZZ = { kit: [12], fit: [10, 40, 16], assemble: [18], switch: [24], picku
 function buzz(type) { if (buzzOn && BUZZ[type]) try { navigator.vibrate(BUZZ[type]); } catch { /* ignored */ } }
 
 let cull = 20;
+let dust = [];
+// The last landing that only the edge grace held: { side, at, x }.
+let teeter = null;
 let flashes = [];
 let run, screen = 'start', s = 0, nextStep = 0, particles = [], banner = null, launched = false;
 const perfNow = () => performance.now() / 1000;
@@ -60,7 +63,7 @@ function initialRun() {
 }
 function begin() {
   audio.unlock(); audio.cancel();
-  run = initialRun(); ahead = structuredClone(run); cued.clear(); fallGap = null; zoom = 1; s = 0; heroX = HERO_X; cameraS = 0; particles = []; flashes = []; launched = false; inset = 0; pickupAt = null;
+  run = initialRun(); ahead = structuredClone(run); cued.clear(); fallGap = null; zoom = 1; s = 0; heroX = HERO_X; cameraS = 0; particles = []; dust = []; flashes = []; launched = false; inset = 0; pickupAt = null;
   clock.start(0, perfNow()); input.reset(0, false); nextStep = 0;
   releaseInput(); screen = 'play'; updateHud(); showBanner(run.status === 'docked' ? 'send' : run.chapter);
   get('overlay').hidden = true; get('action').blur();
@@ -84,7 +87,7 @@ function resume() {
   releaseInput(); screen = 'play'; updateHud(); get('overlay').hidden = true; get('action').blur();
 }
 function finish() {
-  screen = 'end'; updateHud(); get('overlay').dataset.screen = 'end'; refreshOverlay(); get('overlay').hidden = false;
+  savePreference('hoppod.story.v1.cleared', '1'); screen = 'end'; updateHud(); get('overlay').dataset.screen = 'end'; refreshOverlay(); get('overlay').hidden = false;
 }
 function releaseInput() {
   pointers.clear(); keys.clear();
@@ -288,7 +291,7 @@ function handle(events) {
   for (const e of events) {
     if (CUES.has(e.type) && !cued.has(eventKey(e))) { audio.cue(cueName(e), e.t > s + .01 ? clock.contextTime(e.t) : null); probeNote('late:' + e.type, audio.context?.currentTime ?? 0, e.t); }
     probeEvent(e); buzz(e.type);
-    if (e.type === 'land') burst(run.x, FLOOR - 4, ['#efdaad', '#8ee6c4'], 6);
+    if (e.type === 'land') { if (!reducedMotion.matches) { dust.push({ x: run.x, at: e.t ?? s }); teeter = e.edge ? { side: e.edge, at: e.t ?? s, x: run.x } : null; } }
     else if (e.type === 'collect') burst(e.x, FLOOR - 10, ['#a9d6ff', '#4f9dff'], 10);
     else if (e.type === 'kit') burst(e.x, FLOOR - 8, e.who === 'green' ? ['#9ff0c4', '#5fe39a'] : ['#ffd2c4', '#ff7f66'], 10);
     else if (e.type === 'fit' || e.type === 'join') flashes.push({ kind: e.type, who: e.who, x: run[e.who].x, at: e.t });
@@ -403,10 +406,10 @@ function drawPlatforms(cam, flat = false) {
     if (r < -cull || l > W + cull || p.kind === 'crane') continue;
     // Seen from the rocket only the lit tops show on the moon's surface.
     if (flat) { ctx.fillStyle = p.kind === 'station' ? '#c9d9ff' : p.kind === 'dock' ? '#ffe3ac' : '#4a636a'; ctx.fillRect(l, FLOOR, r - l, 8); continue; }
-    ctx.fillStyle = '#2e4850'; ctx.fillRect(l, FLOOR, r - l, H);
-    ctx.fillStyle = '#26404a'; ctx.fillRect(l - INSET, FLOOR + 6, INSET, H); ctx.fillRect(r, FLOOR + 6, INSET, H);
-    ctx.fillStyle = p.kind === 'station' ? '#c9d9ff' : p.kind === 'dock' ? '#ffe3ac' : '#a8b7a5'; ctx.fillRect(l, FLOOR, r - l, 6);
-    ctx.fillStyle = '#65858a'; ctx.fillRect(l, FLOOR + 6, r - l, 8);
+    drawGround(ctx, { left: l, right: r, floor: FLOOR, bottom: FLOOR + H, world: p.a, inset: INSET, cap: p.kind === 'station' ? '#c9d9ff' : p.kind === 'dock' ? '#ffe3ac' : undefined });
+    // Small marks along the top, fixed to the ground: they show how fast it passes.
+    ctx.fillStyle = 'rgba(64,78,108,.4)';
+    for (let x = l + 10; x < r - 8; x += 18) ctx.fillRect(x, FLOOR + 3, 2, 2);
   }
 }
 function drawGlints(cam) {
@@ -875,7 +878,15 @@ function drawHero(cam) {
   const phase = (s % BEAT) / BEAT;
   // Docked, the spring presses down once as the legs lock (in the silent beat).
   const lock = docked ? Math.max(0, 1 - Math.abs(after() - TRANSMIT_LOCK) / .12) : 0;
-  drawPod(ctx, x, heroY(), 2, { phase: docked ? 0 : phase, fast: fast() && playing() && !docked, land: docked ? lock : Math.max(0, 1 - phase / .17), time: s, signal: docked ? (heroBlink() ? 1 : 0) : 0 });
+  const moving = run.status === 'playing', held = fast() && playing() && !docked;
+  // Its shadow on the ground under it, where there is ground.
+  if (moving && platformAt(COURSE, run.x, run.beat, { craneDown: b => craneSolid(run, b), bridgeTo: bridgeFront(run, COURSE) })) drawShadow(ctx, x, FLOOR, hopLift(run));
+  // At FAST, a thin afterimage trails behind.
+  if (held && moving && !reducedMotion.matches) for (const [back, a] of [[18, .1], [9, .2]]) { ctx.globalAlpha = a; drawPod(ctx, x - back, heroY(), 2, { phase, fast: true, time: s }); ctx.globalAlpha = 1; }
+  // Held by the very edge: it leans out over the hole and rocks back.
+  if (teeter && moving) drawCrumbs(ctx, teeter.x - cam, FLOOR, teeter.side, s - teeter.at);
+  leaning(ctx, x, heroY(), teeter && moving ? wobbleLean(teeter.side, s - teeter.at) : 0, () =>
+  drawPod(ctx, x, heroY(), 2, { phase: docked ? 0 : phase, fast: fast() && playing() && !docked, land: docked ? lock : Math.max(0, 1 - phase / .17), time: s, signal: docked ? (heroBlink() ? 1 : 0) : 0 }));
   // Docked, the hero becomes the transmitter: legs that lock, ears that rise
   // into an antenna, a light that blinks on every beat although it no longer hops.
   if (docked && after() >= 0) drawTransmit(ctx, x, heroY(), 2, after(), heroBlink());
@@ -903,6 +914,15 @@ function drawCeiling(cam) {
     x ? ctx.lineTo(x, h - lift) : ctx.moveTo(x, h - lift);
   }
   ctx.stroke();
+  // Crystals in the rock answer each touchdown with a glint, and go dim again.
+  const first = Math.floor(cam * .6 / 26);
+  for (let n = first; n < first + 16; n++) {
+    if (speck(n * 7) > .55) continue;
+    const wx = n * 26 + speck(n * 13) * 20, x = wx - cam * .6, h = 128 + Math.sin(wx * .021) * 24 + Math.sin(wx * .083) * 9;
+    ctx.globalAlpha = (1 - open) * (.1 + .7 * touch * (.4 + .6 * speck(n * 17 + beatIndex(s))));
+    ctx.fillStyle = n % 3 ? '#a9d6ff' : '#ffe3ac'; ctx.fillRect(Math.round(x), Math.round(h - lift - 6 - speck(n * 19) * 26), 2, 2);
+  }
+  ctx.globalAlpha = 1;
 }
 function drawDarkness() {
   const open = lightOpen();
@@ -913,14 +933,19 @@ function drawDarkness() {
   const g = ctx.createRadialGradient(gx, gy, r * .35, gx, gy, r);
   g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, `rgba(2,4,6,${.95 * (1 - open)})`);
   ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  // Dust hangs in the hero's light and brightens with each touchdown.
+  drawMotes(ctx, gx, gy, 74, s, touch, 1 - open, reducedMotion.matches);
 }
 function drawScene() {
   const cam = camera();
   drawBackdrop(cam);
-  ctx.fillStyle = '#020406'; ctx.fillRect(0, FLOOR, W, H - FLOOR);
+  drawPit(ctx, { W, floor: FLOOR, bottom: H });
   ctx.save();
   if (zoom < 1) { ctx.translate(0, FLOOR); ctx.scale(zoom, zoom); ctx.translate(0, -FLOOR); cull = W / zoom - W + 20; }
-  drawRange(); drawPlatforms(cam); drawDevices(cam); drawFriends(cam); drawHero(cam); drawKits(cam);
+  drawRange(); drawPlatforms(cam); drawDevices(cam);
+  for (const d of dust) drawDust(ctx, d.x - cam, FLOOR - 2, s - d.at);
+  dust = dust.filter(d => s - d.at < DUST);
+  drawFriends(cam); drawHero(cam); drawKits(cam);
   for (const p of particles) {
     ctx.globalAlpha = Math.max(0, 1 - p.age / .4); ctx.fillStyle = p.color;
     ctx.fillRect(p.x - cam + p.vx * p.age, p.y + p.vy * p.age + 120 * p.age ** 2, 3, 3);
@@ -960,53 +985,36 @@ function drawBluePart(i, x, y, k) {
   }
   ctx.restore();
 }
-function drawBackdrop(cam, alpha = 1) {
-  ctx.fillStyle = '#05080c'; ctx.fillRect(0, 0, W, H);
-  const stars = .25 + .75 * lightOpen();
-  for (let i = 0; i < 60; i++) {
-    const x = ((i * 97 - cam * .06) % 390 + 390) % 390;
-    ctx.fillStyle = i % 7 ? `rgba(82,105,118,${stars})` : `rgba(234,214,164,${stars})`;
-    ctx.fillRect(x | 0, 18 + i * 37 % 260, 2, i % 7 ? 2 : 3);
-  }
-  // Out of the dark: a horizon glow and a far range with lit rims appear only
-  // once blue's light opens. The moon was always this wide.
-  const open = lightOpen() * alpha;
+// Each chapter has its own hour on the horizon: the cool night of the first
+// meetings, violet where red goes back alone, and the warm lights of the base.
+const CHAPTER_MOOD = { wake: MOODS.night, apart: MOODS.night, rescue: MOODS.violet, base: MOODS.ember, send: MOODS.ember };
+function moodAt(x) {
+  let mood = CHAPTER_MOOD[COURSE.chapters[0].id];
+  for (const ch of COURSE.chapters) { const k = smooth(ch.x - 500, ch.x + 500, x); if (k > 0) mood = blendMood(mood, CHAPTER_MOOD[ch.id], k); }
+  return mood;
+}
+function drawBackdrop(cam) {
+  // Out of the dark: the sky's colour, the galaxy, Earth and the far range
+  // with its lit crest appear only once blue's light opens. The moon was
+  // always this wide.
+  const open = lightOpen(), still = reducedMotion.matches, mood = moodAt(cam + HERO_X);
+  drawSky(ctx, { W, horizon: FLOOR, cam, time: s, open, still, mood });
   if (open > 0) {
-    const sky = ctx.createLinearGradient(0, 150, 0, FLOOR);
-    sky.addColorStop(0, 'rgba(40,70,100,0)'); sky.addColorStop(1, `rgba(60,100,140,${.35 * open})`);
-    ctx.fillStyle = sky; ctx.fillRect(0, 150, W, FLOOR - 150);
-    for (let x = -40; x < W + 40; x += 4) {
-      const wx = x + cam * .015, h = 50 + Math.sin(wx * .011) * 28 + Math.sin(wx * .037) * 10;
-      ctx.fillStyle = `rgba(22,38,50,${open})`; ctx.fillRect(x, FLOOR - 40 - h, 4, h);
-      ctx.fillStyle = `rgba(150,190,220,${.45 * open})`; ctx.fillRect(x, FLOOR - 40 - h, 4, 1);
-    }
     // Earth hangs over the far range: hidden by the rock ceiling until blue's
     // light lifts it, then there for the rest of the journey and the launch.
-    ctx.globalAlpha = open; drawEarth(ctx, 262 - Math.min(30, cam * .001), 74, 20, s); ctx.globalAlpha = 1;
+    ctx.globalAlpha = open; drawGlobe(ctx, 262 - Math.min(30, cam * .001), 78, 26, still ? 0 : s); ctx.globalAlpha = 1;
+  }
+  drawRanges(ctx, { W, floor: FLOOR, cam, time: s, open, still, mood });
+  if (open > 0) {
     // On the far ridge, the base's lights: where this road goes. Nearly at
     // infinity, they drift only a few pixels over the whole journey.
     for (const [i, x0] of [[0, 268], [1, 281], [2, 302]]) {
-      const x = x0 - Math.min(40, cam * .0014), wx = x + cam * .015, ridge = FLOOR - 40 - (50 + Math.sin(wx * .011) * 28 + Math.sin(wx * .037) * 10);
+      const x = x0 - Math.min(40, cam * .0014), ridge = FLOOR - 40 - farRidge(x + cam * .015);
       ctx.globalAlpha = open * (.45 + .4 * Math.sin(s * 1.3 + i * 2)); ctx.fillStyle = i === 1 ? '#ffe3ac' : '#bfe6ff';
       ctx.fillRect(x | 0, (ridge | 0) - 3, 2, 2);
     }
     ctx.globalAlpha = 1;
   }
-  ctx.globalAlpha = alpha;
-  for (let layer = 0; layer < 2; layer++) {
-    ctx.fillStyle = layer ? '#14242e' : '#101d26';
-    for (let x = -28; x < W + 28; x += 28) {
-      const h = 18 + (Math.sin((x + cam * (.04 + layer * .03)) * .025) + 1) * (22 + layer * 10);
-      ctx.fillRect(x, FLOOR - h, 29, h);
-    }
-  }
-  // The near plain is pocked with craters: bowls with a lit far rim.
-  for (let i = -1; i < 7; i++) {
-    const span = 70, x = ((i * span - cam * .07) % (span * 7) + span * 7) % (span * 7) - span, w = 14 + (i * 37 % 5) * 5, y = FLOOR - 10 - (i * 13 % 3) * 5;
-    ctx.fillStyle = '#0c161d'; ctx.beginPath(); ctx.ellipse(x, y, w, w * .22, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = `rgba(120,150,165,${.12 + .2 * lightOpen()})`; ctx.fillRect(x - w * .6, y + w * .2 - 1, w * 1.2, 1);
-  }
-  ctx.globalAlpha = 1;
 }
 // The ending: the view settles on the whole base, follows the rocket up,
 // dips, and opens again in the rocket's window looking back at the base. The

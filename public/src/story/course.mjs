@@ -123,10 +123,21 @@ export function buildCourse() {
 
 export const COURSE = buildCourse();
 
+// A landing is judged at the hero's centre, but its foot is 28px wide: a
+// centre just past the lit top still has most of the foot on the rock. So a
+// landing up to EDGE_GRACE px beyond the lit top holds (the hero wobbles and
+// stays). STORY only: FREE RUN keeps the exact footing its records were set on.
+export const EDGE_GRACE = 10;
+// -1 or 1 when x is held only by that grace, on the left or right edge; else 0.
+export function edgeSide(p, x) {
+  if (!p || p.kind === 'bridge') return 0;
+  const [left, right] = footing([p.a, p.b]);
+  return x < left ? -1 : x > right ? 1 : 0;
+}
 export function platformAt(course, x, beat = 0, flags = {}) {
   for (const p of course.platforms) {
     const [left, right] = footing([p.a, p.b]);
-    if (x < left - 1e-8 || x > right + 1e-8) continue;
+    if (x < left - EDGE_GRACE - 1e-8 || x > right + EDGE_GRACE + 1e-8) continue;
     if (p.kind === 'crane' && !flags.craneDown?.(beat)) continue;
     return p;
   }

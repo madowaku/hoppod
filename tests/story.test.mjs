@@ -279,9 +279,10 @@ test('falling returns to the checkpoint on a beat and keeps friends and parts', 
   const run = newStory(COURSE);
   while (run.parts.got < 2) hop(run, COURSE, witness.path[run.beat]);
   const cp = run.checkpoint, log = [];
-  for (let k = 0; k < 12 && !log.some(e => e.type === 'respawn'); k++) log.push(...hop(run, COURSE, 1));
+  for (let k = 0; k < 12 && !log.some(e => e.type === 'respawn'); k++) log.push(...hop(run, COURSE, 0));
   const respawn = log.find(e => e.type === 'respawn');
-  assert.ok(respawn, 'FAST into the dark eventually falls and respawns');
+  // SLOW alone: with the edge grace FAST alone now gets through lesson three.
+  assert.ok(respawn, 'SLOW into the wide gaps falls and respawns');
   assert.equal(run.parts.got >= 2, true);
   assert.equal(run.x, COURSE.checkpoints[run.checkpoint].x);
   assert.ok(run.checkpoint >= cp);

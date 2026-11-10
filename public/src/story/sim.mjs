@@ -3,7 +3,7 @@
 // (k × BEAT), so the hero's touchdowns are the music's pulse.
 import { SLOW_SPEED, FAST_SPEED } from '../engine.mjs';
 import { BEAT } from './beat.mjs';
-import { platformAt, chapterAt, platformAhead } from './course.mjs';
+import { platformAt, chapterAt, platformAhead, edgeSide } from './course.mjs';
 
 // Communication range from the hero's antenna. A friend that drifts beyond it
 // loses the signal and stops; nobody is ever commanded. Small enough that the
@@ -127,7 +127,7 @@ function touchdown(run, course, events) {
 
 function land(run, course, p, events) {
   run.hops += 1; run.hopStartX = run.x;
-  events.push({ type: 'land', kind: p.kind, x: run.x, beat: run.beat });
+  events.push({ type: 'land', kind: p.kind, x: run.x, beat: run.beat, edge: edgeSide(p, run.x) });
   const cps = course.checkpoints;
   while (run.checkpoint + 1 < cps.length && run.x >= cps[run.checkpoint + 1].from) {
     run.checkpoint += 1; events.push({ type: 'checkpoint', index: run.checkpoint });

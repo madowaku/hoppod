@@ -2,7 +2,7 @@
 // timeline it always produces the same run, and a hop always lands on a beat.
 // Every event carries its story time, so its sound can be scheduled ahead.
 import { SLOW_SPEED, FAST_SPEED, PERIOD as BEAT } from '../engine.mjs';
-import { COURSE, platformAt, stationAt, BOOST, bobAt, BOB_HIT, POD_HALF, POD_TOP_INSET, GEAR_Y, GEAR_REACH, GEAR_WINDOW, handFlat, toothUp, isTooth } from './course.mjs';
+import { COURSE, platformAt, stationAt, BOOST, bobAt, BOB_HIT, POD_HALF, POD_TOP_INSET, GEAR_Y, GEAR_REACH, GEAR_WINDOW, handFlat, toothUp, isTooth, edgeSide } from './course.mjs';
 
 export const FALL_BEATS = 2, ASSIST_FAILS = 3, HIT_FROM = .25;
 // Contact with pendulums and gears is tested on this fixed grid, never per frame.
@@ -97,7 +97,7 @@ function touchdown(run, course, events) {
   if (p.kind === 'sand' && left === p && !assisted(run)) { run.sandUsed.push(p.i); fall(run, 'sand', events); return; }
   if (isTooth(p) && !isTooth(left)) run.tick = toothUp(p, run.beat) ? 0 : 1;
   run.hopStartX = run.x; run.hops += 1; run.lastLand = p.kind; run.boost = p.kind === 'spring'; run.cog = p.kind === 'cog';
-  events.push({ type: 'land', x: run.x, kind: p.kind, platform: p.i, id: ++run.seq });
+  events.push({ type: 'land', x: run.x, kind: p.kind, platform: p.i, edge: edgeSide(p, run.x), id: ++run.seq });
   if (p.kind === 'spring') events.push({ type: 'spring', x: run.x, id: ++run.seq });
   const was = run.station, st = stationAt(run.x, course);
   if (course.stations[was].id !== st.id) { run.station = course.stations.indexOf(st); run.stationId = st.id; events.push({ type: 'station', id: st.id }); }

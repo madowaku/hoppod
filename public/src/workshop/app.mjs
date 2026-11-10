@@ -2,6 +2,7 @@
 // The rules live in sim.mjs and arrange.mjs; drawing lives in draw.mjs.
 import { PERIOD as BEAT } from '../engine.mjs';
 import { drawPod } from '../pod.mjs';
+import { wobbleLean, leaning, drawCrumbs } from '../scenery.mjs';
 import { BeatClock, TimedInput, heardFromContext, beatIndex } from '../story/beat.mjs';
 import { COURSE, stationAt, heightAt, rodLean, ROD_LENGTH, CART_HALF, CART_SPEED } from './course.mjs';
 import { newRun, runFrom, advance, cloneRun, cartTarget, FALL_BEATS } from './sim.mjs';
@@ -45,6 +46,7 @@ let saved = loadSave();
 // Modes: title → play → (ending) → end card; free: the unlocked free play.
 let screen = 'start', mode = 'play', run = newRun(), ahead = null, s = 0, nextStep = 0, banner = null;
 let cam = 0, camDelta = 0;
+let teeter = null;
 const rings = new Map(), plucks = new Map(), particles = [];
 const cued = new Set();
 let finaleT0 = null, flash = {}, echoes = {}, heardParts = new Set(), scheduledBar = new Map(), bursts = [];
@@ -338,7 +340,7 @@ function handle(events) {
     if (e.platform !== undefined) rings.set(e.platform, e.t ?? s);
     if (e.string !== undefined && e.part === 'harp') plucks.set(e.string, e.t ?? s);
     if (e.string !== undefined && e.part === 'strings') plucks.set('s' + e.string, e.t ?? s);
-    if (e.type === 'land' && !reducedMotion.matches) particles.push({ x: run.x, age: 0 });
+    if (e.type === 'land' && !reducedMotion.matches) { particles.push({ x: run.x, age: 0 }); teeter = e.edge ? { side: e.edge, at: e.t ?? s, x: run.x, y: null } : null; }
     if (e.type === 'reed') { if (e.on) audio.reedOn(e.midi); else audio.reedOff(); }
     if (e.type === 'board') { audio.slideOn(brassPitch(0)); audio.couple(when(e.t ?? s)); showHint('cartHint'); }
     if (e.type === 'note' && e.slide) { audio.slideTo(e.midi, 1); bellAt = e.t ?? s; }
@@ -440,7 +442,10 @@ function drawWorld() {
     for (const c of crashes) crashRing(ctx, c.x - cam, s - c.at);
     drawPlatforms(ctx, cam, run, s, rings, dark);
   }
-  drawPod(ctx, screenX, hero.y, 2, { phase: hero.phase, land: hero.land, fast: input.fast, time: s, dead: hero.dead });
+  // Held by the very edge: it leans out over the hole and rocks back.
+  const lean = teeter && run.status === 'playing' ? wobbleLean(teeter.side, s - teeter.at) : 0;
+  if (teeter && run.status === 'playing') { teeter.y ??= hero.y; drawCrumbs(ctx, teeter.x - cam, teeter.y, teeter.side, s - teeter.at); }
+  leaning(ctx, screenX, hero.y, lean, () => drawPod(ctx, screenX, hero.y, 2, { phase: hero.phase, land: hero.land, fast: input.fast, time: s, dead: hero.dead }));
   // The band so far, along the top: who is awake, and who just sounded.
   drawBand(ctx, flash, s, new Set(PARTS.filter(p => run.recording[p])), 24, .55);
   drawHints();

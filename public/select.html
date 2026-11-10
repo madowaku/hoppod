@@ -3,34 +3,59 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#0b0a14">
+<meta name="theme-color" content="#060a18">
 <meta name="description" content="RAPIPPO: one button, one beat, four places on the moon. Choose where to hop.">
 <title>RAPIPPO | STAGES</title>
+<meta property="og:type" content="website">
+<meta property="og:title" content="RAPIPPO | ONE MORE HOP!">
+<meta property="og:description" content="ボタンひとつ、拍ひとつ。月面を跳ねて、仲間に出会い、音を奏でよう。">
+<meta property="og:url" content="https://hoppod-story-jam-02.cacao-ixora-coccinea.workers.dev/">
+<meta property="og:image" content="https://hoppod-story-jam-02.cacao-ixora-coccinea.workers.dev/rapippo-og.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="630">
+<meta property="og:image:height" content="500">
+<meta property="og:image:alt" content="星空と地球を背に、ラピッポと仲間たちが月面を跳ねるイラスト">
+<meta name="twitter:card" content="summary">
 <link rel="icon" href="./icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="./select.css">
 </head>
 <body>
+<div class="scene" aria-hidden="true">
+  <svg class="earth" viewBox="0 0 64 64"><defs><clipPath id="disc"><circle cx="32" cy="32" r="22"/></clipPath><radialGradient id="halo"><stop offset=".55" stop-color="#5692ff" stop-opacity=".45"/><stop offset="1" stop-color="#5692ff" stop-opacity="0"/></radialGradient></defs><circle cx="32" cy="32" r="32" fill="url(#halo)"/><g clip-path="url(#disc)" shape-rendering="crispEdges"><rect width="64" height="64" fill="#2c68ba"/><path d="M14 16h12v4h6v6h-4v6h-8v-4h-6zM34 30h10v4h4v10h-6v4h-8v-8h-4v-6h4zM44 14h8v6h-8z" fill="#60a668"/><path d="M12 26h14v3H12zM30 20h16v3H30zM24 44h14v3H24zM40 38h12v3H40z" fill="#e8f2ff"/><circle cx="48" cy="40" r="26" fill="#050c1a" opacity=".5"/></g><path d="M16.4 47.6A22 22 0 0 1 47.6 16.4" fill="none" stroke="#96c8ff" stroke-opacity=".6" stroke-width="1.5"/></svg>
+  <svg class="ridge" viewBox="0 0 460 120" preserveAspectRatio="none"><path d="M0 120V62q40-30 86-12t80-14 74 20 96-26 124 22v68z" fill="#1a2748"/><path d="M0 62q40-30 86-12t80-14 74 20 96-26 124 22" fill="none" stroke="#5f80b8" stroke-width="1.2"/><path d="M0 120V92q60-26 120-8t110-10 100 14 130-16v48z" fill="#0f1830"/><ellipse cx="96" cy="108" rx="34" ry="5" fill="#0a1124"/><ellipse cx="330" cy="104" rx="46" ry="6" fill="#0a1124"/></svg>
+</div>
 <main>
   <header>
     <h1>RAPIPPO<span aria-hidden="true">✦</span></h1>
     <p id="tagline"></p>
   </header>
+  <section class="how" aria-labelledby="how-line">
+    <svg viewBox="0 0 300 70" aria-hidden="true">
+      <path d="M8 56h92M132 56h56M228 56h64" stroke="#dfe5d6" stroke-width="5"/>
+      <path d="M40 50Q96 -14 152 50" fill="none" stroke="#8ee6c4" stroke-width="2.5" stroke-dasharray="1 6" stroke-linecap="round"/>
+      <path d="M40 50Q148 -44 256 50" fill="none" stroke="#ffb07a" stroke-width="2.5" stroke-dasharray="7 6" stroke-linecap="round"/>
+      <g shape-rendering="crispEdges"><rect x="34" y="27" width="3" height="9" fill="#fff0d0"/><rect x="43" y="27" width="3" height="9" fill="#fff0d0"/><rect x="35" y="29" width="1" height="4" fill="#ff9161"/><rect x="44" y="29" width="1" height="4" fill="#ff9161"/><rect x="31" y="35" width="18" height="14" rx="5" fill="#fff0d0"/><rect x="34" y="39" width="12" height="7" rx="2" fill="#172638"/><rect x="36" y="41" width="2" height="3" fill="#ffe38e"/><rect x="42" y="41" width="2" height="3" fill="#ffe38e"/><rect x="36" y="50" width="8" height="1" fill="#f9d49c"/><rect x="35" y="52" width="10" height="1" fill="#6e8795"/></g>
+      <circle cx="152" cy="50" r="3.5" fill="#8ee6c4"/><circle cx="256" cy="50" r="3.5" fill="#ffb07a"/>
+    </svg>
+    <p id="how-line"></p>
+    <p class="keys"><span class="slow"><i></i><b id="how-slow"></b></span><span class="fast"><i></i><b id="how-fast"></b></span></p>
+  </section>
   <nav aria-labelledby="tagline">
-    <a id="story" class="stage" href="./story.html">
+    <a id="story" class="stage primary" href="./story.html">
       <svg viewBox="0 0 56 56" aria-hidden="true"><circle cx="28" cy="28" r="27" fill="#14243a"/><path d="M36 11a18 18 0 1 0 9 26 15 15 0 0 1-9-26z" fill="#f4e3ae"/><circle cx="17" cy="15" r="1.5" fill="#fff"/><circle cx="13" cy="35" r="1" fill="#fff"/></svg>
-      <span><em id="first" class="first"></em><strong></strong><small></small></span>
+      <span><em id="first" class="first"></em><strong></strong><small></small><i class="meta"></i></span><b class="go" aria-hidden="true">›</b>
     </a>
-    <a id="workshop" class="stage feature" href="./workshop.html">
+    <a id="workshop" class="stage" href="./workshop.html">
       <svg viewBox="0 0 56 56" aria-hidden="true"><circle cx="28" cy="28" r="27" fill="#3a2614"/><path d="M19 47l6-34h6l6 34z" fill="#8a5b2c"/><path d="M28 43L38 10" stroke="#ffe6aa" stroke-width="2.5" stroke-linecap="round"/><rect x="31" y="17" width="9" height="6" rx="1.5" fill="#f2b84b" transform="rotate(17 35 20)"/></svg>
-      <span><strong></strong><small></small></span>
+      <span><strong></strong><small></small><i class="meta"></i></span><b class="go" aria-hidden="true">›</b>
     </a>
     <a id="tower" class="stage" href="./clocktower.html">
       <svg viewBox="0 0 56 56" aria-hidden="true"><circle cx="28" cy="28" r="27" fill="#2c2438"/><circle cx="28" cy="28" r="15" fill="#fff0d0"/><path d="M28 28V17M28 28l8 4" stroke="#2c2438" stroke-width="2.6" stroke-linecap="round"/></svg>
-      <span><strong></strong><small></small></span>
+      <span><strong></strong><small></small><i class="meta"></i></span><b class="go" aria-hidden="true">›</b>
     </a>
     <a id="free" class="stage" href="./index.html?mode=free">
       <svg viewBox="0 0 56 56" aria-hidden="true"><circle cx="28" cy="28" r="27" fill="#101f2c"/><path d="M6 38h12v5H6zM23 33h12v10H23zM40 38h11v5H40z" fill="#7fa8a8"/><path d="M11 30q9-17 18-2t16 2" fill="none" stroke="#ffd27a" stroke-width="2.4" stroke-dasharray="3 4" stroke-linecap="round"/></svg>
-      <span><strong></strong><small></small></span>
+      <span><strong></strong><small></small><i class="meta"></i></span><b class="go" aria-hidden="true">›</b>
     </a>
   </nav>
   <button id="language" type="button"></button>

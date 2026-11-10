@@ -132,12 +132,26 @@ export const stationAt = x => {
 export const stationIndex = id => COURSE.stations.findIndex(s => s.id === id);
 // The part of a platform that takes a landing.
 export const landingSpan = p => [p.a + (p.rimL ? INSET : 0), p.b - (p.rimR ? INSET : 0)];
+// A landing is judged at the hero's centre, but its foot is 28px wide: a
+// centre just past the lit top still has most of the foot on the platform. So
+// at an edge with a rim (one that drops into a hole) a landing up to
+// EDGE_GRACE px beyond the lit top holds: the hero wobbles and stays.
+export const EDGE_GRACE = 10;
+const holds = (p, x) => { const [a, b] = landingSpan(p); return x >= a - (p.rimL ? EDGE_GRACE : 0) - 1e-9 && x <= b + (p.rimR ? EDGE_GRACE : 0) + 1e-9; };
+// -1 or 1 when x is held only by that grace, on the left or right edge; else 0.
+export function edgeSide(p, x) {
+  if (!p || p.a === undefined) return 0;
+  const [a, b] = landingSpan(p);
+  return x < a ? -1 : x > b ? 1 : 0;
+}
 export function platformAt(x, course = COURSE) {
   let low = 0, high = course.platforms.length - 1;
   while (low <= high) {
     const mid = (low + high) >> 1, p = course.platforms[mid];
-    if (x < p.a) high = mid - 1; else if (x >= p.b) low = mid + 1; else { const [a, b] = landingSpan(p); return x >= a - 1e-9 && x <= b + 1e-9 ? p : null; }
+    if (x < p.a) high = mid - 1; else if (x >= p.b) low = mid + 1; else return holds(p, x) ? p : null;
   }
+  // Just past a rim: the platform on either side may still hold it.
+  for (const p of [course.platforms[high], course.platforms[low]]) if (p && holds(p, x)) return p;
   return null;
 }
 // The rod leans to meet the hero: back towards the climb, then along with the

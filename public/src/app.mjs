@@ -1,6 +1,7 @@
 import { PERIOD, INSET, COURSE_VERSION, Terrain, newRun, advance, isSafe, predictLanding, landingMiss, footing } from './engine.mjs';
 import { resolveRun, jstDate, shareUrl } from './links.mjs';
 import { drawPod } from './pod.mjs';
+import { drawSky, drawRanges, drawGlobe, drawGround, MOODS } from './scenery.mjs';
 import { EARTH_PEEK, earthRise, earthCenterY, earthLabel, drawEarth } from './earth.mjs';
 import { createAudio, milestoneTier } from './audio.mjs';
 import { COMPANION_LAG, COMPANION_GAP, ASSEMBLE_GATHER, ASSEMBLE_FLASH, ASSEMBLE_BOOT, companionBell, companionPhase, companionLift, gatherBlend } from './companion.mjs';
@@ -254,46 +255,40 @@ get('save').addEventListener('click', () => {
 
 function draw(now) {
   const offset = state.x - HERO_X, screen = x => Math.round(x - offset), dead = state.status === 'dead';
-  ctx.fillStyle = '#101f2c'; ctx.fillRect(0, 0, W, H);
-  for (let i = 0; i < 44; i++) {
-    const x = ((i * 97 - offset * .09) % 390 + 390) % 390;
-    ctx.fillStyle = i % 7 ? '#526976' : '#ead6a4'; ctx.fillRect(x | 0, 22 + i * 37 % 220, 2, i % 7 ? 2 : 3);
-  }
+  // The far side starts dark: the sky's colour opens as Earth's glow nears.
+  const sky = earthRise(state.x), still = reducedMotion.matches, open = .4 + .6 * sky.glow;
+  // No blue-tinted stars here: before Earthrise nothing in this sky is blue.
+  drawSky(ctx, { W, horizon: FLOOR, cam: offset * 1.5, time: now, open, still, mood: MOODS.teal, cool: false });
   // Earth rises from behind the ridges as the pod travels toward the near side.
-  const sky = earthRise(state.x);
   if (sky.glow > 0) {
     const glow = ctx.createRadialGradient(EARTH_X, EARTH_HORIZON, 0, EARTH_X, EARTH_HORIZON, 170);
     glow.addColorStop(0, `rgba(110, 172, 240, ${.42 * sky.glow * (1 - sky.climb * .6)})`); glow.addColorStop(1, 'rgba(110, 172, 240, 0)');
     ctx.fillStyle = glow; ctx.fillRect(0, 0, W, FLOOR);
   }
-  if (state.x >= EARTH_PEEK) drawEarth(ctx, EARTH_X, earthCenterY(sky, EARTH_HORIZON, EARTH_R, EARTH_TOP), EARTH_R, now);
+  if (state.x >= EARTH_PEEK) drawGlobe(ctx, EARTH_X, earthCenterY(sky, EARTH_HORIZON, EARTH_R, EARTH_TOP), EARTH_R, still ? 0 : now);
   // The far lunar horizon, just above the tallest ridge: Earth rises from it.
-  ctx.fillStyle = '#0d1a24';
+  const far = ctx.createLinearGradient(0, EARTH_HORIZON, 0, FLOOR);
+  far.addColorStop(0, '#0f1c2c'); far.addColorStop(1, `rgb(${16 + 10 * open | 0},${30 + 22 * open | 0},${44 + 30 * open | 0})`);
+  ctx.fillStyle = far;
   for (let x = -12; x < W + 12; x += 12) ctx.fillRect(x, EARTH_HORIZON + Math.round(Math.sin((x + offset * .012) * .05) * 1.5), 13, FLOOR - EARTH_HORIZON);
-  // Distant ridges end at the floor line. Below it is the pit void, so only
+  ctx.fillStyle = `rgba(96,150,178,${.2 + .3 * sky.glow})`;
+  for (let x = -12; x < W + 12; x += 12) ctx.fillRect(x, EARTH_HORIZON + Math.round(Math.sin((x + offset * .012) * .05) * 1.5), 13, 1);
+  // Nearer ranges end at the floor line. Below it is the pit void, so only
   // real platforms are ever drawn at ground level.
-  for (let layer = 0; layer < 2; layer++) {
-    ctx.fillStyle = layer ? '#172d38' : '#132532';
-    for (let x = -28; x < W + 28; x += 28) {
-      const height = 20 + (Math.sin((x + offset * (.04 + layer * .03)) * .025) + 1) * (24 + layer * 10);
-      ctx.fillRect(x, FLOOR - height, 29, height);
-    }
-  }
+  drawRanges(ctx, { W, floor: FLOOR, cam: offset, time: now, open, still, mood: MOODS.teal, far: false });
   ctx.fillStyle = '#04080c'; ctx.fillRect(0, FLOOR, W, H - FLOOR);
   for (const platform of terrain.platforms) {
     const [a, b] = platform, [left, right] = footing(platform);
     const x = screen(a), end = screen(b), l = screen(left), r = screen(right); if (end < 0 || x > W) continue;
     // Lit flat top = collision footing. The INSET rims step down into the pit.
-    ctx.fillStyle = '#2e4850'; ctx.fillRect(l, FLOOR, r - l, H - FLOOR);
+    // The top six rows keep their one flat colour: they are the footing.
+    drawGround(ctx, { left: l, right: r, floor: FLOOR, bottom: H, world: a, cap: '#a8b7a5' });
+    ctx.fillStyle = '#a8b7a5'; ctx.fillRect(l, FLOOR, r - l, 1);
     for (let k = 0; k < INSET / 2; k++) {
       const drop = 3 + k * 3;
-      ctx.fillStyle = '#26404a'; ctx.fillRect(l - 2 - k * 2, FLOOR + drop, 2, H); ctx.fillRect(r + k * 2, FLOOR + drop, 2, H);
-      ctx.fillStyle = '#56737a'; ctx.fillRect(l - 2 - k * 2, FLOOR + drop, 2, 2); ctx.fillRect(r + k * 2, FLOOR + drop, 2, 2);
+      ctx.fillStyle = '#243049'; ctx.fillRect(l - 2 - k * 2, FLOOR + drop, 2, H); ctx.fillRect(r + k * 2, FLOOR + drop, 2, H);
+      ctx.fillStyle = '#5b6c8e'; ctx.fillRect(l - 2 - k * 2, FLOOR + drop, 2, 2); ctx.fillRect(r + k * 2, FLOOR + drop, 2, 2);
     }
-    ctx.fillStyle = '#a8b7a5'; ctx.fillRect(l, FLOOR, r - l, 6);
-    ctx.fillStyle = '#65858a'; ctx.fillRect(l, FLOOR + 6, r - l, 8);
-    ctx.fillStyle = '#42616a';
-    for (let tx = left + 5; tx < right - 6; tx += 24) ctx.fillRect(screen(tx), FLOOR + 27 + Math.round(tx) % 19, 6, 3);
     ctx.fillStyle = '#edcf98'; ctx.fillRect(l, FLOOR, 2, 5); ctx.fillRect(r - 2, FLOOR, 2, 5);
   }
   // The active part rests on the footing with a soft blue glow.

@@ -2,7 +2,7 @@
 // input timeline it always produces the same run, and a hop always lands on a
 // beat. Every event carries its story time, so its sound can be scheduled ahead.
 import { SLOW_SPEED, FAST_SPEED, PERIOD as BEAT } from '../engine.mjs';
-import { COURSE, platformAt, stationAt, STRING_SPACING, HARP_WINDOW, STRING_WINDOW, STRING_REACH, CART_SPEED, CART_FOOT, CART_HALF, BARE_TICK, RUNG_TICKS, U } from './course.mjs';
+import { COURSE, platformAt, stationAt, STRING_SPACING, HARP_WINDOW, STRING_WINDOW, STRING_REACH, CART_SPEED, CART_FOOT, CART_HALF, BARE_TICK, RUNG_TICKS, U, edgeSide } from './course.mjs';
 import { liveNote, keyPitch, STRING_NOTES, WOOD_MOTIF, makeTake, harpRun, chordAtBar, nearest, brassPitch } from './arrange.mjs';
 
 export const FALL_BEATS = 2, GRACE = .12, ASSIST_FAILS = 3, GUARD_FAILS = 2, LIGHT_BEATS = 4;
@@ -180,7 +180,7 @@ function touchdown(run, course, events) {
   const support = supports(run, course, run.x);
   if (!support) { fall(run, events); return; }
   run.hopStartX = run.x; run.hops += 1; run.fastInHop = 0; run.lastLand = support.kind;
-  events.push({ type: 'land', x: run.x, kind: support.kind, id: ++run.seq });
+  events.push({ type: 'land', x: run.x, kind: support.kind, edge: edgeSide(support, run.x), id: ++run.seq });
   const was = run.station, station = stationAt(run.x);
   land(run, course, support, k, events);
   if (course.stations[was].id !== station.id) enter(run, course, was, station, events);

@@ -2,6 +2,7 @@
 // in sim.mjs and course.mjs; drawing lives in draw.mjs.
 import { PERIOD as BEAT } from '../engine.mjs';
 import { drawPod } from '../pod.mjs';
+import { wobbleLean, leaning, drawCrumbs } from '../scenery.mjs';
 import { BeatClock, TimedInput, heardFromContext, beatIndex } from '../story/beat.mjs';
 import { createWorkshopAudio } from '../workshop/audio.mjs';
 import { COURSE, stationAt, heightAt, STATIONS } from './course.mjs';
@@ -44,6 +45,7 @@ function loadSave() {
 let saved = loadSave();
 
 let screen = 'start', run = newRun(), ahead = run, s = 0, nextStep = 0, banner = null, cam = 0, camDelta = 0;
+let teeter = null;
 const rings = new Map(), crumble = new Map(), gotAt = new Map(), litLanterns = new Set(), cued = new Set(), particles = [];
 let hint = null, assistShown = -1, lockAt = null, finaleT0 = null, cardShown = false, rangAt = -9, bursts = [];
 const perfNow = () => performance.now() / 1000;
@@ -260,7 +262,7 @@ function handle(events) {
     probeEvent(e); buzz(e.type);
     if (e.type === 'land') {
       rings.set(e.platform, e.t ?? s);
-      if (!reducedMotion.matches) particles.push({ x: e.x, at: e.t ?? s });
+      if (!reducedMotion.matches) { particles.push({ x: e.x, at: e.t ?? s }); teeter = e.edge ? { side: e.edge, at: e.t ?? s, x: e.x } : null; }
       for (const i of run.sandUsed) if (!crumble.has(i)) crumble.set(i, e.t ?? s);
     }
     if (e.type === 'gear') gotAt.set(e.gear, e.t ?? s);
@@ -328,7 +330,10 @@ function drawWorld() {
   // A coil's hop leaves a short trail.
   if (run.boost && run.status === 'playing' && !reduced) for (let k = 1; k <= 3; k++) { ctx.globalAlpha = .25 / k; drawPod(ctx, screenX - k * 14, hero.y + k * 3, 2, { phase: hero.phase, time: s }); }
   ctx.globalAlpha = 1;
-  drawPod(ctx, screenX, hero.y, 2, { phase: hero.phase, land: hero.land, fast: input.fast, time: s, dead: hero.dead });
+  // Held by the very edge: it leans out over the hole and rocks back.
+  const lean = teeter && run.status === 'playing' ? wobbleLean(teeter.side, s - teeter.at) : 0;
+  if (teeter && run.status === 'playing') drawCrumbs(ctx, teeter.x - cam, FLOOR - heightAt(teeter.x), teeter.side, s - teeter.at);
+  leaning(ctx, screenX, hero.y, lean, () => drawPod(ctx, screenX, hero.y, 2, { phase: hero.phase, land: hero.land, fast: input.fast, time: s, dead: hero.dead }));
   for (const b of bursts) drawBurst(ctx, b.x - cam, b.y, s - b.at, b.power, reduced);
   drawHud();
   drawHints();
