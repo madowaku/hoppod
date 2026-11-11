@@ -73,7 +73,10 @@ function build() {
   // 3. The mainspring: land on a coil and the next hop carries 1.8 times as far.
   station('spring'); checkpoint();
   add(270);
-  for (const [lead, w, g] of [[60, 70, 190], [60, 90, 120], [40, 70, 250], [60, 80, 170]]) { add(lead + 80); add(w, 'spring'); gap(g); }
+  // First two wide coils with a long landing after each: the coil is hard to miss and
+  // the long hop it gives is hard to waste. Then the coils narrow.
+  for (const [w, g, land] of [[170, 130, 380], [150, 150, 360]]) { add(140); add(w, 'spring'); gap(g); add(land); }
+  for (const [lead, w, g] of [[60, 110, 190], [60, 110, 120], [40, 90, 250], [60, 100, 170]]) { add(lead + 80); add(w, 'spring'); gap(g); }
   gear(x - 120);
   rest();
   for (const [lead, w, g] of [[40, 70, 280], [0, 70, 220], [40, 80, 300]]) { add(lead + 100); add(w, 'spring'); gap(g); }
@@ -82,7 +85,12 @@ function build() {
   // 4. The hourglass: sand holds one landing, then pours away.
   station('sand'); checkpoint();
   add(270);
-  for (const [w, g] of [[150, 30], [190, 30], [130, 40], [210, 30], [150, 30]]) { add(w, 'sand'); gap(g); }
+  // First, sand set in solid floor, each slab narrower than the shortest hop: it can
+  // be watched crumbling behind without any way to fall. The last is wide enough that
+  // SLOW from its near end lands on it twice. Then slabs over holes; a narrow one
+  // among the wide keeps FAST alone from carrying across.
+  for (const w of [70, 76, 120]) { add(w, 'sand'); add(130); }
+  for (const [w, g] of [[120, 50], [150, 40], [110, 50], [170, 40], [140, 50]]) { add(w, 'sand'); gap(g); }
   gear(x - 220);
   rest();
   for (const [w, g] of [[220, 20], [120, 50], [230, 20], [100, 60], [200, 40]]) { add(w, 'sand'); gap(g); }
@@ -91,7 +99,8 @@ function build() {
   // 5. The hands: each lies flat as a bridge on its own beat of four.
   station('hands'); checkpoint();
   add(270);
-  for (const [w, len, off, g] of [[330, 180, 0, 0], [300, 190, 2, 0], [260, 200, 1, 0]]) {
+  // The first hands are short: FAST gets on, and almost any hop gets off again.
+  for (const [w, len, off, g] of [[330, 136, 0, 0], [300, 156, 2, 0], [260, 180, 1, 0]]) {
     add(w - COG); add(COG, 'cog'); add(len, 'hand', { off, len }); gap(g);
   }
   gear(x - 100);

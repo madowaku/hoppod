@@ -79,14 +79,16 @@ function build() {
   // a wide gap asks for a long tone, a narrow one leaves room for short ones.
   station('wood'); checkpoint();
   add(150, 'plain');
-  [24, 24, 104, 24, 88, 24, 24, 112, 24, 72, 24, 112, 24, 24, 96, 24, 24, 24, 104, 24, 72, 24, 112].forEach((w, i) => { gap(w); if (i % 8 === 7) rest('stone'); else add(i % 3 === 2 ? 120 : 104, 'stone'); });
+  // The long tones grow: 72px at first, 112px by the end.
+  [24, 24, 72, 24, 80, 24, 24, 88, 24, 88, 24, 96, 24, 24, 104, 24, 24, 24, 104, 24, 88, 24, 112].forEach((w, i) => { gap(w); if (i % 8 === 7) rest('stone'); else add(i % 3 === 2 ? 120 : 104, 'stone'); });
   add(120, 'plain'); close();
 
   // 7. Bellows: FAST pushes, SLOW draws; each plate takes one direction.
   station('bellows'); checkpoint();
   add(150, 'plain');
   ['pull', 'pull', 'push', 'pull', 'push', 'pull', 'pull', 'push', 'push', 'pull', 'push', 'pull', 'pull', 'push', 'pull', 'push'].forEach((dir, i) => {
-    gap(14); add(dir === 'push' ? 214 : 96, dir); if (i % 6 === 5) { gap(14); rest(); }
+    // The push plates grow too: a short one is easy to leave for the draw after it.
+    gap(14); add(dir === 'push' ? (i < 6 ? 150 : i < 12 ? 182 : 214) : 96, dir); if (i % 6 === 5) { gap(14); rest(); }
   });
   gap(14); add(150, 'plain'); close();
 

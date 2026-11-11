@@ -9,7 +9,7 @@ import { COURSE, stationAt, heightAt, STATIONS } from './course.mjs';
 import { newRun, runFrom, advance, cloneRun, assisted, FALL_BEATS, ASSIST_FAILS } from './sim.mjs';
 import { BAR, STEP, towerBar, heartBar, CARD_BAR, DAWN_FROM } from './music.mjs';
 import { towerCopy, chooseLanguage, withLanguage } from './copy.mjs';
-import { W, H, FLOOR, rect, drawBackdrop, drawPlatforms, drawPendulums, drawGears, drawBell, drawLanterns, drawBurst, drawMorning, drawFace, drawGear } from './draw.mjs';
+import { W, H, FLOOR, rect, drawBackdrop, drawPlatforms, drawPendulums, drawGears, drawBell, drawLanterns, drawBurst, drawMorning, drawFace, drawGear, handWait } from './draw.mjs';
 
 const $ = id => document.getElementById(id);
 const canvas = $('play'), ctx = canvas.getContext('2d');
@@ -45,7 +45,7 @@ function loadSave() {
 let saved = loadSave();
 
 let screen = 'start', run = newRun(), ahead = run, s = 0, nextStep = 0, banner = null, cam = 0, camDelta = 0;
-let teeter = null;
+let teeter = null, counted = -1;
 const rings = new Map(), crumble = new Map(), gotAt = new Map(), litLanterns = new Set(), cued = new Set(), particles = [];
 let hint = null, assistShown = -1, lockAt = null, finaleT0 = null, cardShown = false, rangAt = -9, bursts = [];
 const perfNow = () => performance.now() / 1000;
@@ -56,7 +56,7 @@ const level = () => Math.max(0, STATIONS.indexOf(run.stationId));
 const heartBeats = () => finaleT0 === null ? -99 : (s - finaleT0) / BEAT;
 
 function reset() {
-  rings.clear(); crumble.clear(); gotAt.clear(); litLanterns.clear(); cued.clear(); particles.length = 0; bursts = [];
+  rings.clear(); crumble.clear(); gotAt.clear(); litLanterns.clear(); cued.clear(); particles.length = 0; bursts = []; counted = -1;
   hint = null; banner = null; assistShown = -1; lockAt = null; finaleT0 = null; cardShown = false; rangAt = -9; cam = 0; camDelta = 0;
 }
 function start(from = null) {
@@ -254,6 +254,26 @@ function scheduleMusic() {
     nextStep += 1;
   }
 }
+// The hand's signal is heard as well as seen: while the hero waits before a hand, each
+// landing ticks with the lamp it lights (low, low, higher) and the fourth rings on
+// the take-off that has to be FAST. The beat is fixed, so it is played ahead.
+const COUNT_NEAR = 260;
+function scheduleCount() {
+  const c = audio.context;
+  if (!audio.running || clock.domain !== 'audio') return;
+  const beat = Math.ceil(s / BEAT - 1e-6), t = beat * BEAT, at = clock.contextTime(t);
+  if (beat <= counted || at === null || at > c.currentTime + LOOKAHEAD) return;
+  counted = beat;
+  // Where the hero will be on that beat, as far as the button says now.
+  const x = ahead.x;
+  if (ahead.status !== 'playing' || assisted(run)) return;
+  const hand = COURSE.platforms.find(p => p.kind === 'hand' && p.b > x);
+  if (!hand || hand.a <= x || hand.a - x > COUNT_NEAR) return;
+  const lit = 4 - handWait(hand, beat), when = Math.max(c.currentTime + .004, at);
+  if (lit === 4) { audio.note({ part: 'keys', midi: 84, dur: .35, v: .5 }, when, 'live'); audio.note({ part: 'harp', midi: 91, dur: .5, v: .3 }, when, 'live'); }
+  else audio.note({ part: 'keys', midi: lit === 3 ? 76 : 72, dur: .08, v: lit === 3 ? .45 : .3 }, when, 'live');
+  probeNote('count' + lit, when, t);
+}
 
 // ---------- events ----------
 function handle(events) {
@@ -308,7 +328,7 @@ function heroState() {
 const CAMERA_RATE = 4;
 function steerCamera(dt) {
   let target = run.x - HERO_X;
-  // Before a clock hand the view moves on ahead, so the hand and its lamps are in
+  // Before a clock hand the view moves on ahead, so the hand and its signal are in
   // sight while there is still ledge to wait on (owner playtest).
   const hand = COURSE.platforms.find(p => p.kind === 'hand' && p.b > run.x);
   if (hand && hand.a - run.x < 560) target = run.x - 36;
@@ -411,7 +431,7 @@ function frame() {
       const events = [];
       if (run.status === 'docked') run.t = s;
       else input.advance(s, (from, to, f) => advance(run, COURSE, to, f, events));
-      predict(); handle(events); steerCamera(dt); scheduleMusic();
+      predict(); handle(events); steerCamera(dt); scheduleMusic(); scheduleCount();
       if (audio.running) audio.mix(run.status === 'falling' ? .5 : 1);
       if (finaleT0 !== null && heartBeats() >= CARD_BAR * 4 && !cardShown) toEndCard();
     }

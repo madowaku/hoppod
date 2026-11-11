@@ -2,7 +2,7 @@
 // read-only (physics constants, footing, pod artwork).
 import { INSET, FAST_SPEED, footing } from '../engine.mjs';
 import { drawPod } from '../pod.mjs';
-import { drawSky, drawRanges, drawGlobe, drawGround, drawPit, drawDust, drawShadow, farRidge, blendMood, MOODS, DUST, drawMotes, speck, wobbleLean, leaning, drawCrumbs } from '../scenery.mjs';
+import { drawSky, drawNearStars, drawRanges, drawGlobe, drawGround, drawPit, drawDust, drawShadow, farRidge, blendMood, MOODS, DUST, drawMotes, speck, wobbleLean, leaning, drawCrumbs } from '../scenery.mjs';
 import { COMPANION_PALETTE } from '../companion.mjs';
 import { BEAT, BeatClock, TimedInput, heardFromContext, beatIndex } from './beat.mjs';
 import { COURSE, platformAt } from './course.mjs';
@@ -42,6 +42,8 @@ let cull = 20;
 let dust = [];
 // The last landing that only the edge grace held: { side, at, x }.
 let teeter = null;
+// How much of FAST the world is showing, eased (0 to 1).
+let rush = 0, rushS = 0;
 let flashes = [];
 let run, screen = 'start', s = 0, nextStep = 0, particles = [], banner = null, launched = false;
 const perfNow = () => performance.now() / 1000;
@@ -878,11 +880,9 @@ function drawHero(cam) {
   const phase = (s % BEAT) / BEAT;
   // Docked, the spring presses down once as the legs lock (in the silent beat).
   const lock = docked ? Math.max(0, 1 - Math.abs(after() - TRANSMIT_LOCK) / .12) : 0;
-  const moving = run.status === 'playing', held = fast() && playing() && !docked;
+  const moving = run.status === 'playing';
   // Its shadow on the ground under it, where there is ground.
   if (moving && platformAt(COURSE, run.x, run.beat, { craneDown: b => craneSolid(run, b), bridgeTo: bridgeFront(run, COURSE) })) drawShadow(ctx, x, FLOOR, hopLift(run));
-  // At FAST, a thin afterimage trails behind.
-  if (held && moving && !reducedMotion.matches) for (const [back, a] of [[18, .1], [9, .2]]) { ctx.globalAlpha = a; drawPod(ctx, x - back, heroY(), 2, { phase, fast: true, time: s }); ctx.globalAlpha = 1; }
   // Held by the very edge: it leans out over the hole and rocks back.
   if (teeter && moving) drawCrumbs(ctx, teeter.x - cam, FLOOR, teeter.side, s - teeter.at);
   leaning(ctx, x, heroY(), teeter && moving ? wobbleLean(teeter.side, s - teeter.at) : 0, () =>
@@ -999,6 +999,10 @@ function drawBackdrop(cam) {
   // always this wide.
   const open = lightOpen(), still = reducedMotion.matches, mood = moodAt(cam + HERO_X);
   drawSky(ctx, { W, horizon: FLOOR, cam, time: s, open, still, mood });
+  // The hero only hops: FAST is the world passing faster, seen in the nearest stars.
+  const want = fast() && steering() && run.status === 'playing' ? 1 : 0, step = Math.max(0, Math.min(.1, s - rushS)); rushS = s;
+  rush += (want - rush) * (1 - Math.exp(-step * 9));
+  drawNearStars(ctx, { W, horizon: FLOOR, cam, speed: rush, open, still });
   if (open > 0) {
     // Earth hangs over the far range: hidden by the rock ceiling until blue's
     // light lifts it, then there for the rest of the journey and the launch.

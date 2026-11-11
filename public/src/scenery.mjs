@@ -82,6 +82,26 @@ export function drawSky(g, { W = 360, horizon, cam = 0, time = 0, open = 1, stil
   }
 }
 
+// The nearest stars: a handful close enough to slide past as the world moves.
+// The hero only ever hops; FAST is the world going by faster, and these are
+// where that shows: at speed 1 (FAST) each stretches into a short streak along
+// its way. speed 0 to 1, eased by the caller.
+const NEAR = Array.from({ length: 16 }, (_, i) => ({ x: hash(i * 23 + 5) * 520, y: 14 + hash(i * 29 + 5) * 250, depth: .28 + .5 * hash(i * 31 + 5), light: .5 + .5 * hash(i * 37 + 5) }));
+export function drawNearStars(g, { W = 360, horizon, cam = 0, speed = 0, open = 1, still = false }) {
+  if (open <= 0) return;
+  for (const st of NEAR) {
+    if (st.y > horizon - 60) continue;
+    const x = (((st.x - cam * st.depth) % 520) + 520) % 520 - 80, len = still ? 0 : Math.round(speed * st.depth * 30);
+    if (x < -40 || x > W + 40) continue;
+    g.fillStyle = '#dfe7ff';
+    g.globalAlpha = open * st.light * (.55 + .35 * speed);
+    g.fillRect(Math.round(x), Math.round(st.y), 2, 2);
+    // The streak trails to the right: the star is moving left across the view.
+    for (let k = 0; k < len; k += 2) { g.globalAlpha = open * st.light * .6 * (1 - k / len); g.fillRect(Math.round(x) + 2 + k, Math.round(st.y), 2, st.depth > .55 ? 2 : 1); }
+  }
+  g.globalAlpha = 1;
+}
+
 // ---------- Earth ----------
 // Earth in 3px cells (2px when small): land and cloud from a fixed noise that
 // drifts slowly, lit from the upper left, a thin rim of air. Painted to a

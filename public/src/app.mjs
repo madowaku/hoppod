@@ -1,7 +1,7 @@
 import { PERIOD, INSET, COURSE_VERSION, Terrain, newRun, advance, isSafe, predictLanding, landingMiss, footing } from './engine.mjs';
 import { resolveRun, jstDate, shareUrl } from './links.mjs';
 import { drawPod } from './pod.mjs';
-import { drawSky, drawRanges, drawGlobe, drawGround, MOODS } from './scenery.mjs';
+import { drawSky, drawNearStars, drawRanges, drawGlobe, drawGround, MOODS } from './scenery.mjs';
 import { EARTH_PEEK, earthRise, earthCenterY, earthLabel, drawEarth } from './earth.mjs';
 import { createAudio, milestoneTier } from './audio.mjs';
 import { COMPANION_LAG, COMPANION_GAP, ASSEMBLE_GATHER, ASSEMBLE_FLASH, ASSEMBLE_BOOT, companionBell, companionPhase, companionLift, gatherBlend } from './companion.mjs';
@@ -253,12 +253,16 @@ get('save').addEventListener('click', () => {
   link.download = 'RAPIPPO-' + state.hops + '-hops.png'; link.click();
 });
 
+let rush = 0;
 function draw(now) {
   const offset = state.x - HERO_X, screen = x => Math.round(x - offset), dead = state.status === 'dead';
   // The far side starts dark: the sky's colour opens as Earth's glow nears.
   const sky = earthRise(state.x), still = reducedMotion.matches, open = .4 + .6 * sky.glow;
   // No blue-tinted stars here: before Earthrise nothing in this sky is blue.
   drawSky(ctx, { W, horizon: FLOOR, cam: offset * 1.5, time: now, open, still, mood: MOODS.teal, cool: false });
+  // The pod only hops: FAST is the world passing faster, seen in the nearest stars.
+  rush += ((modeFast && running ? 1 : 0) - rush) * .14;
+  drawNearStars(ctx, { W, horizon: FLOOR, cam: offset, speed: rush, open, still });
   // Earth rises from behind the ridges as the pod travels toward the near side.
   if (sky.glow > 0) {
     const glow = ctx.createRadialGradient(EARTH_X, EARTH_HORIZON, 0, EARTH_X, EARTH_HORIZON, 170);

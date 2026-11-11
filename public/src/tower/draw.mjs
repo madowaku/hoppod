@@ -88,7 +88,7 @@ export function drawPlatforms(g, cam, run, s, rings, crumble, assist) {
     if (p.kind === 'tick' || p.kind === 'tock') { drawTooth(g, p, x, w, run, s, hit, assist); continue; }
     if (p.kind === 'hand') { drawHand(g, p, x, s, hit, assist); continue; }
     if (p.kind === 'sand') { drawSand(g, p, x, w, s, crumble.get(p.i), ring); continue; }
-    if (p.kind === 'cog') { drawCog(g, x, w, s, hit); continue; }
+    if (p.kind === 'cog') { const hand = COURSE.platforms[p.i + 1]; drawCog(g, x, w, s, hit, !assist && hand?.kind === 'hand' && handWait(hand, Math.floor(s / BEAT + 1e-9)) === 0); continue; }
     const [body, top] = TOP[p.kind] || TOP.plain;
     if (x > W + 20 || x + w < -20) continue;
     rect(g, body, x, y, w, H - y);
@@ -157,7 +157,7 @@ function drawSand(g, p, x, w, s, gone, landed) {
   if (on > .3 && fallK === 0) { g.globalAlpha = on; for (let k = 1; k < 4; k++) rect(g, '#5a4020', x + w * k / 4 + (grain(k, p.i) - .5) * 20, FLOOR + 1, 1, 8 + on * 10); g.globalAlpha = 1; }
 }// A cog turning backwards (anticlockwise): its top runs back at SLOW's speed, so
 // SLOW hops on the spot. Its teeth along the top show the way it runs.
-function drawCog(g, x, w, s, hit) {
+function drawCog(g, x, w, s, hit, go) {
   const r = w / 2 + 6, cx = x + w / 2, cy = FLOOR + r - 4, turn = s * 105 / r;
   g.save(); g.beginPath(); g.rect(x - 8, FLOOR - 4, w + 16, H - FLOOR + 4); g.clip();
   drawGear(g, cx, cy, r, -turn, '#5a4426', 18);
@@ -167,8 +167,9 @@ function drawCog(g, x, w, s, hit) {
   // Marks on the rim running back at the floor's own speed.
   const off = (s * 105) % 20;
   for (let k = -20; k < w + 20; k += 20) { const mx = x + k - off; if (mx > x && mx < x + w - 4) rect(g, '#ffe6aa', mx, FLOOR + 1, 4, 2); }
-  g.globalAlpha = .55 + .2 * Math.sin(s * 5); g.fillStyle = '#ffe6aa'; g.font = 'bold 12px sans-serif'; g.textAlign = 'center';
-  g.fillText('◀ ◀', cx, FLOOR + 30); g.globalAlpha = 1;
+  // The cog runs back, and says so; for the one hop that has to be FAST it says go.
+  g.globalAlpha = go ? 1 : .55 + .2 * Math.sin(s * 5); g.fillStyle = go ? '#fff1c9' : '#ffe6aa'; g.font = `bold ${go ? 15 : 12}px sans-serif`; g.textAlign = 'center';
+  g.fillText(go ? '▶ ▶' : '◀ ◀', cx, FLOOR + 30); g.globalAlpha = 1;
   if (hit) { g.globalAlpha = hit * .5; rect(g, '#fff1c9', x, FLOOR - 16 * hit, w, 2); g.globalAlpha = 1; }
 }
 // A clock hand: pivot at its left end, flat to the right on its own beat.
@@ -177,36 +178,48 @@ function drawHand(g, p, x, s, hit, assist) {
   const a0 = handAngle(p, beat * BEAT), a1 = handAngle(p, (beat + 1) * BEAT);
   let d = a1 - a0; if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2;
   const angle = assist ? 0 : a0 + d * k, len = p.len;
-  // Where the bridge will lie: shown faintly when the coming beat is its beat.
-  if (!assist && handFlat(p, beat + 1)) { g.globalAlpha = .18 + .1 * Math.sin(s * 9); rect(g, '#ffd98a', x, FLOOR - 1, len, 3); g.globalAlpha = 1; }
+  // Where the bridge will lie: a dashed outline one landing ahead, then a lit strip
+  // through the hop that has to reach it.
+  const wait = handWait(p, beat);
+  if (!assist && wait <= 1) {
+    const pulse = .5 + .5 * Math.sin(s * (wait ? 8 : 16));
+    if (wait) { g.globalAlpha = .3 + .16 * pulse; for (let k = 0; k < len - 6; k += 12) rect(g, '#ffd98a', x + k, FLOOR - 1, 7, 2); }
+    else { g.globalAlpha = .12; rect(g, '#fff1c9', x, FLOOR - 14, len, 12); g.globalAlpha = .42 + .2 * pulse; rect(g, '#fff1c9', x, FLOOR - 2, len, 4); }
+    g.globalAlpha = 1;
+  }
   g.save(); g.translate(x, FLOOR + 4); g.rotate(angle);
   g.fillStyle = '#2a1d10'; g.fillRect(0, -6, len, 12);
   g.fillStyle = Math.abs(angle) < .05 ? '#ffd98a' : '#c2953f'; g.fillRect(0, -6, len - 14, 5);
   g.beginPath(); g.moveTo(len - 16, -9); g.lineTo(len + 4, 0); g.lineTo(len - 16, 9); g.fill();
   g.fillStyle = '#e9dcc0'; g.beginPath(); g.arc(len * .55, 0, 6, 0, 7); g.fill();
   g.restore();
-  // Four lamps under the pivot fill up towards the hand's beat: all four lit means
-  // the coming landing is the one it lies flat for.
-  if (!assist) {
-    const wait = ((p.off - (beat + 1)) % 4 + 4) % 4, litN = 4 - wait;
-    for (let k = 0; k < 4; k++) {
-      const on = k < litN, lx = x - 46 + k * 11;
-      rect(g, '#1a1520', lx - 1, FLOOR + 17, 9, 9);
-      rect(g, on ? (litN === 4 ? '#fff1c9' : '#e8a838') : '#3a2e22', lx, FLOOR + 18, 7, 7);
-    }
-  }
-  // The same lamps on a post just before the cog, in sight while waiting on it.
-  const ledge = COURSE.platforms[p.i - 1];
-  if (!assist && ledge && (ledge.kind === 'plain' || ledge.kind === 'cog')) {
-    const wait = ((p.off - (beat + 1)) % 4 + 4) % 4, litN = 4 - wait, px = (ledge.kind === 'cog' ? ledge.a - 14 : ledge.a + 26) - (p.a - x);
-    rect(g, '#2a1d10', px - 2, FLOOR - 64, 4, 64);
-    rect(g, '#2a1d10', px - 9, FLOOR - 112, 18, 50);
-    for (let k = 0; k < 4; k++) rect(g, k < litN ? (litN === 4 ? '#fff1c9' : '#e8a838') : '#3a2e22', px - 5, FLOOR - 74 - k * 11, 10, 8);
-    if (litN === 4) { g.globalAlpha = .3; g.fillStyle = '#fff1c9'; g.beginPath(); g.arc(px, FLOOR - 92, 22, 0, 7); g.fill(); g.globalAlpha = 1; }
-  }
   g.fillStyle = '#8a6b3c'; g.beginPath(); g.arc(x, FLOOR + 4, 11, 0, 7); g.fill();
   g.fillStyle = '#ffd98a'; g.beginPath(); g.arc(x, FLOOR + 4, 4, 0, 7); g.fill();
+  if (!assist) drawSignal(g, x, wait, s);
   if (hit) { g.globalAlpha = hit * .5; rect(g, '#fff1c9', x, FLOOR - 20 * hit, len, 2); g.globalAlpha = 1; }
+}
+// How many landings until the one a hand lies flat for, seen from the hop that begins
+// on this beat: 0 is the hop that has to be FAST, 1 the hop before it.
+export const handWait = (p, beat) => ((p.off - (beat + 1)) % 4 + 4) % 4;
+// The signal hanging over a hand's pivot, where the eyes are while waiting on the cog.
+// It reads like a starting light: three small lamps count the landings in, the third
+// brighter ("the next landing"), and the big one is lit only for the hop that has to
+// be FAST. Different shapes, so the last step is seen and not counted.
+function drawSignal(g, x, wait, s) {
+  const lit = 4 - wait, go = lit === 4, y = FLOOR - 176, px = Math.round(x);
+  g.fillStyle = '#2a1d10'; g.fillRect(px - 32, 0, 1, y); g.fillRect(px + 22, 0, 1, y);
+  rect(g, '#2a1d10', x - 46, y - 4, 82, 30); rect(g, '#5a4426', x - 46, y - 4, 82, 2);
+  for (let k = 0; k < 3; k++) {
+    const on = !go && k < lit, ready = on && lit === 3 && k === 2, lx = x - 40 + k * 15;
+    rect(g, '#120d08', lx, y + 5, 11, 11);
+    rect(g, ready ? '#ffe6aa' : on ? '#e8a838' : '#3a2e22', lx + 1, y + 6, 9, 9);
+    if (ready) { g.globalAlpha = .22 + .14 * Math.sin(s * 10); g.fillStyle = '#ffd98a'; g.beginPath(); g.arc(Math.round(lx) + 5.5, y + 10.5, 13, 0, 7); g.fill(); g.globalAlpha = 1; }
+  }
+  const bx = px + 19, by = y + 11;
+  if (go) { g.globalAlpha = .26 + .1 * Math.sin(s * 16); g.fillStyle = '#fff1c9'; g.beginPath(); g.arc(bx, by, 27, 0, 7); g.fill(); g.globalAlpha = 1; }
+  g.fillStyle = '#120d08'; g.beginPath(); g.arc(bx, by, 13, 0, 7); g.fill();
+  g.fillStyle = go ? '#fff1c9' : '#3a2e22'; g.beginPath(); g.arc(bx, by, 11, 0, 7); g.fill();
+  g.fillStyle = go ? '#8a5a10' : '#5a4a36'; g.beginPath(); g.moveTo(bx - 4, by - 6); g.lineTo(bx + 6, by); g.lineTo(bx - 4, by + 6); g.fill();
 }
 export function drawPendulums(g, cam, s, faded) {
   const beam = COURSE.pendulums.filter(p => p.x - cam > -200 && p.x - cam < W + 200);
