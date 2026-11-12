@@ -29,6 +29,9 @@ jobs:
           WRANGLER_SEND_METRICS: 'false'
       - run: npx playwright install --with-deps chromium
       - run: npm run test:browser
+        env:
+          # The STORY real-audio checks must run, not skip, in CI.
+          STORY_AUDIO: required
       - uses: actions/upload-artifact@v4
         if: always()
         with:

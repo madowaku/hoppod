@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#05080c">
+<meta name="description" content="RAPIPPO STORY: one hop at a time, music is born on the moon. A five-minute one-button journey.">
+<title>RAPIPPO | STORY</title>
+<link rel="icon" href="./icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="./style.css">
+<link rel="stylesheet" href="./story.css">
+</head>
+<body class="story">
+<main class="shell">
+  <header class="top">
+    <div class="brand"><strong>RAPIPPO<span class="brand-star">✦</span></strong><span id="story-tag">STORY</span></div>
+    <div class="top-actions"><button id="pause" class="pause-button" type="button" aria-label="Pause" hidden><i></i><i></i></button><a id="to-free" class="to-free" href="./select.html">STAGES ›</a></div>
+  </header>
+  <section class="play-area" aria-label="Story course">
+    <canvas id="play" width="360" height="510" aria-label="Automatic hopping on the beat. Hold for FAST; release for SLOW."></canvas>
+    <div id="overlay" class="overlay" data-screen="start">
+      <div id="intro-mark" class="intro-mark" aria-hidden="true">✦ STORY ✦</div>
+      <h1 id="overlay-title"><span id="title-text">RAPIPPO</span><canvas id="logo-o" width="20" height="30" aria-hidden="true" hidden></canvas></h1>
+      <svg class="title-orbit" viewBox="0 0 240 18" aria-hidden="true"><path d="M8 7 Q120 22 232 7" fill="none" stroke="#e9c98a" stroke-width="1.2" stroke-dasharray="2 3 30 3"/><circle cx="88" cy="13" r="2.2" fill="#6fb6ff"/><circle cx="104" cy="14" r="2.2" fill="#5fe39a"/><path d="M120 7l2 5 5 2-5 2-2 5-2-5-5-2 5-2z" fill="#ffd88a"/><circle cx="136" cy="14" r="2.2" fill="#ff7f66"/><circle cx="152" cy="13" r="2.2" fill="#ffbcae"/></svg>
+      <p id="overlay-subtitle">One hop at a time, music is born on the moon.</p>
+      <p id="auto-hop" class="auto-hop">It hops by itself. Hold to go farther.</p>
+      <div class="intro-controls"><span><span id="intro-hold">HOLD</span><b>» FAST</b></span><span><span id="intro-release">LET GO</span><b>· SLOW</b></span></div>
+      <p id="headphones" class="headphones">♪ Sound on. Headphones recommended.</p>
+      <div class="title-actions"><button id="action" class="action" type="button">STORY</button><a id="title-free" class="title-free" href="./index.html?mode=free">FREE RUN</a></div>
+      <div id="end-actions" class="share-actions" hidden><button id="again" type="button">PLAY AGAIN</button><a id="end-free" class="end-free" href="./index.html?mode=free">FREE RUN ›</a></div>
+    </div>
+  </section>
+  <button id="hold" class="hold" type="button" aria-pressed="false"><span id="beat-mark" class="beat-mark" aria-hidden="true"><i></i></span><span class="control-icon" aria-hidden="true">»</span><strong id="hold-state">SLOW</strong><span id="hold-instruction">HOLD TO GO FAST</span></button>
+  <div class="below"><span id="chapter-label"></span><div class="prefs"><button id="language" type="button" aria-label="Switch to Japanese">日本語</button><button id="buzz" type="button" aria-pressed="true" hidden>BUZZ ON</button><button id="sound" type="button" aria-pressed="true">SOUND ON</button></div></div>
+  <footer><span id="footer-tag">A tiny capsule. A moon full of music.</span><span id="footer-keys">SPACE = HOLD · ESC = PAUSE</span></footer>
+</main>
+<script type="module" src="./src/story/story-app.mjs"></script>
+</body></html>

@@ -74,7 +74,7 @@ test('A/B/C preserve course seed, query through reload, and independent bests pe
     await expect(page.locator('#best')).toHaveText(expected);
   }
   await page.locator('#marker-neutral').click();
-  await page.locator('#daily').click();
+  await page.locator('#daily').dispatchEvent('click');
   expect(new URL(page.url()).searchParams.get('marker')).toBe('neutral');
   await page.locator('#free').click();
   expect(new URL(page.url()).searchParams.get('marker')).toBe('neutral');

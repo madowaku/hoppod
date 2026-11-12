@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b0a14">
+<meta name="description" content="RAPIPPO: the Moon Instrument Workshop. Wake sleeping instruments with one button, then let go and hear your own song keep going.">
+<title>RAPIPPO | STARLIGHT WORKSHOP</title>
+<link rel="icon" href="./icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="./style.css">
+<link rel="stylesheet" href="./story.css">
+<link rel="stylesheet" href="./workshop.css">
+</head>
+<body class="story workshop">
+<main class="shell">
+  <header class="top">
+    <div class="brand"><strong>RAPIPPO<span class="brand-star">✦</span></strong><span id="story-tag">STARLIGHT WORKSHOP</span></div>
+    <div class="top-actions"><button id="pause" class="pause-button" type="button" aria-label="Pause" hidden><i></i><i></i></button><a id="to-select" class="to-free" href="./select.html">STAGES ›</a></div>
+  </header>
+  <section class="play-area" aria-label="Moon Instrument Workshop">
+    <canvas id="play" width="360" height="510" aria-label="Automatic hopping on the beat. Hold for FAST; release for SLOW."></canvas>
+    <div id="overlay" class="overlay" data-screen="start">
+      <div id="intro-mark" class="intro-mark" aria-hidden="true"></div>
+      <h1 id="overlay-title"><span id="title-text">RAPIPPO</span></h1>
+      <p id="work-title" class="work-title"></p>
+      <p id="overlay-subtitle"></p>
+      <p id="auto-hop" class="auto-hop"></p>
+      <div class="intro-controls"><span><span id="intro-hold">HOLD</span><b>» FAST</b></span><span><span id="intro-release">LET GO</span><b>· SLOW</b></span></div>
+      <p id="headphones" class="headphones"></p>
+      <div class="title-actions"><button id="action" class="action" type="button">ENTER</button><button id="continue" class="title-free" type="button" hidden>CONTINUE</button></div>
+      <button id="free" class="work-link" type="button" hidden>FREE PLAY</button>
+      <div id="end-actions" class="share-actions" hidden>
+        <button id="save-png" type="button">SAVE SCORE</button><button id="copy-link" type="button">COPY LINK</button>
+        <button id="again" type="button">PLAY AGAIN</button>
+      </div>
+    </div>
+  </section>
+  <button id="hold" class="hold" type="button" aria-pressed="false"><span id="beat-mark" class="beat-mark" aria-hidden="true"><i></i></span><span class="control-icon" aria-hidden="true">»</span><strong id="hold-state">SLOW</strong><span id="hold-instruction">HOLD TO GO FAST</span></button>
+  <div class="below"><span id="chapter-label"></span><div class="prefs"><button id="language" type="button" aria-label="Switch to Japanese">日本語</button><button id="buzz" type="button" aria-pressed="true" hidden>BUZZ ON</button><button id="sound" type="button" aria-pressed="true">SOUND ON</button></div></div>
+  <footer><span id="footer-tag"></span><span id="footer-keys"></span></footer>
+</main>
+<script type="module" src="./src/workshop/app.mjs"></script>
+</body></html>

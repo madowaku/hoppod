@@ -1,0 +1,117 @@
+# RAPIPPO: CLOCK TOWER LAB (superseded)
+
+Replaced as a stage on 2026-11-07 by 陽周りの時計台 ([CLOCK_TOWER.md](CLOCK_TOWER.md)). This experiment now lives at `public/dev/clocktower-lab.html` (code in `public/dev/clocktower/`), outside the itch.io ZIP. Paths below are as they were.
+
+**Status:** a stage in the select since 2026-11-07, copied from `experiment/clock-tower` (`085d716`) with its demos and log behind `?lab`. Its rules are unchanged. It was built on experiment D (`experiment/string-valley-trajectory`, `7a4211a`), whose contact model and heights it uses from `public/src/clocktower/string-trajectory.mjs`. Human playtest of this stage: **one short session by the author**. The pendulums were fun; the gears went unnoticed; the ending should be flying into the bell. Those notes led to the current bell and gear presentation, which has **not** been replayed yet.
+
+This was built ahead of experiment D's own "do not implement until this is fun" note, at the user's request, while the replay of D's stage 2 is still pending. D's result may change what is worth keeping here.
+
+## Design principle
+
+Clear conditions are gentle; the room to improve is deep. The stage has two results, and they are opposite flights:
+
+| Result | How | Flight |
+|---|---|---|
+| ★ Ring the bell | Fly into the bell | One gesture repeated: wait about 0.28s after take-off, then hold until landing. The last hop then strikes the bell without further input |
+| ★★ Every gear too | Also touch all three gears with the antennas | Press right at take-off to be high at the gears, and choose each length by reading the last landing |
+
+Gears never hold the clear back. Holding one early length instead of reading each landing runs into a pendulum.
+
+## Rules
+
+The hop, speeds, footing and landing rules are production's (`engine.mjs`). New rules:
+
+- **Pendulums** swing once per two hops, locked to the beat. A high one (length 236) can touch the pod around the top of a hop; a low one (length 330) only near the ground, so it is jumped over. A hit ends the attempt.
+- **Forgiveness:** the bob hurts at radius 9 (drawn 15) and only the body counts (±9px, antenna tips excluded).
+- **Gears** hang at the height a string rings (y=228) and turn on antenna contact (±16px), the same contact as experiment D.
+- **Gears are told:** they are gold, tick on the beat and send out a ring. Passing one unturned shakes it, says so on the stage and explains how to reach it.
+- **The bell:** a large bell hangs over the last platform, mouth at y=246 and contact half-width 66px. Any landing there strikes it on the very next hop, at any input, so the ending cannot be missed. Landing is not the clear; the strike is.
+- **Rooms:** there are four, the last being the escapement. Reaching a gold-edged landing saves position, beat and the gears held so far. Attempts resume from there.
+- **Every hop is on its beat:** footing is 80px and spacing 165px, so a slow hop always leaves a platform and the fastest never skips one. The pendulums therefore look the same on every attempt.
+- Contact is tested on a fixed 1/480s grid, so the result does not depend on frame rate.
+
+The clock stands still until the first press.
+
+## The escapement
+
+A short room before the bell, three platforms, no pendulums, its own save. Each platform has one gold pallet: near, far, near. Tick, tock, tick.
+
+- A landing on a pallet advances the great wheel behind the room by one tooth.
+- A constant flight stands on the far pallet only, so the rhythm that clears the tower gets one tooth and a visible tick. All three need a **short** flight, then a **whole-hop hold**, then **short** again.
+- The near pallet sits at the footing's edge, so aiming for it risks a fall. That is the decision. The room's save makes the retry cheap, and a failed pallet costs nothing else.
+- All three teeth wake one missed gear. So ★★ can be two gears in the air plus the wheel, and a gear missed early can still be made good. With three gears already, it adds to the ending only.
+
+## The revival
+
+The bell strike stays. Then, with no input from there on:
+
+1. The pod falls from the bell and keeps hopping on the spot. Each landing is a tick, exactly `PERIOD` apart.
+2. Each beat, two more gears of a train mesh and turn across the wall. Music layers build on the beat.
+3. Five beats on, the view opens close on the pod at the clock's centre and settles back to the whole clock, stopped at five to midnight. The pod hops there as the heart. The minute hand advances once per hop, and the second hand one mark.
+4. It carries on until the player presses. The music thins out after 24 beats and leaves the tick. The first second after the bell ignores presses.
+5. Later climbs on this device show the big clock already running and a small pulse in the corner (`?fresh` plays as a first visit).
+
+| Journey | What shows |
+|---|---|
+| ★ | The face is lit and running, with one inlaid gear per gear woken, and a sky of stars that grows with them |
+| wheel complete | The great wheel also turns behind the face, with a counter line in the music |
+| ★★ | The face stands open: the wheel and all gears turn inside, a full sky, and a top line in the music |
+
+## Making the meaning readable
+
+Three things had to be understood without being explained. Each has a rule behind it, and a test where a test can say anything.
+
+**A landing drives the wheel.** The wheel drifts slowly behind the chamber and is whole in view at every pallet (tested). An arrow and "land here" mark the next pallet, and a dashed line joins it to the wheel. On a landing the power runs up that line, the wheel flashes and snaps one tooth with an overshoot, and the "tick" appears at the wheel, not at the feet.
+
+**The pod is what drives the clock.** The pull-back starts close on the pod and settles over four beats, while the caption says every hop moves the hands. The pod sits at the hub at its full playing size. A second hand wears the pod's colour, moves one twelfth of a turn only at a landing (tested), and flares in that instant.
+
+**When ★★ is gone, and what to do.** `fullReach` answers `open`, `needsWheel` or `lost`. The exhaustive search confirms it never calls a reachable result lost, that every save it does not call lost really can reach ★★, and that `lost` never costs the clear. Losing it is said once, as a change of plan and not a failure. A resume that cannot reach ★★ says so, and the "from the start" button lights and names ★★. With one gear behind, the entry text says the wheel can wake it, and its slot in the top row blinks.
+
+`?room=2..4` starts in that room, and `&gears=1,2` holds those gears, to test one moment quickly: `?room=4&fresh` for the first tooth, `?room=4&gears=2&fresh` for the guidance.
+
+## What was measured
+
+All from the model with scripted input, **not human success rates**.
+
+| Check | Result |
+|---|---|
+| Reachable states with no way forward (one-press inputs, 60ms grid in tests, 30ms in tuning) | 0 |
+| ★ rhythm, pressing at 0.20 to 0.32s, ±50ms on each edge, per room | at least 90% (pinned by test) |
+| ★ rhythm at 0.28s, whole tower, ±50ms, no correction, no retries | 87.8% (96.4% before the chamber, because drift has three more hops to build) |
+| ★★ route, whole tower, ±30ms, no correction | 60.8% (34.4% before: the wheel can make up one missed gear) |
+| ★★ route, whole tower, ±50ms, no correction | 34.2% (17.6% before) |
+| Holding 0.50 to 0.58s from take-off, every hop | hits a pendulum |
+| Any landing on the last platform, one-press inputs on a 60ms grid | strikes the bell within one hop |
+| Chamber route, all three teeth from its save, ±50ms / ±80ms | 97.0% / 78.4% |
+
+Real input played the rhythm through to the bell in the browser test, with key events timed in the page.
+
+A first layout was rejected because 35ms of lateness was fatal at the last pendulum in the rhythm, so the pendulums were re-searched to widen the band of working rhythms. Respawn points sit on the rhythm's path so the hint stays true after a resume.
+
+## Questions for the playtest
+
+1. **Causality first:** after the first tooth, ask what moved and why. Can the player say that their landing turned the wheel? Do they try for the next pallet on purpose?
+2. Does a player find the late rhythm unaided? Hints appear after three misses.
+3. Are the gears noticed now? In the first session they were not. Once ★ is reached, does anyone chase ★★ unprompted? The goal text mentions gears, so this needs a first-time player to answer cleanly.
+4. Does going for ★★ make people think about the flight and not only the landing spot? Compare `segments` before and after in the attempt log.
+5. Is the ★ too easy once the rhythm is known? 87.8% to 96.4% says it may be, and that could be fine or could make the pendulums feel empty.
+6. Do the pendulums read in time? The first one only comes into view after the first hop.
+7. Does a hit feel fair at this forgiveness, on a real phone?
+8. After the ending, ask what the pod became. Is "it is running the clock" said unprompted, or only after reading the caption? Is the opening close-up too long?
+9. With two gears missed and a resume: is the way back to ★★ found, or does the button go unread? Does "no ★★ this time" discourage or redirect?
+10. Do players try for the near pallets without being told, and does the wheel feel like their own hops driving it? Compare `teeth` in the log across attempts.
+11. Does leaving the clock running feel like leaving something behind, and is the wait until the pull-back too long?
+12. Does the strike feel like the ending, including the sound, and does it feel earned when it happens without a final input?
+
+## Limits
+
+- Four rooms, one layout, no scoring beyond the session's best. Only the fact that the clock was started is kept between visits.
+- Original synthetic sounds and code-drawn art only.
+- Not tried on a physical phone or by anyone but scripted input.
+- Files live under `public/src/clocktower/`. `COURSE_VERSION`, DAILY and replay URLs are untouched.
+
+## Where to try it
+
+    python -m http.server 8000 --bind 127.0.0.1 --directory public
+
+Open http://localhost:8000/dev/clocktower-lab.html (`?lang=ja|en`, `?lab` for the demos and the log). The stage and the HOLD button are press surfaces; Space works, R resumes from the landing.

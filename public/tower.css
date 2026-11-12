@@ -1,0 +1,4 @@
+/* Sunwise Clock Tower: shares the STORY shell and the workshop's screens. */
+body.tower{background:radial-gradient(ellipse at top,#2a2036 0%,#0b0a14 75%)}
+.tower .overlay[data-screen=start]{background:linear-gradient(#0b0a1455,#0b0a1400 45%,#0b0a14bb)}
+.tower .overlay[data-screen=end] #overlay-subtitle{white-space:pre-line;line-height:1.6}

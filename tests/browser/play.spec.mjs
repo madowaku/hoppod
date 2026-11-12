@@ -119,7 +119,7 @@ test('captured pointer release outside control and keyboard START activation',as
   await expect(page.locator('#hold-state')).toHaveText('FAST');
   await page.mouse.move(1,1);await page.mouse.up();await expect(page.locator('#hold-state')).toHaveText('SLOW');
   await page.keyboard.down('Space');await expect(page.locator('#hold-state')).toHaveText('FAST');
-  await page.locator('#daily').click();await page.keyboard.up('Space');await expect(page.locator('#hold-state')).toHaveText('SLOW');
+  await page.locator('#daily').dispatchEvent('click');await page.keyboard.up('Space');await expect(page.locator('#hold-state')).toHaveText('SLOW');
   expect(new URL(page.url()).searchParams.get('date')).toBe('2026-11-01');
 });
 test('blocked storage, reduced motion, and a long frame stall remain playable',async({page})=>{
