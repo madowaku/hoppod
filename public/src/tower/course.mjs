@@ -7,7 +7,8 @@ import { PERIOD as BEAT, SLOW_SPEED, FAST_SPEED, INSET } from '../engine.mjs';
 export const HOP_MIN = SLOW_SPEED * BEAT, HOP_MAX = FAST_SPEED * BEAT;
 // A mainspring plate makes the next hop this much longer, at either speed.
 export const BOOST = 1.8;
-// Pendulums: one full swing takes two hops. The pivot beam hangs at PIVOT_Y.
+// Pendulums: one full swing takes two hops unless it is given its own `beats`
+// (a slow one takes four). The pivot beam hangs at PIVOT_Y.
 export const PIVOT_Y = 24, SWING_BEATS = 2, BOB_DRAWN = 14, BOB_HIT = 9, POD_HALF = 9, POD_TOP_INSET = 8;
 // A long pendulum sweeps the floor; a short one only grazes the very top of a hop
 // (owner playtest: the short ones were too hard to time while never stopping).
@@ -36,7 +37,7 @@ function build() {
   // press the instant they reappear; a FAST still held lands on it too.
   const REST = 250, REST_AT = 20;
   const rest = () => { add(REST); checkpoint(x - REST + REST_AT); };
-  const swing = (at, length, amp, phase) => pendulums.push({ x: at, length, amp, phase });
+  const swing = (at, length, amp, phase, beats = SWING_BEATS) => pendulums.push({ x: at, length, amp, phase, beats });
   const gear = at => gears.push({ x: at });
 
   // 0. The foot of the tower: the clock above has stopped at five to midnight.
@@ -47,11 +48,15 @@ function build() {
   // passes. A short one sweeps the top of the hop: be low when it passes.
   station('pendulum'); checkpoint();
   add(270);
-  add(1500); // one long floor first: only the swing to read
-  swing(x - 1260, LONG, .2, .25); swing(x - 960, LONG, .2, .75); swing(x - 640, SHORT, .2, 0); swing(x - 330, SHORT, .2, .5);
-  gear(x - 800);
+  // One long floor first: only the swing to read, and it grows. The first hangs still
+  // (hop over it), the next swing small and slow, four hops a swing; only after the
+  // lantern do they swing wide and in two (owner's playtest, 2026-11-12: the
+  // pendulums felt the least fair, all at full swing from the first).
+  add(1500);
+  swing(x - 1290, LONG, 0, 0); swing(x - 990, LONG, .08, .25, 4); swing(x - 670, SHORT, .1, 0); swing(x - 340, LONG, .14, .75, 4);
+  gear(x - 830);
   rest();
-  for (const [w, g] of [[230, 60], [200, 70], [240, 60]]) { add(w); swing(x - w / 2, w > 220 ? LONG : SHORT, .2, w > 220 ? .25 : 0); gap(g); }
+  for (const [w, g, amp, beats] of [[230, 60, .18, 4], [200, 70, .15, 2], [240, 60, .2, 2]]) { add(w); swing(x - w / 2, w > 220 ? LONG : SHORT, amp, w > 220 ? .25 : 0, beats); gap(g); }
   add(260); swing(x - 130, LONG, .2, .75); gear(x - 40);
   add(140); close();
 
@@ -168,7 +173,7 @@ export function platformAt(x, course = COURSE) {
 export const heightAt = (x, course = COURSE) => platformAt(x, course)?.h || (x >= course.dockX - 30 ? 110 : 0);
 
 // Pendulum bob in screen space at story time t.
-export function swingAngle(p, t) { return p.amp * Math.sin(2 * Math.PI * (t / (SWING_BEATS * BEAT) + p.phase)); }
+export function swingAngle(p, t) { return p.amp * Math.sin(2 * Math.PI * (t / ((p.beats ?? SWING_BEATS) * BEAT) + p.phase)); }
 export function bobAt(p, t) { const a = swingAngle(p, t); return { x: p.x + p.length * Math.sin(a), y: PIVOT_Y + p.length * Math.cos(a) }; }
 // The angle of a clock hand: flat to the right (0) on its beat, then up, left, down.
 export function handAngle(p, t) { return -2 * Math.PI * (((t / BEAT - p.off) % HAND_BEATS + HAND_BEATS) % HAND_BEATS) / HAND_BEATS; }

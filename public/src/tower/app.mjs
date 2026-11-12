@@ -332,6 +332,9 @@ function steerCamera(dt) {
   // sight while there is still ledge to wait on (owner playtest).
   const hand = COURSE.platforms.find(p => p.kind === 'hand' && p.b > run.x);
   if (hand && hand.a - run.x < 560) target = run.x - 36;
+  // A pendulum is in sight a few hops before it is reached, never only one hop ahead
+  // (owner's playtest, 2026-11-12: they appeared too late to be avoided).
+  else if (COURSE.pendulums.some(p => p.x - run.x > -40 && p.x - run.x < 520)) target = run.x - 60;
   if (run.stationId === 'bell') target = Math.min(target, COURSE.bellX - W / 2 - 30);
   camDelta += cam - (target + camDelta);
   camDelta *= Math.exp(-dt * CAMERA_RATE);
