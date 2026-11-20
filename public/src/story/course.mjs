@@ -79,7 +79,16 @@ export function buildCourse() {
   c.marks.relays.push(p.a + 40);
   // 220px: both banks fit the framing view; still beyond a FAST hop (210px + footing).
   const chasm = c.plat(220, 320); c.marks.bridge = { a: p.b, b: chasm.a };
-  c.filler(14, r, [44, 90], [130, 200]);
+  // Past the bridge the hero goes on with blue alone, through a crater's
+  // shadow: the dark again, but now blue flies ahead with its lamp. Blue
+  // keeps its own pace, so FAST runs out of its light and SLOW stays in it.
+  // Same ground as before (the same filler, split in three).
+  c.filler(2, r, [44, 90], [130, 200]);
+  p = c.plat(...[r(44, 90), r(130, 200)]); c.checkpoint(p, 'apart');
+  c.marks.shadow = { a: p.a + 120 };
+  c.filler(8, r, [44, 90], [130, 200]);
+  c.marks.shadow.b = c.x;
+  c.filler(3, r, [44, 90], [130, 200]);
 
   // ③ RESCUE: red wakes at the crane; crossing leaves green far behind and red
   // breaks the range rule to fetch it.

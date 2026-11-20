@@ -195,7 +195,7 @@ window.addEventListener('pagehide', pause);
 // was not predicted still sounds, just late.
 let ahead = null;
 const cued = new Map();
-const CUES = new Set(['collect', 'kit', 'fit', 'assemble', 'join', 'socket', 'switch', 'plank0', 'plank1', 'plank2', 'plank3', 'relink', 'notice', 'rescue', 'pickup', 'reunion', 'station', 'dock', 'fall', 'respawn']);
+const CUES = new Set(['lamp', 'collect', 'kit', 'fit', 'assemble', 'join', 'socket', 'switch', 'plank0', 'plank1', 'plank2', 'plank3', 'relink', 'notice', 'rescue', 'pickup', 'reunion', 'station', 'dock', 'fall', 'respawn']);
 const eventKey = e => e.type + ':' + e.beat + ':' + (e.who ?? e.index ?? '');
 // Green's legs clamp on with a magnet; red's hook ratchets in.
 const cueName = e => e.type === 'fit' ? 'fit-' + e.who : e.type;
@@ -216,6 +216,8 @@ function predict() {
 const song = {
   get dockBeat() { return ahead.status === 'docked' ? ahead.dockAt : null; },
   parts: new Set(),
+  // Blue's parts found so far, while blue is still in pieces (its tune in shards).
+  get shards() { return ahead.blue.state === 'parts' ? ahead.parts.got : 0; },
   // Bar 1 of the song falls on the beat blue is assembled.
   get origin() { return ahead.parts.assembledAt === null ? 0 : Math.round(ahead.parts.assembledAt / BEAT); },
   // Green is away (far out of range, holding the bridge, or being carried
@@ -256,7 +258,7 @@ function mixMusic() {
   // Blue's bell carries the tune alone in the dark; once green or red play
   // with it, it steps back so their parts can be heard (phones especially).
   const others = Math.max(green.level, red.level);
-  const a = after(), levels = { tick: .9, bell: .85 * lightOpen() * (1 - .3 * others), bass: .9 * green.level, perc: .9 * red.level, sparkle: 0 };
+  const a = after(), levels = { tick: .9, chime: .5, bell: .85 * lightOpen() * (1 - .3 * others), bass: .9 * green.level, perc: .9 * red.level, sparkle: 0 };
   let muffle = 1 - lightOpen();
   if (a >= 0) {
     // Seen from the rocket: the base's music thins with distance; a little
@@ -264,7 +266,7 @@ function mixMusic() {
     const k = smooth(ENDING.away, ENDING.lights, a), out = 1 - smooth(ENDING.black - 2, ENDING.black + 2, a);
     // The base keeps playing to the very end; only the distance grows.
     // The pad exists only here: the four of them, finally all together.
-    levels.tick = 0; levels.bell = levels.bass = levels.perc = levels.pad = (.12 + .88 * (1 - k) ** 2) * out;
+    levels.tick = levels.chime = 0; levels.bell = levels.bass = levels.perc = levels.pad = (.12 + .88 * (1 - k) ** 2) * out;
     // D+1 is blue's alone, at full voice; from green's entry it steps back.
     levels.bell *= 1 - .3 * smooth(ENDING.bass - .5, ENDING.bass + 1, a);
     levels.sparkle = smooth(ENDING.away, ENDING.away + 8, a) * .7 * out; muffle = k * .85;
@@ -394,7 +396,8 @@ function friendY(who, friend) {
   // Habits: blue floats high and soft, green hops low and heavy, red is
   // brisk (sharp take-off, quick landing).
   const arc = Math.sin(phase * Math.PI);
-  if (who === 'blue') return FLOOR - 30 - arc * 30;
+  // Leading with its lamp, blue flies higher and steadier.
+  if (who === 'blue') return friend.state === 'lamp' ? FLOOR - 58 - arc * 10 : FLOOR - 30 - arc * 30;
   if (who === 'green') return FLOOR - 10 - arc * 30;
   return FLOOR - 16 - Math.pow(arc, .6) * 40;
 }
@@ -430,19 +433,59 @@ function drawGlints(cam) {
   // In the dark before blue's light, only what a landing needs: a faint line
   // along each top and the cliff edges catching the hero's glow, brighter
   // near it and on each touchdown. Everything else stays black.
-  const dark = run.chapter === 'wake' ? 1 - lightOpen() : 0;
+  const dark = darkness(), wake = run.chapter === 'wake';
   if (dark <= 0) return;
-  const touch = Math.max(0, 1 - (s % BEAT) / .3);
+  const touch = Math.max(0, 1 - (s % BEAT) / .3), lamp = lampAt(cam);
   for (const p of COURSE.platforms) {
     if (p.kind === 'crane') continue;
     const [left, right] = footing([p.a, p.b]), l = Math.round(left - cam), r = Math.round(right - cam);
     if (r < -cull || l > W + cull) continue;
-    const near = x => 1 - smooth(60, 300, Math.abs(x - heroX)) * .55;
-    ctx.fillStyle = `rgba(232,214,170,${dark * (.22 + .1 * touch)})`; ctx.fillRect(l, FLOOR, r - l, 2);
+    // In the crater's shadow the tops and edges are lit only near the hero
+    // and inside blue's lamp: running out of its light leaves them faint.
+    const near = wake ? x => 1 - smooth(60, 300, Math.abs(x - heroX)) * .55
+      : x => Math.max(.3 * (1 - smooth(50, 170, Math.abs(x - heroX))), lamp ? lamp.k * (1 - smooth(lamp.r * .45, lamp.r, Math.abs(x - lamp.x))) : 0);
+    ctx.fillStyle = `rgba(232,214,170,${dark * (wake ? .22 + .1 * touch : .06)})`; ctx.fillRect(l, FLOOR, r - l, 2);
+    if (!wake) for (let x = Math.max(l, -cull); x < Math.min(r, W + cull); x += 6) {
+      const k = near(x);
+      if (k > .05) { ctx.fillStyle = `rgba(232,214,170,${dark * .5 * k})`; ctx.fillRect(x, FLOOR, Math.min(6, r - x), 2); }
+    }
     for (const x of [l, r - 2]) {
       const edge = ctx.createLinearGradient(0, FLOOR, 0, FLOOR + 26);
       edge.addColorStop(0, `rgba(232,214,170,${dark * near(x) * (.75 + .25 * touch)})`); edge.addColorStop(1, 'rgba(232,214,170,0)');
       ctx.fillStyle = edge; ctx.fillRect(x, FLOOR, 2, 26);
+    }
+  }
+  drawEcho(cam, dark);
+}
+// Each touchdown sends a pulse of light running ahead along the ground; the
+// edges it passes flare and fade. In the wind-up each of blue's parts found
+// sends it farther (its lens, then its emitter): the dark gets easier to
+// read as blue comes together. A full FAST landing (210px) is always in it.
+const ECHO_SPEED = 620;
+function drawEcho(cam, dark) {
+  if (run.status !== 'playing') return;
+  const reach = run.chapter === 'wake' ? 220 + 70 * Math.min(2, run.parts.got) : 230;
+  const age = s - run.beat * BEAT, x0 = run.hopStartX, front = age * ECHO_SPEED;
+  if (front > reach + 300) return;
+  const fade = 1 - smooth(reach * .6, reach, front);
+  for (const p of COURSE.platforms) {
+    if (p.kind === 'crane') continue;
+    const [left, right] = footing([p.a, p.b]);
+    if (right < x0 - 30 || left > x0 + reach) continue;
+    // The pulse itself: a short bright run along the top.
+    const wa = Math.max(left, x0 + front - 22), wb = Math.min(right, x0 + front, x0 + reach);
+    if (wb > wa && fade > 0) { ctx.fillStyle = `rgba(207,230,255,${dark * .85 * fade})`; ctx.fillRect(Math.round(wa - cam), FLOOR - 1, Math.max(1, Math.round(wb - wa)), 2); }
+    // Each edge it passes flares, then fades.
+    for (const [xe, at] of [[left, left], [right - 2, right]]) {
+      const dx = at - x0; if (dx < -30 || dx > reach) continue;
+      const since = age - Math.max(0, dx) / ECHO_SPEED; if (since < 0) continue;
+      const k = dark * Math.exp(-since * 2.4) * (1 - .6 * Math.max(0, dx) / reach);
+      if (k < .03) continue;
+      const g = ctx.createLinearGradient(0, FLOOR - 8, 0, FLOOR + 44);
+      g.addColorStop(0, `rgba(207,230,255,${k})`); g.addColorStop(1, 'rgba(207,230,255,0)');
+      ctx.fillStyle = g; ctx.fillRect(Math.round(xe - cam) - (at === left ? 0 : 1), FLOOR - 8, 3, 52);
+      // A small flare on the corner itself.
+      ctx.fillStyle = `rgba(230,244,255,${Math.min(1, k * 1.2)})`; ctx.fillRect(Math.round(xe - cam) + (at === left ? -2 : -1), FLOOR - 2, 5, 2);
     }
   }
 }
@@ -628,6 +671,16 @@ function drawFriends(cam, inset = false) {
       ctx.fillStyle = 'rgba(255,127,102,.35)'; ctx.fillRect(x + dir * 10, y - 22, dir * 50, 2); ctx.fillRect(x + dir * 14, y - 16, dir * 30, 1);
       ctx.strokeStyle = `rgba(255,127,102,${.25 + .2 * Math.sin(s * 8)})`; ctx.lineWidth = 1; ctx.setLineDash([3, 5]);
       ctx.beginPath(); ctx.arc(x, y - 20, 40, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+      // Close behind with green in its arm, red cannot keep up with FAST: it
+      // calls ahead to the hero on every beat and puffs with the effort.
+      if (f.state === 'carry' && run.x - f.x < 260 && !inset) {
+        const age = s - beatIndex(s) * BEAT;
+        if (age < .6) {
+          ctx.strokeStyle = `rgba(255,127,102,${.8 * (1 - age / .6)})`; ctx.lineWidth = 1.5;
+          for (const lag of [0, .15]) { const r = 8 + Math.max(0, age - lag) * 60; ctx.beginPath(); ctx.arc(x + 6, y - 30, r, -Math.PI * .3, Math.PI * .3); ctx.stroke(); }
+        }
+        if (!reducedMotion.matches) { ctx.fillStyle = 'rgba(255,241,236,.55)'; for (let i = 0; i < 3; i++) { const u = (s * 2.2 + i / 3) % 1; ctx.fillRect(Math.round(x - 14 - u * 22), Math.round(y - 30 - u * 10 + i * 4), 2, 2); } }
+      }
     }
     const palette = PALETTE[who];
     if (who === 'blue') {
@@ -635,6 +688,15 @@ function drawFriends(cam, inset = false) {
       const glow = ctx.createRadialGradient(x, FLOOR - 4, 2, x, FLOOR - 4, 46);
       glow.addColorStop(0, `rgba(111,182,255,${.22 * lightOpen()})`); glow.addColorStop(1, 'rgba(111,182,255,0)');
       ctx.fillStyle = glow; ctx.fillRect(x - 46, FLOOR - 50, 92, 60);
+      // Leading through the shadow, its light falls ahead onto the ground.
+      if (f.state === 'lamp' && !inset) {
+        const k = darkness();
+        ctx.fillStyle = `rgba(169,214,255,${.1 * k})`;
+        ctx.beginPath(); ctx.moveTo(x + 4, y - 26); ctx.lineTo(x + 8, y - 22); ctx.lineTo(x + 110, FLOOR); ctx.lineTo(x - 30, FLOOR); ctx.closePath(); ctx.fill();
+        const pool = ctx.createRadialGradient(x + 26, FLOOR, 4, x + 26, FLOOR, 90);
+        pool.addColorStop(0, `rgba(169,214,255,${.22 * k})`); pool.addColorStop(1, 'rgba(169,214,255,0)');
+        ctx.fillStyle = pool; ctx.fillRect(x - 64, FLOOR - 40, 180, 50);
+      }
     }
     // Anchored on the switch green's spring stays pressed down: its weight is on the plate.
     const anchored = who === 'green' && f.state === 'switch';
@@ -678,7 +740,7 @@ function crewForm(who, f) {
   let target = 0, pulse = 0, dir = 'up', plant = null, to = null, grip = 0;
   if (who === 'blue') {
     const dawn = run.parts.assembledAt === null ? 0 : 1 - smooth(2.5, 4, run.t - run.parts.assembledAt);
-    target = Math.max(dawn, plays ? 1 : 0); pulse = plays ? Math.max(0, 1 - beatAge / .3) : 0;
+    target = Math.max(dawn, plays || f.state === 'lamp' ? 1 : 0); pulse = plays ? Math.max(0, 1 - beatAge / .3) : 0;
   } else if (who === 'green') {
     // Fitted, the pads clamp on with the same overshoot as on the socket.
     if (f.state === 'switch') { plant = switchPlant(); target = 1; } else if (f.state === 'fit' && s >= fitClick(f)) { plant = s - fitClick(f); target = 1; } else target = plays ? 1 : 0;
@@ -924,17 +986,53 @@ function drawCeiling(cam) {
   }
   ctx.globalAlpha = 1;
 }
-function drawDarkness() {
-  const open = lightOpen();
-  if (open >= 1 || run.chapter !== 'wake') return;
-  // The hero's own glow pulses wider at each touchdown.
-  const touch = Math.max(0, 1 - (s % BEAT) / .3), r = 64 + touch * 22 + open * 600;
+// How dark it is where the hero is: the wind-up until blue's light opens,
+// and the crater's shadow past green's bridge (there the sky stays lit).
+function darkness() {
+  if (run.chapter === 'wake') return 1 - lightOpen();
+  const sh = COURSE.shadow, x = run.status === 'falling' ? run.fallX : run.x;
+  return smooth(sh.a - 220, sh.a + 20, x) * (1 - smooth(sh.b - 20, sh.b + 220, x));
+}
+// Blue's lamp in view coordinates (before zoom) while it leads through the
+// shadow; half as strong while it hurries back to the hero after it.
+function lampAt(cam) {
+  const b = run.blue;
+  if (run.chapter === 'wake' || !(b.state === 'lamp' || (b.state === 'follow' && darkness() > 0))) return null;
+  return { x: b.x - cam + 26, r: 150, k: b.state === 'lamp' ? 1 : .5 };
+}
+const shade = document.createElement('canvas'); shade.width = W; shade.height = H;
+const sctx = shade.getContext('2d');
+function drawDarkness(cam) {
+  const dark = darkness();
+  if (dark <= 0) return;
+  const wake = run.chapter === 'wake', open = wake ? lightOpen() : 0;
+  // The hero's own glow pulses wider at each touchdown; in the wind-up each
+  // of blue's parts found widens it a little.
+  const touch = Math.max(0, 1 - (s % BEAT) / .3), r = (wake ? 64 + 10 * Math.min(2, run.parts.got) : 62) + touch * 22 + open * 600;
+  // The dark is a layer with holes cut in it, drawn in screen space (the
+  // scene may be zoomed out).
+  const sx = x => x * zoom, sy = y => FLOOR + (y - FLOOR) * zoom;
   const gx = heroX, gy = heroY() - 20;
-  const g = ctx.createRadialGradient(gx, gy, r * .35, gx, gy, r);
-  g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, `rgba(2,4,6,${.95 * (1 - open)})`);
-  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  sctx.globalCompositeOperation = 'source-over'; sctx.clearRect(0, 0, W, H);
+  if (wake) { sctx.fillStyle = `rgba(2,4,6,${.95 * dark})`; sctx.fillRect(0, 0, W, H); }
+  else {
+    const sky = sctx.createLinearGradient(0, FLOOR - 230, 0, FLOOR - 90);
+    sky.addColorStop(0, `rgba(2,4,8,${.3 * dark})`); sky.addColorStop(1, `rgba(2,4,8,${.95 * dark})`);
+    sctx.fillStyle = sky; sctx.fillRect(0, 0, W, H);
+  }
+  sctx.globalCompositeOperation = 'destination-out';
+  const hole = (x, y, radius, k = 1) => {
+    const g = sctx.createRadialGradient(x, y, radius * .35, x, y, radius);
+    g.addColorStop(0, `rgba(0,0,0,${k})`); g.addColorStop(1, 'rgba(0,0,0,0)');
+    sctx.fillStyle = g; sctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+  };
+  hole(sx(gx), sy(gy), r * zoom);
+  // Blue's lamp: a wide pool on the ground just ahead of it, and blue itself.
+  const lamp = lampAt(cam);
+  if (lamp) { hole(sx(lamp.x), sy(FLOOR - 24), lamp.r * zoom, lamp.k); hole(sx(lamp.x - 26), sy(friendY('blue', run.blue)), 40 * zoom, lamp.k); }
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(shade, 0, 0); ctx.restore();
   // Dust hangs in the hero's light and brightens with each touchdown.
-  drawMotes(ctx, gx, gy, 74, s, touch, 1 - open, reducedMotion.matches);
+  if (wake) drawMotes(ctx, gx, gy, 74, s, touch, 1 - open, reducedMotion.matches);
 }
 function drawScene() {
   const cam = camera();
@@ -951,7 +1049,7 @@ function drawScene() {
     ctx.fillRect(p.x - cam + p.vx * p.age, p.y + p.vy * p.age + 120 * p.age ** 2, 3, 3);
   }
   ctx.globalAlpha = 1;
-  drawDarkness(); drawCeiling(cam); drawGlints(cam); drawLanterns(cam); drawFallHint(cam); drawFlashes(cam);
+  drawDarkness(cam); drawCeiling(cam); drawGlints(cam); drawLanterns(cam); drawFallHint(cam); drawFlashes(cam);
   ctx.restore(); cull = 20;
   drawBehind(cam); drawInset();
   // The active blue part glows through the dark.

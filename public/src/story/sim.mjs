@@ -13,7 +13,19 @@ export const FOLLOW_GAP = 46;
 // Green floats between SLOW and FAST: FAST pulls away, SLOW lets it catch up.
 export const GREEN_SPEED = 160;
 // Red's trip back for green is short enough to stay one musical phrase.
-export const RESCUE_SPEED = 900, CARRY_SPEED = 700, TEAM_SPEED = 320;
+export const RESCUE_SPEED = 900, DASH_SPEED = 700, TEAM_SPEED = 320;
+// Carrying green home, red is heavy. Far off it flies at DASH_SPEED, homing
+// in on the hero's signal; close behind it slows to CARRY_SPEED + CARRY_PULL
+// × (distance − CARRY_HOLD), so the distance eases (closed form) towards
+// CARRY_HOLD + (hero speed − CARRY_SPEED) / CARRY_PULL: about 120px behind,
+// in view and struggling, while the hero holds FAST; beside the hero as soon
+// as it lets go. SLOW is how the hero waits for them. At the base the
+// station lights pull them in whatever the hero does.
+export const CARRY_SPEED = 140, CARRY_PULL = 2.2, CARRY_HOLD = 62;
+// Through the crater's shadow blue flies ahead as a lamp at its own pace,
+// at most LAMP_LEAD px in front of the hero; it takes the lead LAMP_EARLY px
+// before the shadow and drops back to follow LAMP_LATE px after it.
+export const LAMP_SPEED = 175, LAMP_LEAD = 110, LAMP_EARLY = 300, LAMP_LATE = 60;
 export const PART_REACH = 36;
 // Green and red are met missing a part (green its magnetic legs, red its
 // hook), which lies before them. A landing within KIT_REACH picks it up
@@ -135,6 +147,10 @@ function land(run, course, p, events) {
   const chapter = chapterAt(course, run.x);
   if (chapter !== run.chapter) { run.chapter = chapter; events.push({ type: 'chapter', id: chapter }); }
   collectPart(run, course, events);
+  // Blue takes the lead into the crater's shadow and drops back after it.
+  const shade = course.shadow, inShade = run.x >= shade.a - LAMP_EARLY && run.x < shade.b + LAMP_LATE;
+  if (run.blue.state === 'follow' && inShade) { run.blue.state = 'lamp'; events.push({ type: 'lamp' }); }
+  else if (run.blue.state === 'lamp' && !inShade) run.blue.state = 'follow';
   for (const who of ['green', 'red']) {
     const kit = run.kits[who];
     if (kit.at !== null || run.x < kit.x - KIT_REACH) continue;
@@ -197,6 +213,9 @@ function collectPart(run, course, events) {
 function moveCrew(run, course, dt, speed, events) {
   const { blue, green, red } = run, x1 = run.x + speed * dt;
   if (blue.state === 'follow') blue.x = x1 - FOLLOW_GAP * .7 + (blue.x - (x1 - FOLLOW_GAP * .7)) * Math.exp(-6 * dt);
+  // The lamp keeps its own pace, never more than LAMP_LEAD ahead (exact for
+  // a step at one speed: whichever bound holds at its end held throughout).
+  else if (blue.state === 'lamp') blue.x = Math.min(blue.x + LAMP_SPEED * dt, x1 + LAMP_LEAD);
   if (green.state === 'follow' || green.state === 'catch') {
     // Green chases at its own speed, never closer than FOLLOW_GAP behind the
     // hero; a boosted green hurries at TEAM_SPEED until it is beside him.
@@ -226,29 +245,43 @@ function moveCrew(run, course, dt, speed, events) {
       // Exact instant red reaches green, so its cue can be scheduled ahead.
       let lo = run.t - red.rescueAt, hi = t1 - red.rescueAt;
       for (let i = 0; i < 40; i++) { const mid = (lo + hi) / 2; if (rescueTravel(mid) >= reach) hi = mid; else lo = mid; }
+      events.push({ type: 'pickup', x: green.x, t: red.rescueAt + hi });
       // The carry starts at that instant, not at the end of the frame (the
       // hero is far ahead, so the reunion is never in this step).
-      events.push({ type: 'pickup', x: green.x, t: red.rescueAt + hi });
-      red.x = green.x + 12 + CARRY_SPEED * (t1 - red.rescueAt - hi); red.state = 'carry'; green.state = 'carry'; green.x = red.x - 16;
+      const rest = t1 - red.rescueAt - hi;
+      red.state = 'carry'; green.state = 'carry';
+      red.x = x1 - carried(run, speed, x1 - speed * rest - (green.x + 12), rest).d; green.x = red.x - 16;
     } else red.x = red.rescueX - rescueTravel(t1 - red.rescueAt);
   } else if (red.state === 'carry') {
-    const gap = FOLLOW_GAP * 1.6, d0 = run.x - red.x;
-    red.x += CARRY_SPEED * dt; green.x = red.x - 16;
-    if (x1 - red.x <= gap) {
-      red.state = 'follow'; green.state = 'follow'; run.together = true;
-      events.push({ type: 'reunion', t: run.t + Math.max(0, Math.min(dt, (d0 - gap) / (CARRY_SPEED - speed))) });
-    }
+    const step = carried(run, speed, run.x - red.x, dt);
+    if (step.meet <= dt) {
+      red.state = 'follow'; green.state = 'follow'; run.together = true; red.x = x1 - FOLLOW_GAP * 1.6; green.x = red.x - 16;
+      events.push({ type: 'reunion', t: run.t + step.meet });
+    } else { red.x = x1 - step.d; green.x = red.x - 16; }
   } else if (red.state === 'follow') red.x = Math.min(x1 - FOLLOW_GAP * 1.6, red.x + TEAM_SPEED * dt);
   // Red rides the crane's beam while it works it; when it notices green is
   // missing it drops beside the hero for one beat before leaving.
-  // Booted behind the hero, red dashes (CARRY_SPEED) to its side first.
-  else if (red.state === 'escort') red.x = Math.max(Math.min(red.x, x1), Math.min(x1 - FOLLOW_GAP * 1.6, red.x + (x1 - red.x > FOLLOW_GAP * 3 ? CARRY_SPEED : TEAM_SPEED) * dt));
+  // Booted behind the hero, red dashes (DASH_SPEED) to its side first.
+  else if (red.state === 'escort') red.x = Math.max(Math.min(red.x, x1), Math.min(x1 - FOLLOW_GAP * 1.6, red.x + (x1 - red.x > FOLLOW_GAP * 3 ? DASH_SPEED : TEAM_SPEED) * dt));
   // Up to the boom over CRANE_CLIMB s (a closed form of time, not of frames).
   else if (red.state === 'crane') { const k = Math.min(1, (run.t + dt - red.craneAt) / CRANE_CLIMB); red.x = red.fromX + ((course.crane.a + course.crane.b) / 2 - red.fromX) * k * k * (3 - 2 * k); }
   // Red eases in 70px behind the moving hero. Closed form for a step at one
   // speed, so where it leaves from, and so the pickup, is the same at any
   // frame rate.
   else if (red.state === 'notice') red.x = x1 - 70 + (red.x - (run.x - 70) + speed / 8) * Math.exp(-8 * dt) - speed / 8;
+}
+
+// Red carrying green, d0 px behind a hero moving at `speed`: the distance
+// after dt, and the seconds until it is beside the hero (Infinity if not
+// at this speed).
+const REUNION_GAP = FOLLOW_GAP * 1.6;
+function carried(run, speed, d0, dt) {
+  const pull = run.chapter === 'base' ? TEAM_SPEED : CARRY_SPEED, eq = CARRY_HOLD + (speed - pull) / CARRY_PULL;
+  // Beyond `far` red flies at DASH_SPEED (the eased speed would be faster).
+  const far = CARRY_HOLD + (DASH_SPEED - pull) / CARRY_PULL, dash = d0 > far ? (d0 - far) / (DASH_SPEED - speed) : 0;
+  if (dt <= dash) return { d: d0 - (DASH_SPEED - speed) * dt, meet: Infinity };
+  const from = Math.min(d0, far), meet = from <= REUNION_GAP ? 0 : eq < REUNION_GAP ? Math.log((from - eq) / (REUNION_GAP - eq)) / CARRY_PULL : Infinity;
+  return { d: eq + (from - eq) * Math.exp(-CARRY_PULL * (dt - dash)), meet: dash + meet };
 }
 
 // Distance red has flown τ seconds after leaving: it sets off visibly,
@@ -275,7 +308,7 @@ function respawn(run, course, events) {
   for (const friend of [blue, green, red]) if (friend.state === 'station') friend.state = 'follow';
   // A friend still booting when the hero fell is ready when it is back.
   for (const who of ['green', 'red']) if (run[who].state === 'fit') { boot(run, who, events); run[who].bootAt = -10; }
-  if (blue.state === 'follow') blue.x = cp.x - FOLLOW_GAP;
+  if (blue.state === 'follow' || blue.state === 'lamp') blue.x = cp.x - FOLLOW_GAP;
   // Once green holds the bridge it stays: a fall never undoes its work.
   if (green.state === 'catch') green.state = 'follow';
   if (green.state === 'dormant') green.x = course.greenMeet;

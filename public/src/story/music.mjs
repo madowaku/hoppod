@@ -5,7 +5,7 @@
 import { BEAT } from './beat.mjs';
 
 export const STEP = BEAT / 4;
-export const PARTS = Object.freeze(['tick', 'bell', 'bass', 'perc', 'pad', 'sparkle']);
+export const PARTS = Object.freeze(['tick', 'chime', 'bell', 'bass', 'perc', 'pad', 'sparkle']);
 const hz = m => 440 * 2 ** ((m - 69) / 12);
 
 // "Wind-up, waking, widening, flight." G major with a borrowed C minor
@@ -67,6 +67,14 @@ export function notesAt(n, song) {
   const b = beat - (docked ? song.dockBeat + ENDING.bell : song.origin ?? 0);
   if (b < 0) return out;
   const barN = Math.floor(b / 4), inBar = b % 4, chord = chordAt(b), loop = Math.floor(barN / 16), phrase = Math.floor(barN / 4) % 4;
+  // In the dark, each of blue's parts found brings back a little of its
+  // tune, clear through the rock: one part, the first note of every bar; two,
+  // the notes on beats one and three. The whole tune comes with the dawn.
+  if (!docked && song.shards > 0 && !song.parts.has('bell')) {
+    for (const note of MELODY[barN % 16]) if (note.slot === inBar * 2 + sub / 2 && note.slot % (song.shards > 1 ? 4 : 8) === 0) {
+      out.push({ part: 'chime', kind: 'bell', f: hz(note.m + 12), d: 1.6, v: .7 });
+    }
+  }
   if (on('bell')) {
     // On the second pass through the first half the melody thins to its
     // downbeats: the same tune, with more air. While green is away it thins
@@ -119,6 +127,8 @@ const CUES = {
   switch: [[0, 392, .1, .06], [.08, 587, .1, .05], [.16, 784, .35, .05]],
   relink: [[0, 523, .1, .04], [.08, 784, .12, .045], [.16, 1047, .3, .045]],
   socket: [[0, 1568, .06, .025], [.08, 2093, .12, .02]],
+  // Blue goes ahead into the crater's shadow: its lamp opens with two soft notes.
+  lamp: [[0, 1175, .1, .03], [.1, 1568, .3, .028]],
   // Green lays the bridge: four plucks up the G chord, one per piece.
   plank0: [[0, 196, .22, .07], [0, 392, .12, .03]],
   plank1: [[0, 247, .22, .07], [0, 494, .12, .03]],
@@ -150,6 +160,12 @@ export function createStoryAudio() {
     for (const part of PARTS) {
       const g = ctx.createGain(); g.gain.value = 0; buses[part] = g;
       if (part === 'tick') { g.connect(master); continue; }
+      if (part === 'chime') {
+        // Blue's tune in pieces, heard through the rock: clear, with a long echo.
+        g.connect(master); const echo = ctx.createDelay(2), back = ctx.createGain(), wet = ctx.createGain();
+        echo.delayTime.value = BEAT * 1.5; back.gain.value = .35; wet.gain.value = .4;
+        g.connect(echo); echo.connect(back); back.connect(echo); echo.connect(wet); wet.connect(master); continue;
+      }
       if (part === 'sparkle') {
         // The glints ring out into a long echo: space opening up.
         g.connect(master); const echo = ctx.createDelay(2), back = ctx.createGain(), wet = ctx.createGain();

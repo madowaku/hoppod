@@ -535,3 +535,69 @@ test('composition: blue starts the song on D+1, the others join on downbeats, th
   const dark = { dockBeat: null, parts: new Set(), tick: () => true, origin: 0 };
   for (let n = 0; n < 64; n++) for (const note of notesAt(n, dark)) assert.equal(note.part, 'tick');
 });
+
+// Red carrying green home, from the far landing past the crane: hold `f`
+// every hop (the ground there is plain) until the pair is close, then `then`.
+function carryRun(f, then = f, hops = 40, frame = null) {
+  const r = storyFrom(COURSE, COURSE.checkpoints.findIndex(c => c.x >= COURSE.craneFar)), events = [];
+  for (let i = 0; i < hops && !r.together; i++) {
+    const k = r.red.state === 'carry' && r.x - r.red.x < 200 ? then : f, t0 = r.beat * BEAT;
+    const step = (to, fast) => { if (!frame) return advanceStory(r, COURSE, to, fast, events); while (r.t < to - 1e-12) advanceStory(r, COURSE, Math.min(to, r.t + frame), fast, events); };
+    if (k > 0) step(t0 + k * BEAT, true);
+    step(t0 + BEAT, false);
+  }
+  return { r, events };
+}
+test('carrying green, red cannot keep up with FAST: the hero waits with SLOW and they meet', async () => {
+  const { CARRY_SPEED, CARRY_HOLD, CARRY_PULL } = await import('../public/src/story/sim.mjs');
+  // Close behind, held FAST: about 120px back, in view, never beside the hero.
+  const behind = CARRY_HOLD + (FAST_SPEED - CARRY_SPEED) / CARRY_PULL;
+  assert.ok(behind > FOLLOW_GAP * 1.6 + 30 && behind < 130, `held ${behind}px behind`);
+  // Let go and they arrive; the threshold sits between SLOW and FAST.
+  assert.ok(CARRY_HOLD + (SLOW_SPEED - CARRY_SPEED) / CARRY_PULL < FOLLOW_GAP * 1.6);
+  // A FAST-only witness is not possible on the uneven road, so take the
+  // plain stretch: SLOW throughout reunites, and so does FAST that lets go.
+  for (const [f, then] of [[0, 0], [1, 0]]) {
+    const { r, events } = carryRun(f, then);
+    assert.ok(r.together, `f=${f} then=${then} reunites`);
+    assert.ok(events.some(e => e.type === 'reunion'));
+  }
+  // The reunion's time does not depend on frame size.
+  const exact = carryRun(0).events.find(e => e.type === 'reunion').t;
+  for (const frame of [1 / 30, 1 / 60, 1 / 144, .1]) assert.ok(Math.abs(carryRun(0, 0, 40, frame).events.find(e => e.type === 'reunion').t - exact) < 1e-6, `frame ${frame}`);
+});
+test('carrying green: FAST keeps them behind, and at the base they are pulled in whatever the hero does', () => {
+  const carry = (r, back) => { r.together = false; r.red.state = r.green.state = 'carry'; r.red.x = r.x - back; r.green.x = r.red.x - 16; };
+  // Just behind a hero holding FAST on the plain past the crane.
+  const r = storyFrom(COURSE, COURSE.checkpoints.findIndex(c => c.x >= COURSE.craneFar)), ds = [];
+  carry(r, 200);
+  for (let i = 0; i < 6; i++) { advanceStory(r, COURSE, r.t + BEAT / 4, true); ds.push(r.x - r.red.x); }
+  assert.ok(!r.together && ds.every(d => d > FOLLOW_GAP * 1.6), `FAST holds them back: ${ds.map(Math.round)}`);
+  // At the base the same FAST lets them catch up.
+  const b = storyFrom(COURSE, COURSE.checkpoints.findIndex(c => c.chapter === 'base'));
+  carry(b, 200);
+  for (let i = 0; i < 12 && !b.together; i++) advanceStory(b, COURSE, b.t + BEAT / 4, true);
+  assert.ok(b.together, 'pulled in at the base');
+});
+test("blue's lamp: in the crater's shadow blue leads at its own pace; FAST outruns its light", async () => {
+  const { LAMP_LEAD } = await import('../public/src/story/sim.mjs');
+  const cp = COURSE.checkpoints.findIndex(c => c.x > COURSE.shadow.a - 400);
+  for (const [order, check] of [[[0, .25, .5], d => d <= LAMP_LEAD + 1e-6], [[1, .75, .5], d => d < 0]]) {
+    const start = storyFrom(COURSE, cp), { path } = solve(COURSE, start, { until: r => r.x > COURSE.shadow.b + 300, order, limit: 50000 });
+    const r = structuredClone(start), lead = [];
+    for (const f of path) { const ev = hop(r, COURSE, f); if (r.blue.state === 'lamp') lead.push(r.blue.x - r.x); if (ev.some(e => e.type === 'fall')) assert.fail('witness falls'); }
+    assert.ok(lead.length > 6, 'blue leads through the shadow');
+    assert.ok(lead.slice(4).filter(check).length >= lead.slice(4).length * .8, `${order[0]}: ${lead.map(Math.round)}`);
+    assert.equal(r.blue.state, 'follow', 'blue drops back after the shadow');
+  }
+});
+test("in the dark, blue's parts bring back its tune in pieces: none, downbeats, beats one and three", () => {
+  const song = shards => ({ dockBeat: null, parts: new Set(), origin: 0, shards, tick: () => true });
+  const chimes = shards => { let n = 0; for (let i = 0; i < 16 * 16 * 4; i++) n += notesAt(i, song(shards)).filter(x => x.part === 'chime').length; return n; };
+  assert.equal(chimes(0), 0);
+  const one = chimes(1), two = chimes(2);
+  assert.ok(one > 8 && two > one, `${one} < ${two}`);
+  // Once the bell plays the whole tune, the pieces stop.
+  const full = { ...song(2), parts: new Set(['bell']) };
+  for (let i = 0; i < 256; i++) assert.ok(!notesAt(i, full).some(x => x.part === 'chime'));
+});
