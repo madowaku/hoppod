@@ -601,3 +601,45 @@ test("in the dark, blue's parts bring back its tune in pieces: none, downbeats, 
   const full = { ...song(2), parts: new Set(['bell']) };
   for (let i = 0; i < 256; i++) assert.ok(!notesAt(i, full).some(x => x.part === 'chime'));
 });
+// From the last lantern of the rescue: an aiming player lands on each light;
+// the others take the first safe hold in their order.
+function ensembleRun(order, aim) {
+  const r = storyFrom(COURSE, COURSE.checkpoints.findIndex(c => c.chapter === 'rescue' && c.x > COURSE.craneFar + 500)), events = [];
+  for (let i = 0; i < 80 && r.chapter === 'rescue'; i++) {
+    const safe = [];
+    for (let k = 0; k <= 40; k++) { const f = k / 40, x = r.x + BEAT * (SLOW_SPEED + (FAST_SPEED - SLOW_SPEED) * f); if (platformAt(COURSE, x)) safe.push([f, x]); }
+    const n = r.notes.cur, cost = ([f, x]) => {
+      if (aim && n) return n.due - r.beat === 1 ? Math.abs(x - n.x) : n.x - x >= SLOW_SPEED * BEAT && n.x - x <= FAST_SPEED * BEAT ? Math.abs(f - .5) : 1e4;
+      return order.indexOf(order.reduce((a, o) => Math.abs(o - f) < Math.abs(a - f) ? o : a)) * 100 + Math.abs(order[0] - f);
+    };
+    const [f] = safe.reduce((a, b) => cost(b) < cost(a) ? b : a);
+    events.push(...hop(r, COURSE, f));
+  }
+  return { r, events };
+}
+test('together again, the friends call and the hero answers by landing on their light', async () => {
+  const { NOTE_REACH, NOTE_BEATS, NOTE_WHO } = await import('../public/src/story/sim.mjs');
+  const aimed = ensembleRun([.5], true);
+  const calls = aimed.events.filter(e => e.type === 'call'), answers = aimed.events.filter(e => e.type === 'answer');
+  assert.ok(calls.length >= 6, `${calls.length} calls`);
+  assert.ok(!aimed.events.some(e => e.type === 'fall'), 'the aiming player never falls');
+  assert.equal(answers.length, calls.length, 'every call can be answered');
+  assert.equal(aimed.r.notes.answered, calls.length);
+  const origin = Math.round(aimed.r.parts.assembledAt / BEAT);
+  calls.forEach((c, i) => {
+    assert.equal(c.who, NOTE_WHO[i % 3]);
+    assert.equal((c.beat - origin) % 2, 0, 'on beats one and three of the song');
+    const a = aimed.events.find(e => e.type === 'answer' && e.index === c.index);
+    assert.equal(a.beat, c.beat + NOTE_BEATS);
+    assert.ok(Math.abs(a.x - c.x) <= NOTE_REACH);
+  });
+  // Calls only once together, and none left at the base.
+  const firstCall = aimed.events.indexOf(calls[0]), reunion = aimed.events.findIndex(e => e.type === 'reunion');
+  assert.ok(reunion >= 0 && reunion < firstCall);
+  assert.equal(aimed.r.notes.cur, null);
+  // Neither leaning on SLOW nor on FAST answers them all.
+  for (const order of [[0, .25, .5, .75, 1], [1, .75, .5, .25, 0]]) {
+    const { events } = ensembleRun(order, false), c = events.filter(e => e.type === 'call').length, a = events.filter(e => e.type === 'answer').length;
+    assert.ok(c > 0 && a < c, `${order[0]}: ${a}/${c}`);
+  }
+});

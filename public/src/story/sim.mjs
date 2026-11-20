@@ -1,7 +1,7 @@
 // STORY simulation. Pure and deterministic: given story time and the input
 // timeline it always produces the same run. Hops land exactly on beats
 // (k × BEAT), so the hero's touchdowns are the music's pulse.
-import { SLOW_SPEED, FAST_SPEED } from '../engine.mjs';
+import { SLOW_SPEED, FAST_SPEED, footing } from '../engine.mjs';
 import { BEAT } from './beat.mjs';
 import { platformAt, chapterAt, platformAhead, edgeSide } from './course.mjs';
 
@@ -46,6 +46,16 @@ export const CRANE_CALL = 300, CRANE_CLIMB = .6;
 export const SOCKET_LEAD = 100, SOCKET_NEAR = 80, BRIDGE_LEGS = .08, BRIDGE_SEGMENTS = 4;
 const STEP = BEAT / 4;
 export const FALL_BEATS = 2;
+// Together again, the friends play with the hero: on beats one and three of
+// the song one of them (blue, green, red in turn) calls and throws a light
+// onto the ground NOTE_BEATS touchdowns ahead; landing within NOTE_REACH of
+// it answers the call. Optional: a missed call only fades, nothing is lost.
+// Each light is placed where some FAST/SLOW mix can reach it (both hops on
+// rock), and the wanted distance changes from call to call, so neither SLOW
+// nor FAST alone answers them all.
+export const NOTE_REACH = 22, NOTE_BEATS = 2, NOTE_WHO = Object.freeze(['blue', 'green', 'red']);
+const NOTE_REACHES = [380, 220, 310, 250, 400, 235, 290];
+const HOP_MIN = SLOW_SPEED * BEAT, HOP_MAX = FAST_SPEED * BEAT;
 
 // The crane lowers its span on the first two beats of every four.
 export const craneDown = beat => ((beat % 4) + 4) % 4 < 2;
@@ -60,6 +70,7 @@ export function newStory(course) {
     green: { state: 'dormant', x: course.greenMeet },
     red: { state: 'dormant', x: course.redConsole },
     switchOn: false, switchAt: null, fails: {},
+    notes: { cur: null, called: 0, answered: 0 },
   };
 }
 
@@ -132,6 +143,7 @@ function touchdown(run, course, events) {
   if (!p) {
     run.status = 'falling'; run.fallAt = k; run.fallX = run.x;
     events.push({ type: 'fall', x: run.x, beat: k });
+    if (run.notes.cur) { events.push({ type: 'unanswered', who: run.notes.cur.who, index: run.notes.cur.index, x: run.notes.cur.x }); run.notes.cur = null; }
     return;
   }
   land(run, course, p, events);
@@ -176,10 +188,47 @@ function land(run, course, p, events) {
     friend.state = 'station'; friend.x = Math.round((p.a + p.b) / 2);
     events.push({ type: 'station', who: p.who });
   }
+  ensemble(run, course, events);
   if (p.kind === 'dock') {
     run.status = 'docked'; run.dockAt = run.beat; run.x = course.dockX;
     events.push({ type: 'dock', beat: run.beat });
   }
+}
+
+// The friends' calls (see NOTE_REACH): answer the one due on this landing,
+// then, on beat one or three of the song, let the next friend call.
+function ensemble(run, course, events) {
+  const notes = run.notes, cur = notes.cur;
+  if (cur && run.beat >= cur.due) {
+    const hit = Math.abs(run.x - cur.x) <= NOTE_REACH;
+    if (hit) notes.answered += 1;
+    events.push({ type: hit ? 'answer' : 'unanswered', who: cur.who, index: cur.index, x: cur.x });
+    notes.cur = null;
+  }
+  if (notes.cur || !run.together || run.chapter !== 'rescue' || run.status !== 'playing') return;
+  const songBeat = run.beat - Math.round(run.parts.assembledAt / BEAT);
+  if (songBeat % 2 !== 0) return;
+  const want = NOTE_REACHES[notes.called % NOTE_REACHES.length], x = noteSpot(course, run.x, want);
+  if (x === null || x > course.ensembleEnd) return;
+  const who = NOTE_WHO[notes.called % NOTE_WHO.length];
+  notes.cur = { who, x, due: run.beat + NOTE_BEATS, index: notes.called, at: run.t };
+  events.push({ type: 'call', who, index: notes.called, x });
+  notes.called += 1;
+}
+// Within m px of a ground footing's edges.
+function onRock(course, x, m) {
+  return course.platforms.some(p => { if (p.kind !== 'ground') return false; const [l, r] = footing([p.a, p.b]); return x >= l + m && x <= r - m; });
+}
+// The spot nearest x0 + want that two hops can reach with both touchdowns on
+// rock (and the light's whole reach on it), or null.
+export function noteSpot(course, x0, want) {
+  for (let off = 0; off <= 140; off += 3) for (const sign of off ? [1, -1] : [1]) {
+    const x = Math.round(x0 + want + sign * off);
+    if (x - x0 < 2 * HOP_MIN + 2 || x - x0 > 2 * HOP_MAX - 2 || !onRock(course, x, 6)) continue;
+    const lo = Math.max(x0 + HOP_MIN + 2, x - HOP_MAX + 2), hi = Math.min(x0 + HOP_MAX - 2, x - HOP_MIN - 2);
+    for (let y = lo; y <= hi; y += 2) if (onRock(course, y, 2)) return x;
+  }
+  return null;
 }
 
 // Booted, green follows at its own pace; red dashes to the hero's side and
@@ -317,6 +366,7 @@ function respawn(run, course, events) {
   }
   if (green.state === 'follow') green.x = cp.x - FOLLOW_GAP;
   if (red.state === 'follow' || red.state === 'escort') red.x = cp.x - FOLLOW_GAP * 1.6;
+  run.notes.cur = null;
   events.push({ type: 'respawn', checkpoint: run.checkpoint, x: cp.x });
   land(run, course, platformAt(course, cp.x) || { kind: 'ground', a: cp.x, b: cp.x }, events);
 }

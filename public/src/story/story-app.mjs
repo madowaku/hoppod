@@ -6,8 +6,8 @@ import { drawSky, drawNearStars, drawRanges, drawGlobe, drawGround, drawPit, dra
 import { COMPANION_PALETTE } from '../companion.mjs';
 import { BEAT, BeatClock, TimedInput, heardFromContext, beatIndex } from './beat.mjs';
 import { COURSE, platformAt } from './course.mjs';
-import { newStory, storyFrom, advanceStory, craneSolid, craneWorking, hopLift, bridgeFront, bridgeSegmentAt, RANGE, FOLLOW_GAP, FALL_BEATS, SOCKET_NEAR, BRIDGE_SEGMENTS, CRANE_CLIMB, FIT_BEATS } from './sim.mjs';
-import { createStoryAudio, notesAt, STEP, ENDING } from './music.mjs';
+import { newStory, storyFrom, advanceStory, craneSolid, craneWorking, hopLift, bridgeFront, bridgeSegmentAt, RANGE, FOLLOW_GAP, FALL_BEATS, SOCKET_NEAR, BRIDGE_SEGMENTS, CRANE_CLIMB, FIT_BEATS, NOTE_REACH } from './sim.mjs';
+import { createStoryAudio, notesAt, chordAt, STEP, ENDING } from './music.mjs';
 import { chooseLanguage, withLanguage, storyCopy } from './copy.mjs';
 import { drawCrewParts, drawKit, drawTransmit, TRANSMIT_LOCK } from './crew.mjs';
 
@@ -195,10 +195,12 @@ window.addEventListener('pagehide', pause);
 // was not predicted still sounds, just late.
 let ahead = null;
 const cued = new Map();
-const CUES = new Set(['lamp', 'collect', 'kit', 'fit', 'assemble', 'join', 'socket', 'switch', 'plank0', 'plank1', 'plank2', 'plank3', 'relink', 'notice', 'rescue', 'pickup', 'reunion', 'station', 'dock', 'fall', 'respawn']);
+const CUES = new Set(['call', 'answer', 'lamp', 'collect', 'kit', 'fit', 'assemble', 'join', 'socket', 'switch', 'plank0', 'plank1', 'plank2', 'plank3', 'relink', 'notice', 'rescue', 'pickup', 'reunion', 'station', 'dock', 'fall', 'respawn']);
 const eventKey = e => e.type + ':' + e.beat + ':' + (e.who ?? e.index ?? '');
 // Green's legs clamp on with a magnet; red's hook ratchets in.
 const cueName = e => e.type === 'fit' ? 'fit-' + e.who : e.type;
+// A friend's call and the hero's answer are pitched to the song's chord on that beat.
+const cueExtra = e => e.type === 'call' || e.type === 'answer' ? { who: e.who, chord: chordAt(e.beat - Math.round((run.parts.assembledAt ?? 0) / BEAT)) } : null;
 function predict() {
   ahead = structuredClone(run);
   if (!audio.running || clock.domain !== 'audio' || run.status === 'docked') return;
@@ -209,7 +211,7 @@ function predict() {
     // key change inside the lookahead moves it), so it sounds when it happens.
     if (!CUES.has(e.type) || e.type === 'reunion' || cued.has(eventKey(e))) continue;
     const at = clock.contextTime(e.t);
-    if (at > audio.context.currentTime + .003) { audio.cue(cueName(e), at); cued.set(eventKey(e), e.t); probeNote('cue:' + e.type, at, e.t); }
+    if (at > audio.context.currentTime + .003) { audio.cue(cueName(e), at, cueExtra(e)); cued.set(eventKey(e), e.t); probeNote('cue:' + e.type, at, e.t); }
   }
   for (const [key, t] of cued) if (t < s - 8) cued.delete(key);
 }
@@ -293,7 +295,7 @@ function burst(x, y, colors, n = 8) {
 }
 function handle(events) {
   for (const e of events) {
-    if (CUES.has(e.type) && !cued.has(eventKey(e))) { audio.cue(cueName(e), e.t > s + .01 ? clock.contextTime(e.t) : null); probeNote('late:' + e.type, audio.context?.currentTime ?? 0, e.t); }
+    if (CUES.has(e.type) && !cued.has(eventKey(e))) { audio.cue(cueName(e), e.t > s + .01 ? clock.contextTime(e.t) : null, cueExtra(e)); probeNote('late:' + e.type, audio.context?.currentTime ?? 0, e.t); }
     probeEvent(e); buzz(e.type);
     if (e.type === 'land') { if (!reducedMotion.matches) { dust.push({ x: run.x, at: e.t ?? s }); teeter = e.edge ? { side: e.edge, at: e.t ?? s, x: run.x } : null; } }
     else if (e.type === 'collect') burst(e.x, FLOOR - 10, ['#a9d6ff', '#4f9dff'], 10);
@@ -305,6 +307,8 @@ function handle(events) {
     else if (e.type === 'notice') flashes.push({ kind: 'ping', x: run.red.x, at: e.t });
     else if (e.type === 'pickup') { pickupAt = e.t; flashes.push({ kind: 'pickup', x: e.x, at: e.t }); }
     else if (e.type === 'reunion') flashes.push({ kind: 'reunion', x: run.x, at: e.t });
+    else if (e.type === 'answer') { flashes.push({ kind: 'answer', who: e.who, x: e.x, at: e.t }); burst(e.x, FLOOR - 6, [GLOW[e.who], '#ffffff'], 12); }
+    else if (e.type === 'unanswered') flashes.push({ kind: 'unanswered', who: e.who, x: e.x, at: e.t });
     else if (e.type === 'dock') { releaseInput(); showBanner('send'); flashes.push({ kind: 'dock', x: COURSE.dockX, at: e.t }); }
     else if (e.type === 'chapter') showBanner(e.id);
     else if (e.type === 'fall') fallGap = gapAt(run.fallX);
@@ -879,7 +883,18 @@ function drawRange() {
 function drawFlashes(cam) {
   for (const f of flashes) {
     const age = s - f.at, x = f.x - cam;
-    if (f.kind === 'relink' && age < 1.2) {
+    if (f.kind === 'answer' && age < 1) {
+      // Answered: the light rings out in the friend's colour and a thread of
+      // it runs back up to the friend who called.
+      ctx.strokeStyle = GLOW[f.who]; ctx.lineWidth = 2; ctx.globalAlpha = 1 - age;
+      for (const lag of [0, .15]) { const k = Math.max(0, age - lag); ctx.beginPath(); ctx.ellipse(x, FLOOR - 1, 12 + k * 90, 3 + k * 14, 0, 0, Math.PI * 2); ctx.stroke(); }
+      const fx = run[f.who].x - cam, fy = friendY(f.who, run[f.who]) - 20, u = Math.min(1, age / .3);
+      ctx.beginPath(); ctx.moveTo(x, FLOOR - 4); ctx.quadraticCurveTo((x + fx) / 2, Math.min(FLOOR, fy) - 50, x + (fx - x) * u, FLOOR - 4 + (fy - FLOOR + 4) * u); ctx.stroke();
+      ctx.globalAlpha = 1;
+    } else if (f.kind === 'unanswered' && age < .6) {
+      ctx.strokeStyle = GLOW[f.who]; ctx.globalAlpha = .4 * (1 - age / .6); ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.ellipse(x, FLOOR - 1, NOTE_REACH * (1 - age), 4 * (1 - age), 0, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1;
+    } else if (f.kind === 'relink' && age < 1.2) {
       ctx.strokeStyle = `rgba(95,227,154,${1 - age / 1.2})`; ctx.lineWidth = 2;
       for (const lag of [0, .25]) { const r = Math.max(0, age - lag) * 160; ctx.beginPath(); ctx.arc(x, FLOOR - 68, r, Math.PI, Math.PI * 2); ctx.stroke(); }
     } else if (f.kind === 'switch' && age < 1) {
@@ -932,6 +947,32 @@ function drawFlashes(cam) {
     }
   }
   flashes = flashes.filter(f => s - f.at < 2.5 && s >= f.at - 1);
+}
+// A friend's call: its light arcs from the friend onto the ground ahead and
+// waits there, a ring as wide as the reach that answers it, with one pip per
+// touchdown left. Land on it to answer; no words, nothing lost if missed.
+function drawNotes(cam) {
+  const n = run.notes.cur;
+  if (!n) return;
+  const x = n.x - cam, f = run[n.who], age = s - n.at, color = GLOW[n.who];
+  if (x < -40 - cull || x > W + 40 + cull) return;
+  const fly = Math.min(1, age / .35), fx = f.x - cam, fy = friendY(n.who, f) - 24;
+  if (fly < 1) {
+    const u = fly * (2 - fly), px = fx + (x - fx) * u, py = fy + (FLOOR - 6 - fy) * u - Math.sin(u * Math.PI) * 60;
+    ctx.fillStyle = color; ctx.beginPath(); ctx.arc(px, py, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = .4; ctx.beginPath(); ctx.arc(px, py, 8, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
+    return;
+  }
+  const left = Math.max(0, n.due * BEAT - s), pulse = reducedMotion.matches ? .5 : .5 + .5 * Math.sin(s * 9);
+  const glow = ctx.createRadialGradient(x, FLOOR - 2, 1, x, FLOOR - 2, NOTE_REACH + 12);
+  glow.addColorStop(0, color + 'aa'); glow.addColorStop(1, color + '00');
+  ctx.fillStyle = glow; ctx.fillRect(x - NOTE_REACH - 12, FLOOR - 26, NOTE_REACH * 2 + 24, 30);
+  ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.globalAlpha = .6 + .4 * pulse;
+  ctx.beginPath(); ctx.ellipse(x, FLOOR - 1, NOTE_REACH, 4, 0, 0, Math.PI * 2); ctx.stroke();
+  // A short beam up from the spot, so it is seen while the hero is in the air.
+  ctx.fillStyle = color; ctx.globalAlpha = .25 + .2 * pulse; ctx.fillRect(x - 1, FLOOR - 40, 2, 38); ctx.globalAlpha = 1;
+  const pips = Math.min(2, Math.ceil(left / BEAT - 1e-6));
+  for (let i = 0; i < pips; i++) { ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x - (pips - 1) * 5 + i * 10, FLOOR - 48, 3, 0, Math.PI * 2); ctx.fill(); }
 }
 function heroY() {
   if (run.status === 'falling') { const age = s - run.fallAt * BEAT; return FLOOR - 2 + Math.min(150, age * age * 260); }
@@ -1043,7 +1084,7 @@ function drawScene() {
   drawRange(); drawPlatforms(cam); drawDevices(cam);
   for (const d of dust) drawDust(ctx, d.x - cam, FLOOR - 2, s - d.at);
   dust = dust.filter(d => s - d.at < DUST);
-  drawFriends(cam); drawHero(cam); drawKits(cam);
+  drawNotes(cam); drawFriends(cam); drawHero(cam); drawKits(cam);
   for (const p of particles) {
     ctx.globalAlpha = Math.max(0, 1 - p.age / .4); ctx.fillStyle = p.color;
     ctx.fillRect(p.x - cam + p.vx * p.age, p.y + p.vy * p.age + 120 * p.age ** 2, 3, 3);

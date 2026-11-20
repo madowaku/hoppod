@@ -105,8 +105,10 @@ export function buildCourse() {
   c.checkpoint(far, 'rescue');
   c.filler(18, r, [40, 80], [140, 210]);
   p = c.plat(50, 240); c.checkpoint(p, 'rescue');
-  // Together again: a lively stretch for the three-part ensemble.
+  // Together again: a lively stretch for the three-part ensemble. Here the
+  // friends call and the hero answers (see the ensemble in sim.mjs).
   c.filler(12, r, [50, 110], [110, 170]);
+  c.marks.ensembleEnd = c.x;
 
   // ④ BASE: each friend takes its station; the hero docks into the antenna.
   c.chapter('base');

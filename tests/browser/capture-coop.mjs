@@ -1,10 +1,11 @@
-// Review captures for the dark's echo, blue's lamp in the crater's shadow
-// and red carrying green home. `node tests/browser/capture-coop.mjs` with the
+// Review captures for the dark's echo, blue's lamp in the crater's shadow,
+// red carrying green home and the friends' calls (ensemble). `node tests/browser/capture-coop.mjs` with the
 // dev server running (BASE_URL, default http://127.0.0.1:8000; OUT, default
 // output/coop). Frozen clock, solver-driven. Not a test.
 import { chromium } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
-import { COURSE } from '../../public/src/story/course.mjs';
+import { COURSE, platformAt } from '../../public/src/story/course.mjs';
+import { BEAT } from '../../public/src/story/beat.mjs';
 import { storyFrom } from '../../public/src/story/sim.mjs';
 import { solve, hop } from '../helpers/story-solver.mjs';
 
@@ -53,6 +54,18 @@ if (!only || only === 'carry') {
   const rest = solve(COURSE, fastPath.end, { until: r => r.together && r.beat > fastPath.end.beat + 3, order: [0, .25, .5], limit: 50000 }).path;
   const p = [...fastPath.path, ...rest], from = fastPath.path.length;
   await (await play(cp, p, (r, i) => i >= from - 3 && i < from + 4 ? 'carry-' + (i - from + 3) : null, .4)).close();
+}
+if (!only || only === 'ensemble') {
+  // Aim at every light: a safe hold that lands on it, or leaves it in reach.
+  const cp = COURSE.checkpoints.findIndex(c => c.chapter === 'rescue' && c.x > COURSE.craneFar + 500), r = storyFrom(COURSE, cp), path = [];
+  for (let i = 0; i < 14; i++) {
+    const n = r.notes.cur, safe = [];
+    for (let k = 0; k <= 40; k++) { const f = k / 40, x = r.x + BEAT * (105 + 165 * f); if (platformAt(COURSE, x)) safe.push([f, x]); }
+    const cost = ([f, x]) => !n ? Math.abs(f - .5) : n.due - r.beat === 1 ? Math.abs(x - n.x) : n.x - x >= 82 && n.x - x <= 210 ? Math.abs(f - .5) : 1e4;
+    const [f] = safe.reduce((a, b) => cost(b) < cost(a) ? b : a); path.push(f); hop(r, COURSE, f);
+  }
+  let n = 0;
+  await (await play(cp, path, (r, i) => i >= 5 && n < 6 ? `ensemble-${++n}` : null, .2)).close();
 }
 await browser.close();
 console.log('done', out);

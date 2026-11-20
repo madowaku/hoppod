@@ -144,6 +144,21 @@ const CUES = {
   respawn: [[0, 659, .08, .04], [.07, 988, .2, .035]],
 };
 
+// Together again: a friend calls (two notes in its own voice) and the
+// hero's touchdown on its light answers, climbing the chord. Pitches come
+// from the chord on that beat, so every call sits in the song.
+const ENSEMBLE_WAVE = { blue: 'sine', green: 'triangle', red: 'triangle' };
+export function ensembleTones(kind, who, chord) {
+  const [a, b, c, d] = chord.pad;
+  if (kind === 'call') {
+    if (who === 'blue') return [[0, hz(c + 12), .25, .04], [.12, hz(d + 12), .4, .035]];
+    if (who === 'green') return [[0, hz(a), .2, .07], [.12, hz(c), .3, .06]];
+    return [[0, hz(b + 12), .06, .05], [.09, hz(b + 12), .06, .045], [.18, hz(d + 12), .1, .05]];
+  }
+  const up = who === 'green' ? 0 : 12;
+  return [[0, hz(d + up), .2, .045], [.07, hz(a + 12 + up), .22, .045], [.14, hz(c + 12 + up), .7, .04], [.14, hz(c + 24), .5, .012]];
+}
+
 export function createStoryAudio() {
   let ctx = null, master, muffle, buses = {}, tones = {}, noise, muted = false;
   const voices = new Set();
@@ -249,11 +264,12 @@ export function createStoryAudio() {
       muffle.frequency.setTargetAtTime(12000 * Math.pow(500 / 12000, Math.max(0, Math.min(1, muffleAmount))), t, .25);
     },
     note(note, at) { if (ctx) voice(note, at); },
-    cue(name, at = null) {
+    // extra: { who, chord } for the ensemble's 'call' and 'answer'.
+    cue(name, at = null, extra = null) {
       if (!ctx || ctx.state !== 'running') return;
       const start = at ?? ctx.currentTime + .005;
-      const wave = name === 'dock' || name === 'fall' || name.startsWith('plank') || name.startsWith('fit') ? 'triangle' : 'sine';
-      for (const [delay, f, decay, peak] of CUES[name] || []) tone(buses.cue, wave, f, start + delay, decay, peak, name === 'fall' ? .5 : 0);
+      const wave = extra ? ENSEMBLE_WAVE[extra.who] : name === 'dock' || name === 'fall' || name.startsWith('plank') || name.startsWith('fit') ? 'triangle' : 'sine';
+      for (const [delay, f, decay, peak] of (extra ? ensembleTones(name, extra.who, extra.chord) : CUES[name]) || []) tone(buses.cue, wave, f, start + delay, decay, peak, name === 'fall' ? .5 : 0);
       if (name === 'dock') hiss(buses.cue, 900, start, .25, .06, 'bandpass');
       // Out of the dark: a slow, wide chord under the boot chime.
       if (name === 'assemble') for (const [i, f] of [196, 293.66, 392, 493.88, 587.33].entries()) tone(buses.cue, 'sine', f, start + .25 + i * .05, 4.5, .022, 0, .9);
