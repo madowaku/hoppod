@@ -44,6 +44,8 @@ const MELODY = [
   });
   return out;
 });
+// The beat (in the bar) whose 'and' carries the beacon of blue's next part.
+export const BEACON_BEAT = 2;
 export const songBar = beat => FORM[((Math.floor(beat / 4) % 16) + 16) % 16];
 export const chordAt = beat => CHORDS[songBar(beat)];
 
@@ -75,6 +77,9 @@ export function notesAt(n, song) {
       out.push({ part: 'chime', kind: 'bell', f: hz(note.m + 12), d: 1.6, v: .7 });
     }
   }
+  // While blue is in pieces, the next part calls from the dark: one high
+  // note on the 'and' of beat three, louder as the hero nears it (beacon 0…1).
+  if (!docked && song.beacon > 0 && inBar === BEACON_BEAT && sub === 2) out.push({ part: 'chime', kind: 'bell', f: hz(86), d: 1.2, v: .2 + .6 * song.beacon });
   if (on('bell')) {
     // On the second pass through the first half the melody thins to its
     // downbeats: the same tune, with more air. While green is away it thins

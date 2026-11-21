@@ -643,3 +643,13 @@ test('together again, the friends call and the hero answers by landing on their 
     assert.ok(c > 0 && a < c, `${order[0]}: ${a}/${c}`);
   }
 });
+test("in the dark, blue's next part calls once a bar, louder as the hero nears it", async () => {
+  const { BEACON_BEAT } = await import('../public/src/story/music.mjs');
+  const song = beacon => ({ dockBeat: null, parts: new Set(), origin: 0, shards: 0, beacon, tick: () => true });
+  const calls = beacon => { const out = []; for (let i = 0; i < 64; i++) for (const n of notesAt(i, song(beacon))) if (n.part === 'chime') out.push([i, n.v]); return out; };
+  assert.equal(calls(0).length, 0, 'silent once blue is whole');
+  const far = calls(.3), near = calls(1);
+  assert.equal(far.length, 4, 'one call per bar');
+  for (const [i] of far) assert.equal(i % 16, BEACON_BEAT * 4 + 2, "on the 'and' of its beat");
+  assert.ok(near[0][1] > far[0][1]);
+});

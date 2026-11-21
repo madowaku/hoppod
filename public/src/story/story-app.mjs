@@ -7,7 +7,7 @@ import { COMPANION_PALETTE } from '../companion.mjs';
 import { BEAT, BeatClock, TimedInput, heardFromContext, beatIndex } from './beat.mjs';
 import { COURSE, platformAt } from './course.mjs';
 import { newStory, storyFrom, advanceStory, craneSolid, craneWorking, hopLift, bridgeFront, bridgeSegmentAt, RANGE, FOLLOW_GAP, FALL_BEATS, SOCKET_NEAR, BRIDGE_SEGMENTS, CRANE_CLIMB, FIT_BEATS, NOTE_REACH } from './sim.mjs';
-import { createStoryAudio, notesAt, chordAt, STEP, ENDING } from './music.mjs';
+import { createStoryAudio, notesAt, chordAt, STEP, ENDING, BEACON_BEAT } from './music.mjs';
 import { chooseLanguage, withLanguage, storyCopy } from './copy.mjs';
 import { drawCrewParts, drawKit, drawTransmit, TRANSMIT_LOCK } from './crew.mjs';
 
@@ -220,6 +220,8 @@ const song = {
   parts: new Set(),
   // Blue's parts found so far, while blue is still in pieces (its tune in shards).
   get shards() { return ahead.blue.state === 'parts' ? ahead.parts.got : 0; },
+  // The next part's call from the dark: faint far off, full within a few hops.
+  get beacon() { return ahead.blue.state === 'parts' && ahead.status !== 'docked' ? beaconLevel(ahead.parts.x - ahead.x) : 0; },
   // Bar 1 of the song falls on the beat blue is assembled.
   get origin() { return ahead.parts.assembledAt === null ? 0 : Math.round(ahead.parts.assembledAt / BEAT); },
   // Green is away (far out of range, holding the bridge, or being carried
@@ -229,6 +231,7 @@ const song = {
   // predicted to be a fall stays silent.
   tick: beat => ahead.status === 'playing' || (ahead.status === 'falling' && beat === ahead.fallAt + FALL_BEATS) || (ahead.status === 'docked' && beat <= ahead.dockAt),
 };
+const beaconLevel = d => .3 + .7 * (1 - smooth(160, 1600, Math.abs(d)));
 const smooth = (a, b, x) => { const k = Math.max(0, Math.min(1, (x - a) / (b - a))); return k * k * (3 - 2 * k); };
 // A friend's part by distance: inside the range it is full and clear, at
 // the edge it thins; beyond it, it turns into a faint, muffled radio that
@@ -1093,9 +1096,19 @@ function drawScene() {
   drawDarkness(cam); drawCeiling(cam); drawGlints(cam); drawLanterns(cam); drawFallHint(cam); drawFlashes(cam);
   ctx.restore(); cull = 20;
   drawBehind(cam); drawInset();
-  // The active blue part glows through the dark.
+  // The active blue part glows through the dark. Each time it calls (the
+  // beacon note) it flares; out of view ahead, that flare shows at the
+  // right edge, so the dark has one thing to go towards.
   if (run.parts.got < COURSE.parts.length) {
     const px = run.parts.x - cam, pulse = reducedMotion.matches ? .5 : .5 + .5 * Math.sin(s * 4);
+    const since = (((s - (BEACON_BEAT + .5) * BEAT) % (4 * BEAT)) + 4 * BEAT) % (4 * BEAT), flare = Math.exp(-since * 3);
+    if (px >= W + 20) {
+      const k = beaconLevel(run.parts.x - run.x), r = 30 + 30 * flare, g = ctx.createRadialGradient(W, FLOOR - 14, 1, W, FLOOR - 14, r);
+      g.addColorStop(0, `rgba(111,182,255,${(.18 + .5 * flare) * k})`); g.addColorStop(1, 'rgba(111,182,255,0)');
+      ctx.fillStyle = g; ctx.fillRect(W - r, FLOOR - 14 - r, r, r * 2);
+    } else if (px > -20 && flare > .05) {
+      ctx.strokeStyle = `rgba(169,214,255,${.7 * flare})`; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(px, FLOOR - 10, 14 + (1 - flare) * 26, 0, Math.PI * 2); ctx.stroke();
+    }
     if (px > -20 && px < W + 20) {
       ctx.fillStyle = `rgba(79,157,255,${.25 + .2 * pulse})`; ctx.beginPath(); ctx.arc(px, FLOOR - 10, 13, 0, Math.PI * 2); ctx.fill();
       drawBluePart(run.parts.got, px, FLOOR - 10, 1);
