@@ -6,7 +6,7 @@ import { drawSky, drawNearStars, drawRanges, drawGlobe, drawGround, drawPit, dra
 import { COMPANION_PALETTE } from '../companion.mjs';
 import { BEAT, BeatClock, TimedInput, heardFromContext, beatIndex } from './beat.mjs';
 import { COURSE, platformAt } from './course.mjs';
-import { newStory, storyFrom, advanceStory, craneSolid, craneWorking, hopLift, bridgeFront, bridgeSegmentAt, RANGE, FOLLOW_GAP, FALL_BEATS, SOCKET_NEAR, BRIDGE_SEGMENTS, CRANE_CLIMB, FIT_BEATS, NOTE_REACH } from './sim.mjs';
+import { newStory, storyFrom, advanceStory, craneSolid, craneWorking, craneDownAt, CRANE_LOWER, BAR_HALF, PLATE_HALF, hopLift, bridgeFront, bridgeSegmentAt, RANGE, FOLLOW_GAP, FALL_BEATS, SOCKET_NEAR, BRIDGE_SEGMENTS, CRANE_CLIMB, FIT_BEATS, NOTE_REACH } from './sim.mjs';
 import { createStoryAudio, notesAt, chordAt, STEP, ENDING, BEACON_BEAT } from './music.mjs';
 import { chooseLanguage, withLanguage, storyCopy } from './copy.mjs';
 import { drawCrewParts, drawKit, drawTransmit, TRANSMIT_LOCK } from './crew.mjs';
@@ -195,7 +195,7 @@ window.addEventListener('pagehide', pause);
 // was not predicted still sounds, just late.
 let ahead = null;
 const cued = new Map();
-const CUES = new Set(['call', 'answer', 'lamp', 'collect', 'kit', 'fit', 'assemble', 'join', 'socket', 'switch', 'plank0', 'plank1', 'plank2', 'plank3', 'relink', 'notice', 'rescue', 'pickup', 'reunion', 'station', 'dock', 'fall', 'respawn']);
+const CUES = new Set(['plate', 'plant', 'bump', 'wait', 'call', 'answer', 'lamp', 'collect', 'kit', 'fit', 'assemble', 'join', 'socket', 'switch', 'plank0', 'plank1', 'plank2', 'plank3', 'relink', 'notice', 'rescue', 'pickup', 'reunion', 'station', 'dock', 'fall', 'respawn']);
 const eventKey = e => e.type + ':' + e.beat + ':' + (e.who ?? e.index ?? '');
 // Green's legs clamp on with a magnet; red's hook ratchets in.
 const cueName = e => e.type === 'fit' ? 'fit-' + e.who : e.type;
@@ -221,7 +221,7 @@ const song = {
   // Blue's parts found so far, while blue is still in pieces (its tune in shards).
   get shards() { return ahead.blue.state === 'parts' ? ahead.parts.got : 0; },
   // The next part's call from the dark: faint far off, full within a few hops.
-  get beacon() { return ahead.blue.state === 'parts' && ahead.status !== 'docked' ? beaconLevel(ahead.parts.x - ahead.x) : 0; },
+  get beacon() { return ahead.blue.state === 'parts' && ahead.status !== 'docked' && ahead.x > ALONE_UNTIL ? beaconLevel(ahead.parts.x - ahead.x) : 0; },
   // Bar 1 of the song falls on the beat blue is assembled.
   get origin() { return ahead.parts.assembledAt === null ? 0 : Math.round(ahead.parts.assembledAt / BEAT); },
   // Green is away (far out of range, holding the bridge, or being carried
@@ -231,6 +231,9 @@ const song = {
   // predicted to be a fall stays silent.
   tick: beat => ahead.status === 'playing' || (ahead.status === 'falling' && beat === ahead.fallAt + FALL_BEATS) || (ahead.status === 'docked' && beat <= ahead.dockAt),
 };
+// Up to the first hole the hero is alone with its own tick: no call yet, so
+// the first friend's voice is a discovery.
+const ALONE_UNTIL = COURSE.platforms[0].b;
 const beaconLevel = d => .3 + .7 * (1 - smooth(160, 1600, Math.abs(d)));
 const smooth = (a, b, x) => { const k = Math.max(0, Math.min(1, (x - a) / (b - a))); return k * k * (3 - 2 * k); };
 // A friend's part by distance: inside the range it is full and clear, at
@@ -306,6 +309,8 @@ function handle(events) {
     else if (e.type === 'fit' || e.type === 'join') flashes.push({ kind: e.type, who: e.who, x: run[e.who].x, at: e.t });
     else if (e.type === 'relink') flashes.push({ kind: 'relink', x: COURSE.relays.filter(r => r <= run.x).at(-1), at: s });
     else if (e.type === 'switch') flashes.push({ kind: 'switch', x: COURSE.switchX, at: e.t });
+    else if (e.type === 'plate') flashes.push({ kind: 'plate', x: COURSE.plateX, at: e.t });
+    else if (e.type === 'bump') { flashes.push({ kind: 'bump', x: COURSE.barX, at: e.t }); burst(COURSE.barX, BAR_Y, ['#ffd2c4', '#ffffff'], 8); }
     else if (e.type === 'assemble') flashes.push({ kind: 'dawn', x: run.x, at: s });
     else if (e.type === 'notice') flashes.push({ kind: 'ping', x: run.red.x, at: e.t });
     else if (e.type === 'pickup') { pickupAt = e.t; flashes.push({ kind: 'pickup', x: e.x, at: e.t }); }
@@ -411,7 +416,7 @@ function friendY(who, friend) {
 const rescueGap = () => Math.max(0, run.red.x - run.green.x - 12);
 const liftK = () => pickupAt === null ? 1 : smooth(0, .45, s - pickupAt);
 // Seconds since green stepped onto the socket (9 when long ago).
-const switchPlant = () => run.switchAt > 0 ? Math.max(0, run.t - run.switchAt) : 9;
+const switchPlant = () => run.green.plantAt > 0 ? Math.max(0, run.t - run.green.plantAt) : 9;
 function drawPlatforms(cam, flat = false) {
   for (const p of COURSE.platforms) {
     const [left, right] = footing([p.a, p.b]), l = Math.round(left - cam), r = Math.round(right - cam);
@@ -593,12 +598,41 @@ function drawDevices(cam) {
       ctx.fillStyle = '#2d4a44'; for (const side of [-1, 1]) ctx.fillRect(sx + side * 17 - 1, FLOOR - 6, 3, 6);
     }
   }
-  // Crane: the span drops on its two solid beats of every four.
+  // Green's plate: the hero's part of the bridge. A wide pad in the ground,
+  // a cable to the socket; stepped on, it lights and a pulse runs to green.
+  const px = COURSE.plateX - cam;
+  if (px > -80 - cull && px < W + 80 + cull) {
+    const on = run.plate.on, since = s - (run.plate.at ?? -9), pulse = reducedMotion.matches ? .5 : .5 + .5 * Math.sin(s * 5);
+    // A soft green light rises off it, brighter while it waits to be stepped on.
+    const glow = ctx.createLinearGradient(0, FLOOR - 34, 0, FLOOR);
+    glow.addColorStop(0, 'rgba(95,227,154,0)'); glow.addColorStop(1, `rgba(95,227,154,${on ? .16 : .16 + .16 * pulse})`);
+    ctx.fillStyle = glow; ctx.fillRect(px - PLATE_HALF, FLOOR - 34, PLATE_HALF * 2, 34);
+    ctx.fillStyle = on ? '#3d6b58' : '#24403a'; ctx.fillRect(px - PLATE_HALF, FLOOR - 4, PLATE_HALF * 2, 5);
+    // Green's face on it, so it reads as green's.
+    ctx.fillStyle = on ? '#c8ffdc' : `rgba(159,240,196,${.5 + .4 * pulse})`; ctx.fillRect(px - 6, FLOOR - 3, 3, 2); ctx.fillRect(px + 3, FLOOR - 3, 3, 2);
+    ctx.fillStyle = on ? '#9ff0c4' : `rgba(95,227,154,${.35 + .35 * pulse})`; ctx.fillRect(px - PLATE_HALF, FLOOR - 3, PLATE_HALF * 2, 1);
+    for (const side of [-1, 1]) ctx.fillRect(px + side * PLATE_HALF - (side > 0 ? 2 : 0), FLOOR - 5, 2, 3);
+    if (!on) { ctx.strokeStyle = `rgba(95,227,154,${.25 + .3 * pulse})`; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(px, FLOOR - 2, PLATE_HALF - 6, 3, 0, 0, Math.PI * 2); ctx.stroke(); }
+    // The cable to the socket, and the call running along it.
+    ctx.fillStyle = on ? '#3d6b58' : '#22362f'; for (let x = px + PLATE_HALF; x < sx - 16; x += 6) ctx.fillRect(x, FLOOR + 3, 3, 1);
+    if (on && since < 1) { const k = Math.min(1, since / .35), x = px + PLATE_HALF + (sx - 16 - px - PLATE_HALF) * k; ctx.fillStyle = '#e6fff0'; ctx.fillRect(x - 4, FLOOR + 2, 8, 3); }
+  }
+  // Crane: the span hangs up until the hero bumps the bar and red lowers it.
   const crane = COURSE.crane, cx = (crane.a + crane.b) / 2 - cam;
-  if (cx > -160 - cull && cx < W + 160 + cull) {
-    const y = craneSpanY();
+  if (cx > -260 - cull && cx < W + 160 + cull) {
+    const y = craneSpanY(), bx = COURSE.barX - cam;
     ctx.fillStyle = '#4a3a36'; ctx.fillRect(crane.a - cam - 70, 120, 8, FLOOR - 120);
-    ctx.fillRect(crane.a - cam - 70, 120, cx - (crane.a - cam - 70) + 10, 6);
+    ctx.fillRect(bx - 10, 120, cx - bx + 20, 6);
+    // The bar: two cords from the arm, a bar where the hero's head reaches at
+    // the top of a hop. Bumped, it swings up and stays lit.
+    const hit = run.bar.on, since = s - (run.bar.at ?? -9), swing = hit ? 14 * smooth(0, .15, since) : 0;
+    const under = run.status === 'playing' && Math.abs(run.x - COURSE.barX) <= BAR_HALF + 12, by = Math.min(BAR_Y - swing, under ? heroY() - 51 : Infinity);
+    const pulse = reducedMotion.matches ? .5 : .5 + .5 * Math.sin(s / BEAT * Math.PI * 2);
+    ctx.strokeStyle = '#6a5a56'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(bx - BAR_HALF + 4, 126); ctx.lineTo(bx - BAR_HALF + 4, by); ctx.moveTo(bx + BAR_HALF - 4, 126); ctx.lineTo(bx + BAR_HALF - 4, by); ctx.stroke();
+    if (!hit) { ctx.fillStyle = `rgba(255,127,102,${.12 + .14 * pulse})`; ctx.fillRect(bx - BAR_HALF - 4, by - 6, BAR_HALF * 2 + 8, 14); }
+    ctx.fillStyle = hit ? '#ffd2c4' : '#c46f5c'; ctx.fillRect(bx - BAR_HALF, by, BAR_HALF * 2, 4);
+    ctx.fillStyle = hit ? '#ffffff' : '#ff9a85'; ctx.fillRect(bx - BAR_HALF, by, BAR_HALF * 2, 1);
+    ctx.fillStyle = hit ? '#ffe3ac' : '#5a3a34'; ctx.fillRect(bx - 2, by - 5, 4, 4);
     // Until red is on the boom the span hangs up out of reach on a slack
     // chain; while red works it, red's own arm is the cable (drawn with red).
     if (!redOnBoom()) { ctx.strokeStyle = '#5a4a46'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(cx, 126); ctx.lineTo(cx, y); ctx.stroke(); }
@@ -652,20 +686,33 @@ function drawDevices(cam) {
     }
   }
 }
-// The crane span's screen y now: up (-70) or down, easing over each beat's start.
+// The crane span's screen y now: held up (-70) until red lowers it, then down
+// over CRANE_LOWER s, and it stays down.
 function craneSpanY() {
-  const k = beatIndex(s), phase = (s - k * BEAT) / BEAT, yFor = beat => craneSolid(run, beat) ? 0 : -70;
-  return FLOOR + yFor(k) + (yFor(k + 1) - yFor(k)) * smooth(0, .4, phase);
+  const down = craneDownAt(run);
+  if (down === Infinity) return FLOOR - 70;
+  return FLOOR - 70 * (1 - smooth(down - CRANE_LOWER, down, s));
 }
+// The bar under the boom's arm hangs where the top of the hero's helmet is
+// at BAR_LIFT of a hop (feet at heroY, helmet 47px above): higher in the hop
+// the head pushes it up.
+const BAR_Y = FLOOR - 111;
 const redOnBoom = () => run.red.state === 'crane' && run.t >= run.red.craneAt + CRANE_CLIMB;
 const rocketLift = a => a > ENDING.launch ? (a - ENDING.launch) ** 2 * 14 : 0;
+function answerLeap(who) {
+  if (reducedMotion.matches) return 0;
+  let up = 0;
+  for (const f of flashes) if (f.kind === 'answer' && f.who === who && s >= f.at && s - f.at < .7) up = Math.max(up, Math.sin((s - f.at) / .7 * Math.PI) * 34);
+  return up;
+}
 function drawFriends(cam, inset = false) {
   for (const who of ['red', 'green', 'blue']) {
     const f = run[who];
     if (who === 'blue' && f.state === 'parts') continue;
     // Carried green hangs from red's hook: it slides from where it was caught.
     const hang = who === 'green' && f.state === 'carry' ? 4 * (1 - liftK()) : 0;
-    const x = f.x + hang - cam, y = friendY(who, f);
+    // Answered, the friend who called leaps for joy and spins on its way up.
+    const leap = answerLeap(who), x = f.x + hang - cam, y = friendY(who, f) - leap;
     if (x < -30 - cull || x > W + 30 + cull) continue;
     // Booting, its eyes flicker on half a beat after the part clicks in.
     const eyes = awake(f) || (f.state === 'fit' && s >= fitClick(f) + BEAT * .4 && (s >= fitClick(f) + BEAT * .7 || (s * 24 | 0) % 2 === 0));
@@ -886,7 +933,16 @@ function drawRange() {
 function drawFlashes(cam) {
   for (const f of flashes) {
     const age = s - f.at, x = f.x - cam;
-    if (f.kind === 'answer' && age < 1) {
+    if ((f.kind === 'plate' || f.kind === 'bump') && age < .8) {
+      const y = f.kind === 'plate' ? FLOOR - 2 : BAR_Y + 2, c = f.kind === 'plate' ? '159,240,196' : '255,210,196';
+      ctx.strokeStyle = `rgba(${c},${1 - age / .8})`; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.ellipse(x, y, 20 + age * 70, 4 + age * 18, 0, 0, Math.PI * 2); ctx.stroke();
+    } else if (f.kind === 'answer' && age < 1) {
+      // The friend who called answers back: its own rings rise from its head.
+      const hx = run[f.who].x - cam, hy = friendY(f.who, run[f.who]) - answerLeap(f.who) - 26;
+      ctx.strokeStyle = GLOW[f.who]; ctx.lineWidth = 2;
+      for (const lag of [.1, .3]) { const k = Math.max(0, age - lag); ctx.globalAlpha = Math.max(0, .9 - age); ctx.beginPath(); ctx.arc(hx, hy, 8 + k * 60, Math.PI * 1.1, Math.PI * 1.9); ctx.stroke(); }
+      ctx.globalAlpha = 1;
       // Answered: the light rings out in the friend's colour and a thread of
       // it runs back up to the friend who called.
       ctx.strokeStyle = GLOW[f.who]; ctx.lineWidth = 2; ctx.globalAlpha = 1 - age;
@@ -1001,34 +1057,41 @@ function drawHero(cam) {
 // through the dark. When blue is built it lifts away over three seconds and
 // the sky, the far range and the horizon open above: the moon was always
 // this wide. It never reaches the ground, so landings stay readable.
+// The rock over the dark start, drawn like the ground's blocks turned upside
+// down: 16px columns stepped on a 4px grid (smooth noise, so it bulges and
+// dips instead of zig-zagging), strata, a faint lip lit by each touchdown,
+// and a few crystal clusters set in its underside that glint on the beat.
+const CEIL_COL = 16;
+function ceilingAt(n) {
+  const noise = u => { const i = Math.floor(u), f = u - i, k = f * f * (3 - 2 * f); return speck(i * 31 + 7) * (1 - k) + speck(i * 31 + 38) * k; };
+  return 4 * Math.round((104 + 34 * noise(n * .16) + 10 * noise(n * .5 + 40)) / 4);
+}
 function drawCeiling(cam) {
   const open = lightOpen();
   if (open >= 1 || run.chapter !== 'wake') return;
-  const lift = 190 * open * open;
-  ctx.fillStyle = '#0b1319';
-  ctx.beginPath(); ctx.moveTo(0, -10);
-  for (let x = 0; x <= W; x += 6) {
-    const wx = x + cam * .6, h = 128 + Math.sin(wx * .021) * 24 + Math.sin(wx * .083) * 9 + (Math.sin(wx * .4) > .85 ? 16 : 0);
-    ctx.lineTo(x, h - lift);
+  const lift = Math.round(190 * open * open), wx0 = cam * .6, first = Math.floor(wx0 / CEIL_COL), touch = Math.max(0, 1 - (s % BEAT) / .3);
+  const body = ctx.createLinearGradient(0, 0, 0, 150);
+  body.addColorStop(0, '#05090d'); body.addColorStop(1, '#101a22');
+  for (let n = first; n <= first + Math.ceil(W / CEIL_COL) + 1; n++) {
+    const x = Math.round(n * CEIL_COL - wx0), h = ceilingAt(n) - lift;
+    if (h <= 0) continue;
+    ctx.fillStyle = body; ctx.fillRect(x, 0, CEIL_COL, h);
+    // Strata: short dark seams that run across columns at fixed depths.
+    ctx.fillStyle = 'rgba(2,5,8,.55)';
+    for (let k = 0; k < 3; k++) { const y = h - 18 - k * 26 - Math.floor(speck(n + k * 11) * 6); if (y > 4 && speck(n * 3 + k) > .6) ctx.fillRect(x, y, CEIL_COL - (speck(n + k) > .7 ? 6 : 0), 2); }
+    // The underside: a lip that catches the hero's light on each touchdown.
+    ctx.fillStyle = `rgba(120,150,165,${.16 + .22 * touch})`; ctx.fillRect(x, h - 2, CEIL_COL, 2);
+    const next = ceilingAt(n + 1) - lift;
+    if (next > h) { ctx.fillStyle = 'rgba(120,150,165,.12)'; ctx.fillRect(x + CEIL_COL - 1, h, 1, next - h); }
+    // Crystal clusters: three small facets hanging from the rock.
+    if (speck(n * 7 + 3) < .16) {
+      const glint = (1 - open) * (.25 + .75 * touch * (.4 + .6 * speck(n * 17 + beatIndex(s))));
+      const c = n % 3 ? '169,214,255' : '255,227,172', cx = x + 4 + Math.floor(speck(n * 5) * 7);
+      ctx.fillStyle = `rgba(${c},${glint})`;
+      ctx.fillRect(cx, h, 2, 6); ctx.fillRect(cx + 3, h, 2, 4); ctx.fillRect(cx - 3, h, 2, 3);
+      ctx.fillStyle = `rgba(255,255,255,${glint * .8})`; ctx.fillRect(cx, h + 4, 1, 1);
+    }
   }
-  ctx.lineTo(W, -10); ctx.closePath(); ctx.fill();
-  // Its underside catches the hero's glow on each touchdown.
-  const touch = Math.max(0, 1 - (s % BEAT) / .3);
-  ctx.strokeStyle = `rgba(140,170,180,${.3 + .25 * touch})`; ctx.lineWidth = 1.5; ctx.beginPath();
-  for (let x = 0; x <= W; x += 6) {
-    const wx = x + cam * .6, h = 128 + Math.sin(wx * .021) * 24 + Math.sin(wx * .083) * 9 + (Math.sin(wx * .4) > .85 ? 16 : 0);
-    x ? ctx.lineTo(x, h - lift) : ctx.moveTo(x, h - lift);
-  }
-  ctx.stroke();
-  // Crystals in the rock answer each touchdown with a glint, and go dim again.
-  const first = Math.floor(cam * .6 / 26);
-  for (let n = first; n < first + 16; n++) {
-    if (speck(n * 7) > .55) continue;
-    const wx = n * 26 + speck(n * 13) * 20, x = wx - cam * .6, h = 128 + Math.sin(wx * .021) * 24 + Math.sin(wx * .083) * 9;
-    ctx.globalAlpha = (1 - open) * (.1 + .7 * touch * (.4 + .6 * speck(n * 17 + beatIndex(s))));
-    ctx.fillStyle = n % 3 ? '#a9d6ff' : '#ffe3ac'; ctx.fillRect(Math.round(x), Math.round(h - lift - 6 - speck(n * 19) * 26), 2, 2);
-  }
-  ctx.globalAlpha = 1;
 }
 // How dark it is where the hero is: the wind-up until blue's light opens,
 // and the crater's shadow past green's bridge (there the sky stays lit).
@@ -1102,7 +1165,7 @@ function drawScene() {
   if (run.parts.got < COURSE.parts.length) {
     const px = run.parts.x - cam, pulse = reducedMotion.matches ? .5 : .5 + .5 * Math.sin(s * 4);
     const since = (((s - (BEACON_BEAT + .5) * BEAT) % (4 * BEAT)) + 4 * BEAT) % (4 * BEAT), flare = Math.exp(-since * 3);
-    if (px >= W + 20) {
+    if (px >= W + 20 && run.x > ALONE_UNTIL) {
       const k = beaconLevel(run.parts.x - run.x), r = 30 + 30 * flare, g = ctx.createRadialGradient(W, FLOOR - 14, 1, W, FLOOR - 14, r);
       g.addColorStop(0, `rgba(111,182,255,${(.18 + .5 * flare) * k})`); g.addColorStop(1, 'rgba(111,182,255,0)');
       ctx.fillStyle = g; ctx.fillRect(W - r, FLOOR - 14 - r, r, r * 2);
@@ -1251,6 +1314,11 @@ function drawWindowView(a) {
 // Only on the safe ground at the start: three hops to hear the beat, then
 // whichever speed the player is not using, until the first hole draws near.
 function drawHints() {
+  // Red has called three times from just behind: say once what it wants.
+  if (playing() && run.status === 'playing' && run.red.state === 'carry' && (run.red.calls || 0) >= 3) {
+    ctx.textAlign = 'center'; ctx.font = '11px monospace'; ctx.fillStyle = `rgba(255,188,174,${.7 + .3 * Math.sin(s * 5)})`;
+    ctx.fillText(tr('wait'), W / 2, 190); return;
+  }
   if (!playing() || run.status !== 'playing' || run.checkpoint > 0) return;
   ctx.textAlign = 'center'; ctx.fillStyle = '#c3d1c7'; ctx.font = '11px monospace';
   ctx.fillText(tr('hints')[run.hops < 3 ? 0 : fast() ? 2 : 1], W / 2, 190);

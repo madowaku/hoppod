@@ -11,7 +11,7 @@ const TEXT = Object.freeze({
     footer: 'A tiny capsule. A moon full of music.', keys: 'SPACE = HOLD · ESC = PAUSE', switchLanguage: 'Switch to Japanese',
     hints: ['IT HOPS ON THE BEAT.', 'HOLD → FAST', 'RELEASE → SLOW'],
     chapters: { wake: 'I · WIND-UP', apart: 'II · APART', rescue: 'III · FETCH', base: 'IV · BASE', send: 'V · SEND' },
-    thanks: 'THANK YOU FOR PLAYING',
+    thanks: 'THANK YOU FOR PLAYING', wait: 'LET GO → WAIT FOR THEM',
   }),
   ja: Object.freeze({
     tag: 'ストーリー', stages: 'ステージ ›', free: 'フリーラン ›', title: 'RAPIPPO', subtitle: 'ひとりのジャンプから、月面に音楽が生まれる。',
@@ -22,7 +22,7 @@ const TEXT = Object.freeze({
     footer: '小さなカプセルと、音楽が生まれる月。', keys: 'SPACE = 押す · ESC = 一時停止', switchLanguage: 'Switch to English',
     hints: ['拍にあわせて自動でジャンプ', '押す → FAST', '離す → SLOW'],
     chapters: { wake: 'I · ゼンマイ', apart: 'II · はなれる', rescue: 'III · むかえに', base: 'IV · 月面基地', send: 'V · とどける' },
-    thanks: 'あそんでくれて、ありがとう',
+    thanks: 'あそんでくれて、ありがとう', wait: '離す → ふたりを待つ',
   }),
 });
 export const storyCopy = (language, key) => (TEXT[language] || TEXT.en)[key];

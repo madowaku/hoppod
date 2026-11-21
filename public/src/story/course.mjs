@@ -74,6 +74,9 @@ export function buildCourse() {
   // green's legs hold the bridge up.
   p = c.plat(50, 840); c.checkpoint({ a: p.a, b: p.a + 160 }, 'apart');
   c.marks.switchX = p.b - 100; c.marks.fieldStart = p.a;
+  // The hero's own part of the bridge: a plate on the ground before the
+  // socket. Stepped on, it calls green to lay the bridge once it is planted.
+  c.marks.plateX = p.b - 190;
   // A last relay at the field's edge: a green far behind on the approach is
   // boosted back before the socket is in reach.
   c.marks.relays.push(p.a + 40);
@@ -98,6 +101,9 @@ export function buildCourse() {
   p = c.plat(50, 540); c.checkpoint({ a: p.a, b: p.a + 80 }, 'rescue'); c.marks.redConsole = p.a + 470; c.marks.redKit = p.a + 170;
   p = c.plat(46, 560); c.checkpoint({ a: p.a, b: p.a + 160 }, 'rescue');
   c.marks.crane = c.plat(100, 120, 'crane');
+  // The hero's own part of the crossing: a bar hanging from the boom's arm
+  // over the approach. Bumped with the head, it tells red to lower the span.
+  c.marks.barX = c.marks.crane.a - 220;
   // A long, safe landing: red looks back and leaves while the hero has
   // nothing to judge but plain ground.
   const far = c.plat(100, 420); c.marks.craneFar = far.a;
@@ -108,12 +114,13 @@ export function buildCourse() {
   // Together again: a lively stretch for the three-part ensemble. Here the
   // friends call and the hero answers (see the ensemble in sim.mjs).
   c.filler(12, r, [50, 110], [110, 170]);
-  c.marks.ensembleEnd = c.x;
 
   // ④ BASE: each friend takes its station; the hero docks into the antenna.
   c.chapter('base');
   p = c.plat(50, 300); c.checkpoint(p, 'base');
   c.filler(5, r, [40, 70], [150, 200]);
+  // The friends' calls go on up to here, then the stations take over.
+  c.marks.ensembleEnd = c.x;
   p = c.plat(50, 260); c.checkpoint(p, 'base');
   c.marks.stations = [];
   // Compact islands, so the whole base fits one view in the ending.

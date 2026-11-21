@@ -141,6 +141,12 @@ const CUES = {
   plank3: [[0, 392, .4, .07], [0, 784, .2, .035]],
   notice: [[0, 880, .08, .04], [.14, 1175, .16, .04]],
   rescue: [[0, 587, .1, .045], [.05, 880, .1, .045], [.1, 1319, .3, .04]],
+  // Red, carrying green close behind a hero that will not wait: 'ho-i!'
+  wait: [[0, 784, .09, .045], [.13, 659, .16, .045]],
+  // The hero's own parts: green's plate clicks down; red's bar rings.
+  plate: [[0, 330, .06, .07], [.05, 659, .14, .05]],
+  plant: [[0, 196, .1, .07], [.04, 392, .12, .04]],
+  bump: [[0, 1319, .06, .05], [0, 1760, .5, .03], [.14, 659, .1, .045], [.22, 880, .16, .04]],
   pickup: [[0, 523, .1, .045], [.08, 784, .12, .05], [.16, 1047, .2, .05], [.3, 1568, .4, .03]],
   reunion: [[0, 784, .2, .05], [.1, 988, .2, .05], [.2, 1175, .3, .05], [.34, 1568, .8, .04]],
   station: [[0, 1175, .15, .045], [.09, 1568, .4, .04]],
@@ -273,7 +279,7 @@ export function createStoryAudio() {
     cue(name, at = null, extra = null) {
       if (!ctx || ctx.state !== 'running') return;
       const start = at ?? ctx.currentTime + .005;
-      const wave = extra ? ENSEMBLE_WAVE[extra.who] : name === 'dock' || name === 'fall' || name.startsWith('plank') || name.startsWith('fit') ? 'triangle' : 'sine';
+      const wave = extra ? ENSEMBLE_WAVE[extra.who] : name === 'dock' || name === 'fall' || name === 'wait' || name === 'plate' || name === 'plant' || name.startsWith('plank') || name.startsWith('fit') ? 'triangle' : 'sine';
       for (const [delay, f, decay, peak] of (extra ? ensembleTones(name, extra.who, extra.chord) : CUES[name]) || []) tone(buses.cue, wave, f, start + delay, decay, peak, name === 'fall' ? .5 : 0);
       if (name === 'dock') hiss(buses.cue, 900, start, .25, .06, 'bandpass');
       // Out of the dark: a slow, wide chord under the boot chime.

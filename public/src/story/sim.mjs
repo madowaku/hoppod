@@ -17,11 +17,13 @@ export const RESCUE_SPEED = 900, DASH_SPEED = 700, TEAM_SPEED = 320;
 // Carrying green home, red is heavy. Far off it flies at DASH_SPEED, homing
 // in on the hero's signal; close behind it slows to CARRY_SPEED + CARRY_PULL
 // × (distance − CARRY_HOLD), so the distance eases (closed form) towards
-// CARRY_HOLD + (hero speed − CARRY_SPEED) / CARRY_PULL: about 120px behind,
+// CARRY_HOLD + (hero speed − CARRY_SPEED) / CARRY_PULL: about 105px behind,
 // in view and struggling, while the hero holds FAST; beside the hero as soon
 // as it lets go. SLOW is how the hero waits for them. At the base the
 // station lights pull them in whatever the hero does.
-export const CARRY_SPEED = 140, CARRY_PULL = 2.2, CARRY_HOLD = 62;
+export const CARRY_SPEED = 140, CARRY_PULL = 3, CARRY_HOLD = 62;
+// Close behind (CARRY_CALL px), red calls out on every touchdown ('wait').
+export const CARRY_CALL = 260;
 // Through the crater's shadow blue flies ahead as a lamp at its own pace,
 // at most LAMP_LEAD px in front of the hero; it takes the lead LAMP_EARLY px
 // before the shadow and drops back to follow LAMP_LATE px after it.
@@ -37,6 +39,16 @@ export const KIT_REACH = 110, FIT_BEATS = 1, BOOT_BEATS = 2;
 // it flies up to the boom (CRANE_CLIMB s) and only then starts moving the
 // span with its arm, two beats down of every four.
 export const CRANE_CALL = 300, CRANE_CLIMB = .6;
+// The span hangs up until the hero bumps the bar under the boom's arm: the
+// hero's head passing within BAR_HALF px of it while at least BAR_LIFT of a
+// hop's height up. SLOW passes under it high on every hop; a FAST hop must
+// be timed. Once red is on the boom (or as soon as it gets there) it lowers
+// the span over CRANE_LOWER s, and it stays down. Remembered through falls.
+export const BAR_HALF = 30, BAR_LIFT = .6, CRANE_LOWER = .3;
+// Green's bridge needs two things: green planted in its socket (wait for it
+// with SLOW) and the hero on the plate before it (within PLATE_HALF px, wider
+// than a SLOW hop). Either may come first; the bridge is laid when both are.
+export const PLATE_HALF = 45;
 // Green's socket sits SOCKET_LEAD px before the chasm. Green never stops
 // chasing the hero (out of range only its signal and music fade); the
 // instant it reaches the socket it plants its legs (BRIDGE_LEGS s), then
@@ -46,19 +58,19 @@ export const CRANE_CALL = 300, CRANE_CLIMB = .6;
 export const SOCKET_LEAD = 100, SOCKET_NEAR = 80, BRIDGE_LEGS = .08, BRIDGE_SEGMENTS = 4;
 const STEP = BEAT / 4;
 export const FALL_BEATS = 2;
-// Together again, the friends play with the hero: on beats one and three of
-// the song one of them (blue, green, red in turn) calls and throws a light
+// Together again, the friends play with the hero: on beat one of each bar
+// of the song one of them (blue, green, red in turn) calls and throws a light
 // onto the ground NOTE_BEATS touchdowns ahead; landing within NOTE_REACH of
 // it answers the call. Optional: a missed call only fades, nothing is lost.
 // Each light is placed where some FAST/SLOW mix can reach it (both hops on
-// rock), and the wanted distance changes from call to call, so neither SLOW
-// nor FAST alone answers them all.
+// rock, well inside it) and where the hop after it still has room
+// (NOTE_ROOM px of rock to land on), so chasing a light never sets up a
+// fall. The wanted distance changes from call to call, so neither SLOW nor
+// FAST alone answers them all.
 export const NOTE_REACH = 22, NOTE_BEATS = 2, NOTE_WHO = Object.freeze(['blue', 'green', 'red']);
 const NOTE_REACHES = [380, 220, 310, 250, 400, 235, 290];
-const HOP_MIN = SLOW_SPEED * BEAT, HOP_MAX = FAST_SPEED * BEAT;
+const HOP_MIN = SLOW_SPEED * BEAT, HOP_MAX = FAST_SPEED * BEAT, NOTE_ROOM = 50;
 
-// The crane lowers its span on the first two beats of every four.
-export const craneDown = beat => ((beat % 4) + 4) % 4 < 2;
 
 export function newStory(course) {
   return {
@@ -69,7 +81,7 @@ export function newStory(course) {
     blue: { state: 'parts', x: course.start - 30 },
     green: { state: 'dormant', x: course.greenMeet },
     red: { state: 'dormant', x: course.redConsole },
-    switchOn: false, switchAt: null, fails: {},
+    switchOn: false, switchAt: null, fails: {}, plate: { on: false, at: null }, bar: { on: false, at: null },
     notes: { cur: null, called: 0, answered: 0 },
   };
 }
@@ -83,7 +95,9 @@ export function storyFrom(course, i) {
   if (got === course.parts.length) { run.blue.state = 'follow'; run.blue.x = cp.x - FOLLOW_GAP; run.parts.assembledAt = -10; }
   for (const who of ['green', 'red']) if (cp.x >= course[who + 'Kit'] - KIT_REACH) run.kits[who].at = -10;
   if (run.kits.green.at !== null) { run.green.state = 'follow'; run.green.x = cp.x - FOLLOW_GAP; }
-  if (cp.x > course.switchX) { run.green.state = 'switch'; run.green.x = course.switchX; run.switchOn = true; run.switchAt = -10; }
+  if (cp.x > course.plateX + PLATE_HALF) run.plate = { on: true, at: -10 };
+  if (cp.x > course.switchX) { run.green.state = 'switch'; run.green.x = course.switchX; run.green.plantAt = -10; run.switchOn = true; run.switchAt = -10; }
+  if (cp.x > course.barX + BAR_HALF) run.bar = { on: true, at: -10 };
   if (run.kits.red.at !== null) { run.red.state = 'escort'; run.red.x = cp.x - FOLLOW_GAP * 1.6; }
   if (cp.x >= course.crane.a - CRANE_CALL) { run.red.state = 'crane'; run.red.craneAt = -10; run.red.fromX = run.red.x = (course.crane.a + course.crane.b) / 2; }
   if (cp.x >= course.craneFar) { run.red.state = run.green.state = 'carry'; run.red.x = cp.x - 700; run.green.x = run.red.x - 16; }
@@ -104,11 +118,20 @@ export function bridgeFront(run, course) {
   // Laid in full it meets the far bank (and its footing inset) with no seam.
   return laid === BRIDGE_SEGMENTS ? Infinity : course.switchX + length * laid / BRIDGE_SEGMENTS;
 }
-const craneAssist = run => (run.fails[run.checkpoint] || 0) >= 2;
-// The span moves only once red is on the boom; while red works it, it is
-// down on two beats of every four; once red leaves, the span stays down.
+export const craneAssist = run => (run.fails[run.checkpoint] || 0) >= 2;
 export const craneWorking = (run, beat) => run.red.state === 'crane' && beat * BEAT >= run.red.craneAt + CRANE_CLIMB - 1e-9;
-export const craneSolid = (run, beat) => !['dormant', 'escort'].includes(run.red.state) && (run.red.state !== 'crane' || (craneWorking(run, beat) && (craneDown(beat) || craneAssist(run))));
+// Story time the span is fully down: once red is on the boom and the bar has
+// been bumped (or, after two falls here, as soon as red is on the boom).
+// Before red works the crane it hangs up; once red has left, it stays down.
+export function craneDownAt(run) {
+  const r = run.red;
+  if (['dormant', 'escort'].includes(r.state)) return Infinity;
+  if (r.state !== 'crane') return -Infinity;
+  const ready = r.craneAt + CRANE_CLIMB;
+  if (craneAssist(run)) return ready + CRANE_LOWER;
+  return run.bar.on ? Math.max(run.bar.at, ready) + CRANE_LOWER : Infinity;
+}
+export const craneSolid = (run, beat) => beat * BEAT >= craneDownAt(run) - 1e-9;
 
 // Advance to story time `to` with one constant input. Returns events.
 export function advanceStory(run, course, to, fast, events = []) {
@@ -116,12 +139,27 @@ export function advanceStory(run, course, to, fast, events = []) {
     const next = (run.beat + 1) * BEAT, end = Math.min(to, next), dt = end - run.t;
     const speed = run.status === 'playing' ? (fast ? FAST_SPEED : SLOW_SPEED) : 0, n = events.length;
     moveCrew(run, course, dt, speed, events);
+    if (run.status === 'playing' && !run.bar.on) bumpBar(run, course, dt, speed, events);
     run.x += dt * speed; run.t = end;
     if (end >= next - 1e-9) { run.t = next; run.beat += 1; touchdown(run, course, events); }
     // Every event carries its story time, so its sound can be scheduled ahead.
     for (let i = n; i < events.length; i++) { events[i].t ??= run.t; events[i].beat ??= run.beat; }
   }
   return events;
+}
+
+// Does the hero's head pass the bar in this step (constant speed, inside one
+// hop)? Exact: the earliest instant it is within BAR_HALF and BAR_LIFT high.
+function bumpBar(run, course, dt, speed, events) {
+  if (speed <= 0) return;
+  const x0 = run.x, lo = course.barX - BAR_HALF, hi = course.barX + BAR_HALF;
+  const ta = Math.max(0, (lo - x0) / speed), tb = Math.min(dt, (hi - x0) / speed);
+  if (ta > tb) return;
+  const u0 = (run.t - run.beat * BEAT) / BEAT, rise = Math.asin(BAR_LIFT) / Math.PI;
+  const t = Math.max(ta, (rise - u0) * BEAT), last = Math.min(tb, (1 - rise - u0) * BEAT);
+  if (t > last + 1e-12) return;
+  run.bar = { on: true, at: run.t + t };
+  events.push({ type: 'bump', t: run.t + t, x: course.barX });
 }
 
 function touchdown(run, course, events) {
@@ -159,10 +197,16 @@ function land(run, course, p, events) {
   const chapter = chapterAt(course, run.x);
   if (chapter !== run.chapter) { run.chapter = chapter; events.push({ type: 'chapter', id: chapter }); }
   collectPart(run, course, events);
+  if (run.red.state === 'carry' && run.x - run.red.x < CARRY_CALL) { run.red.calls = (run.red.calls || 0) + 1; events.push({ type: 'wait', index: run.red.calls }); }
   // Blue takes the lead into the crater's shadow and drops back after it.
   const shade = course.shadow, inShade = run.x >= shade.a - LAMP_EARLY && run.x < shade.b + LAMP_LATE;
   if (run.blue.state === 'follow' && inShade) { run.blue.state = 'lamp'; events.push({ type: 'lamp' }); }
   else if (run.blue.state === 'lamp' && !inShade) run.blue.state = 'follow';
+  // The plate before green's socket: the bridge is laid once green is planted too.
+  if (!run.plate.on && Math.abs(run.x - course.plateX) <= PLATE_HALF) {
+    run.plate = { on: true, at: run.t }; events.push({ type: 'plate' });
+    if (run.green.state === 'switch' && !run.switchOn) layBridge(run, run.t, events);
+  }
   for (const who of ['green', 'red']) {
     const kit = run.kits[who];
     if (kit.at !== null || run.x < kit.x - KIT_REACH) continue;
@@ -196,7 +240,7 @@ function land(run, course, p, events) {
 }
 
 // The friends' calls (see NOTE_REACH): answer the one due on this landing,
-// then, on beat one or three of the song, let the next friend call.
+// then, on beat one of a bar of the song, let the next friend call.
 function ensemble(run, course, events) {
   const notes = run.notes, cur = notes.cur;
   if (cur && run.beat >= cur.due) {
@@ -205,9 +249,9 @@ function ensemble(run, course, events) {
     events.push({ type: hit ? 'answer' : 'unanswered', who: cur.who, index: cur.index, x: cur.x });
     notes.cur = null;
   }
-  if (notes.cur || !run.together || run.chapter !== 'rescue' || run.status !== 'playing') return;
+  if (notes.cur || !run.together || !['rescue', 'base'].includes(run.chapter) || run.status !== 'playing') return;
   const songBeat = run.beat - Math.round(run.parts.assembledAt / BEAT);
-  if (songBeat % 2 !== 0) return;
+  if (((songBeat % 4) + 4) % 4 !== 0) return;
   const want = NOTE_REACHES[notes.called % NOTE_REACHES.length], x = noteSpot(course, run.x, want);
   if (x === null || x > course.ensembleEnd) return;
   const who = NOTE_WHO[notes.called % NOTE_WHO.length];
@@ -219,14 +263,20 @@ function ensemble(run, course, events) {
 function onRock(course, x, m) {
   return course.platforms.some(p => { if (p.kind !== 'ground') return false; const [l, r] = footing([p.a, p.b]); return x >= l + m && x <= r - m; });
 }
-// The spot nearest x0 + want that two hops can reach with both touchdowns on
-// rock (and the light's whole reach on it), or null.
+// Px of rock (with margin m) a hop from x can land on.
+function room(course, x, m) {
+  let n = 0;
+  for (let y = x + HOP_MIN + 2; y <= x + HOP_MAX - 2; y += 2) if (onRock(course, y, m)) n += 2;
+  return n;
+}
+// The spot nearest x0 + want that two hops can reach with both touchdowns
+// well on rock, with room to land after it, or null.
 export function noteSpot(course, x0, want) {
   for (let off = 0; off <= 140; off += 3) for (const sign of off ? [1, -1] : [1]) {
     const x = Math.round(x0 + want + sign * off);
-    if (x - x0 < 2 * HOP_MIN + 2 || x - x0 > 2 * HOP_MAX - 2 || !onRock(course, x, 6)) continue;
+    if (x - x0 < 2 * HOP_MIN + 2 || x - x0 > 2 * HOP_MAX - 2 || !onRock(course, x, 12) || room(course, x, 4) < NOTE_ROOM) continue;
     const lo = Math.max(x0 + HOP_MIN + 2, x - HOP_MAX + 2), hi = Math.min(x0 + HOP_MAX - 2, x - HOP_MIN - 2);
-    for (let y = lo; y <= hi; y += 2) if (onRock(course, y, 2)) return x;
+    for (let y = lo; y <= hi; y += 2) if (onRock(course, y, 6)) return x;
   }
   return null;
 }
@@ -278,10 +328,10 @@ function moveCrew(run, course, dt, speed, events) {
     }
     const ta = socket ? arrive(green.x, vg, run.x, speed, course.switchX) : Infinity;
     if (ta <= dt) {
-      green.state = 'switch'; green.from = course.switchX; green.x = course.switchX; run.switchOn = true; run.switchAt = run.t + ta;
-      events.push({ type: 'switch', t: run.switchAt });
-      // The four pieces' times are known now, so their notes can be scheduled.
-      for (let k = 0; k < BRIDGE_SEGMENTS; k++) events.push({ type: 'plank' + k, t: bridgeSegmentAt(run, k), beat: Math.floor(bridgeSegmentAt(run, k) / BEAT + 1e-9) });
+      // Planted: green holds the socket. The bridge comes when the plate is on.
+      green.state = 'switch'; green.from = course.switchX; green.x = course.switchX; green.plantAt = run.t + ta;
+      events.push({ type: 'plant', t: green.plantAt });
+      if (run.plate.on) layBridge(run, green.plantAt, events);
     } else {
       // Booted ahead of the hero, it waits where it is until the hero comes by.
       green.x = Math.max(Math.min(green.x, x1), Math.min(x1 - FOLLOW_GAP, green.x + vg * dt));
@@ -333,6 +383,13 @@ function carried(run, speed, d0, dt) {
   return { d: eq + (from - eq) * Math.exp(-CARRY_PULL * (dt - dash)), meet: dash + meet };
 }
 
+function layBridge(run, t, events) {
+  run.switchOn = true; run.switchAt = t;
+  events.push({ type: 'switch', t });
+  // The four pieces' times are known now, so their notes can be scheduled.
+  for (let k = 0; k < BRIDGE_SEGMENTS; k++) events.push({ type: 'plank' + k, t: bridgeSegmentAt(run, k), beat: Math.floor(bridgeSegmentAt(run, k) / BEAT + 1e-9) });
+}
+
 // Distance red has flown τ seconds after leaving: it sets off visibly,
 // gathering speed over its first beat, then flies at RESCUE_SPEED. Closed
 // form, so the pickup is the same at any frame rate.
@@ -367,6 +424,11 @@ function respawn(run, course, events) {
   if (green.state === 'follow') green.x = cp.x - FOLLOW_GAP;
   if (red.state === 'follow' || red.state === 'escort') red.x = cp.x - FOLLOW_GAP * 1.6;
   run.notes.cur = null;
+  // Fallen twice at the chasm without the plate: green's plate takes the call.
+  if (!run.plate.on && run.fails[run.checkpoint] >= 2 && cp.x >= course.fieldStart - 1 && cp.x < course.plateX) {
+    run.plate = { on: true, at: run.t }; events.push({ type: 'plate', auto: true });
+    if (green.state === 'switch' && !run.switchOn) layBridge(run, run.t, events);
+  }
   events.push({ type: 'respawn', checkpoint: run.checkpoint, x: cp.x });
   land(run, course, platformAt(course, cp.x) || { kind: 'ground', a: cp.x, b: cp.x }, events);
 }

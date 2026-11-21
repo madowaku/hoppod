@@ -50,7 +50,7 @@ if (!only || only === 'lamp') for (const [name, order] of [['slow', [0, .25, .5,
 if (!only || only === 'carry') {
   const cp = COURSE.checkpoints.findIndex(c => c.x >= COURSE.craneFar);
   // FAST until the pair is close, then SLOW: the wait and the reunion.
-  const fastPath = solve(COURSE, storyFrom(COURSE, cp), { until: r => r.red.state === 'carry' && r.x - r.red.x < 160, order: [1, .75, .5, .25, 0], limit: 80000 });
+  const fastPath = solve(COURSE, storyFrom(COURSE, cp), { until: r => r.red.state === 'carry' && r.x - r.red.x < 160 && (r.red.calls || 0) >= 3, order: [1, .75, .5, .25, 0], limit: 80000 });
   const rest = solve(COURSE, fastPath.end, { until: r => r.together && r.beat > fastPath.end.beat + 3, order: [0, .25, .5], limit: 50000 }).path;
   const p = [...fastPath.path, ...rest], from = fastPath.path.length;
   await (await play(cp, p, (r, i) => i >= from - 3 && i < from + 4 ? 'carry-' + (i - from + 3) : null, .4)).close();
@@ -66,6 +66,15 @@ if (!only || only === 'ensemble') {
   }
   let n = 0;
   await (await play(cp, path, (r, i) => i >= 5 && n < 6 ? `ensemble-${++n}` : null, .2)).close();
+}
+if (!only || only === 'switches') {
+  // Green's plate and the bridge; red's bar and the span. SLOW-leaning.
+  for (const [name, cp, until] of [['plate', COURSE.checkpoints.findIndex(c => c.from === COURSE.fieldStart), r => r.x > COURSE.bridge.b + 60], ['bar', COURSE.checkpoints.findIndex(c => c.chapter === 'rescue' && c.x < COURSE.crane.a && c.x > COURSE.redConsole), r => r.x > COURSE.crane.b + 60]]) {
+    const p = solve(COURSE, storyFrom(COURSE, cp), { until, order: [0, .25, .5, .75, 1], limit: 80000 }).path;
+    const focus = name === 'plate' ? COURSE.plateX : COURSE.barX;
+    let n = 0;
+    await (await play(cp, p, r => Math.abs(r.x - focus) < 260 && n < 6 ? `${name}-${++n}` : null, .45)).close();
+  }
 }
 await browser.close();
 console.log('done', out);
