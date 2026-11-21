@@ -1301,6 +1301,17 @@ function drawWindowView(a) {
   const glow = smooth(ENDING.away, ENDING.away + 10, a);
   lights = [['blue', run.blue.x, friendY('blue', run.blue) - 20], ['green', run.green.x, friendY('green', run.green) - 20], ['red', run.red.x, friendY('red', run.red) - 20], ['hero', COURSE.dockX, heroY() - 80]]
     .map(([who, wx, wy]) => { const [x, y] = project(wx, wy); return { who, x, y, on: who !== 'hero' || heroBlink() }; });
+  // Each call the hero answered left a small light in that friend's colour:
+  // seen from the rocket, a trail back along the road behind the base (in
+  // the order they were answered, drawn closer together than they were so
+  // the window holds them), each glinting in turn on the beat.
+  const trail = smooth(ENDING.away, ENDING.away + 6, a), beat = beatIndex(s), answers = run.notes.answers;
+  answers.forEach((n, i) => {
+    const [x, y] = project(COURSE.stations[0].x - 130 - (answers.length - 1 - i) * 70, FLOOR - 2), on = (beat - i) % 4 === 0 ? 1 - (s - beat * BEAT) / BEAT : 0;
+    if (x < -10 || x > W + 10) return;
+    ctx.fillStyle = GLOW[n.who]; ctx.globalAlpha = trail * (.3 + .35 * on); ctx.beginPath(); ctx.arc(x, y - 1, 5 + 4 * on, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = trail * (.7 + .3 * on); ctx.fillRect(Math.round(x) - 1, Math.round(y) - 2, 3, 3);
+  });
   for (const l of lights) {
     ctx.globalAlpha = glow * (l.on ? .28 : .06); ctx.fillStyle = GLOW[l.who];
     ctx.beginPath(); ctx.arc(l.x, l.y, 7, 0, Math.PI * 2); ctx.fill();

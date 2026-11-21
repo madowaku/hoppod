@@ -76,5 +76,20 @@ if (!only || only === 'switches') {
     await (await play(cp, p, r => Math.abs(r.x - focus) < 260 && n < 6 ? `${name}-${++n}` : null, .45)).close();
   }
 }
+if (!only || only === 'ending') {
+  // Answer the friends' calls, dock, and watch the trail from the rocket.
+  const cp = COURSE.checkpoints.findIndex(c => c.chapter === 'rescue' && c.x > COURSE.craneFar + 500), r = storyFrom(COURSE, cp), path = [];
+  for (let i = 0; i < 80 && r.x < COURSE.ensembleEnd + 200; i++) {
+    const n = r.notes.cur, safe = [];
+    for (let k = 0; k <= 40; k++) { const f = k / 40, x = r.x + BEAT * (105 + 165 * f); if (platformAt(COURSE, x)) safe.push([f, x]); }
+    const cost = ([f, x]) => !n ? Math.abs(f - .5) : n.due - r.beat === 1 ? Math.abs(x - n.x) : n.x - x >= 82 && n.x - x <= 210 ? Math.abs(f - .5) : 1e4;
+    const [f] = safe.reduce((a, b) => cost(b) < cost(a) ? b : a); path.push(f); hop(r, COURSE, f);
+  }
+  const rest = solve(COURSE, r, { order: [.5, .25, .75, 0, 1], limit: 80000 }).path;
+  const page = await play(cp, [...path, ...rest], () => null);
+  console.log('answered', r.notes.answered);
+  let at = 0; for (const beats of [36, 46, 56]) { await page.clock.runFor(Math.round((beats - at) * 780)); at = beats; await shot(page, `ending-${beats}`); }
+  await page.close();
+}
 await browser.close();
 console.log('done', out);

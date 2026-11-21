@@ -85,7 +85,7 @@ export function newStory(course) {
     green: { state: 'dormant', x: course.greenMeet },
     red: { state: 'dormant', x: course.redConsole },
     switchOn: false, switchAt: null, fails: {}, plate: { on: false, at: null }, bar: { on: false, at: null },
-    notes: { cur: null, called: 0, answered: 0 },
+    notes: { cur: null, called: 0, answered: 0, answers: [] },
   };
 }
 
@@ -248,7 +248,7 @@ function ensemble(run, course, events) {
   const notes = run.notes, cur = notes.cur;
   if (cur && run.beat >= cur.due) {
     const hit = Math.abs(run.x - cur.x) <= NOTE_REACH;
-    if (hit) notes.answered += 1;
+    if (hit) { notes.answered += 1; notes.answers.push({ who: cur.who, x: cur.x }); }
     events.push({ type: hit ? 'answer' : 'unanswered', who: cur.who, index: cur.index, x: cur.x });
     notes.cur = null;
   }
