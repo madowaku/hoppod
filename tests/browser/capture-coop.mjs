@@ -91,5 +91,11 @@ if (!only || only === 'ending') {
   let at = 0; for (const beats of [36, 46, 56]) { await page.clock.runFor(Math.round((beats - at) * 780)); at = beats; await shot(page, `ending-${beats}`); }
   await page.close();
 }
+if (!only || only === 'plain') {
+  // From the last part through the dawn and the plain, a shot every two beats.
+  const cp = 2, p = solve(COURSE, storyFrom(COURSE, cp), { until: r => r.chapter === 'apart' && r.x > COURSE.chapters[1].x + 200, order: [.5, .25, .75, 0, 1], limit: 80000 }).path;
+  let n = 0;
+  await (await play(cp, p, (r, i) => i % 2 === 0 ? `plain-${String(++n).padStart(2, '0')}` : null, .4)).close();
+}
 await browser.close();
 console.log('done', out);

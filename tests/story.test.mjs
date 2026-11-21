@@ -699,3 +699,15 @@ test("in the dark, blue's next part calls once a bar, louder as the hero nears i
   for (const [i] of far) assert.equal(i % 16, BEACON_BEAT * 4 + 2, "on the 'and' of its beat");
   assert.ok(near[0][1] > far[0][1]);
 });
+test('past the dawn, blue wakes the spires on the plain one by one, climbing the chord', async () => {
+  const { spireTones, chordAt } = await import('../public/src/story/music.mjs');
+  const start = storyFrom(COURSE, 2), { path } = solve(COURSE, start, { until: r => r.chapter === 'apart', order: [.5, .25, .75, 0, 1], limit: 80000 });
+  const r = structuredClone(start), woke = [];
+  for (const f of path) for (const e of hop(r, COURSE, f)) if (e.type === 'spire') woke.push(e);
+  assert.deepEqual(woke.map(e => e.index), COURSE.spires.map((_, i) => i), 'each spire once, in order');
+  assert.ok(woke.every(e => r.blue.state === 'follow'));
+  const tops = COURSE.spires.map((_, i) => spireTones(i, chordAt(0))[0][1]);
+  assert.ok(tops.every((f, i) => !i || f > tops[i - 1]), 'climbing');
+  // A later start remembers the spires already passed.
+  assert.equal(storyFrom(COURSE, COURSE.checkpoints.findIndex(c => c.chapter === 'apart')).spires, COURSE.spires.length);
+});

@@ -170,6 +170,13 @@ export function ensembleTones(kind, who, chord) {
   return [[0, hz(d + up), .2, .045], [.07, hz(a + 12 + up), .22, .045], [.14, hz(c + 12 + up), .7, .04], [.14, hz(c + 24), .5, .012]];
 }
 
+// A spire waking: a high bell on a tone of the chord, one step further up
+// the chord with each spire, so the plain's spires climb an arpeggio.
+export function spireTones(index, chord) {
+  const m = chord.pad[index % 4] + 12 * (1 + Math.floor(index / 4));
+  return [[0, hz(m), 1.6, .04], [0, hz(m + 12), .5, .012], [.09, hz(m + 7), .9, .015]];
+}
+
 export function createStoryAudio() {
   let ctx = null, master, muffle, buses = {}, tones = {}, noise, muted = false;
   const voices = new Set();
@@ -279,8 +286,8 @@ export function createStoryAudio() {
     cue(name, at = null, extra = null) {
       if (!ctx || ctx.state !== 'running') return;
       const start = at ?? ctx.currentTime + .005;
-      const wave = extra ? ENSEMBLE_WAVE[extra.who] : name === 'dock' || name === 'fall' || name === 'wait' || name === 'plate' || name === 'plant' || name.startsWith('plank') || name.startsWith('fit') ? 'triangle' : 'sine';
-      for (const [delay, f, decay, peak] of (extra ? ensembleTones(name, extra.who, extra.chord) : CUES[name]) || []) tone(buses.cue, wave, f, start + delay, decay, peak, name === 'fall' ? .5 : 0);
+      const wave = name === 'spire' ? 'sine' : extra ? ENSEMBLE_WAVE[extra.who] : name === 'dock' || name === 'fall' || name === 'wait' || name === 'plate' || name === 'plant' || name.startsWith('plank') || name.startsWith('fit') ? 'triangle' : 'sine';
+      for (const [delay, f, decay, peak] of (name === 'spire' ? spireTones(extra.index, extra.chord) : extra ? ensembleTones(name, extra.who, extra.chord) : CUES[name]) || []) tone(buses.cue, wave, f, start + delay, decay, peak, name === 'fall' ? .5 : 0);
       if (name === 'dock') hiss(buses.cue, 900, start, .25, .06, 'bandpass');
       // Out of the dark: a slow, wide chord under the boot chime.
       if (name === 'assemble') for (const [i, f] of [196, 293.66, 392, 493.88, 587.33].entries()) tone(buses.cue, 'sine', f, start + .25 + i * .05, 4.5, .022, 0, .9);

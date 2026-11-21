@@ -29,6 +29,8 @@ export const CARRY_CALL = 260;
 // before the shadow and drops back to follow LAMP_LATE px after it.
 export const LAMP_SPEED = 175, LAMP_LEAD = 110, LAMP_EARLY = 300, LAMP_LATE = 60;
 export const PART_REACH = 36;
+// A spire on the plain wakes on the touchdown that brings the hero within SPIRE_WAKE px of it.
+export const SPIRE_WAKE = 180;
 // Green and red are met missing a part (green its magnetic legs, red its
 // hook), which lies before them. A landing within KIT_REACH picks it up
 // (wider than any hop, so it cannot be hopped over; landed past it anyway,
@@ -85,7 +87,7 @@ export function newStory(course) {
     green: { state: 'dormant', x: course.greenMeet },
     red: { state: 'dormant', x: course.redConsole },
     switchOn: false, switchAt: null, fails: {}, plate: { on: false, at: null }, bar: { on: false, at: null },
-    notes: { cur: null, called: 0, answered: 0, answers: [] },
+    notes: { cur: null, called: 0, answered: 0, answers: [] }, spires: 0,
   };
 }
 
@@ -94,6 +96,7 @@ export function storyFrom(course, i) {
   const run = newStory(course), cp = course.checkpoints[i];
   Object.assign(run, { x: cp.x, hopStartX: cp.x, checkpoint: i, chapter: cp.chapter });
   const got = course.parts.filter(x => x < cp.from).length;
+  run.spires = course.spires.filter(sp => sp.x < cp.from).length;
   run.parts.got = got; run.parts.x = course.parts[got] ?? 0;
   if (got === course.parts.length) { run.blue.state = 'follow'; run.blue.x = cp.x - FOLLOW_GAP; run.parts.assembledAt = -10; }
   for (const who of ['green', 'red']) if (cp.x >= course[who + 'Kit'] - KIT_REACH) run.kits[who].at = -10;
@@ -200,6 +203,10 @@ function land(run, course, p, events) {
   const chapter = chapterAt(course, run.x);
   if (chapter !== run.chapter) { run.chapter = chapter; events.push({ type: 'chapter', id: chapter }); }
   collectPart(run, course, events);
+  // Blue's new light wakes the spires on the plain as the two pass them.
+  while (run.blue.state === 'follow' && run.spires < course.spires.length && run.x >= course.spires[run.spires].x - SPIRE_WAKE) {
+    events.push({ type: 'spire', index: run.spires, x: course.spires[run.spires].x }); run.spires += 1;
+  }
   if (run.red.state === 'carry' && run.x - run.red.x < CARRY_CALL) { run.red.calls = (run.red.calls || 0) + 1; events.push({ type: 'wait', index: run.red.calls }); }
   // Blue takes the lead into the crater's shadow and drops back after it.
   const shade = course.shadow, inShade = run.x >= shade.a - LAMP_EARLY && run.x < shade.b + LAMP_LATE;

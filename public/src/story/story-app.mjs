@@ -195,12 +195,12 @@ window.addEventListener('pagehide', pause);
 // was not predicted still sounds, just late.
 let ahead = null;
 const cued = new Map();
-const CUES = new Set(['plate', 'plant', 'bump', 'wait', 'call', 'answer', 'lamp', 'collect', 'kit', 'fit', 'assemble', 'join', 'socket', 'switch', 'plank0', 'plank1', 'plank2', 'plank3', 'relink', 'notice', 'rescue', 'pickup', 'reunion', 'station', 'dock', 'fall', 'respawn']);
+const CUES = new Set(['spire', 'plate', 'plant', 'bump', 'wait', 'call', 'answer', 'lamp', 'collect', 'kit', 'fit', 'assemble', 'join', 'socket', 'switch', 'plank0', 'plank1', 'plank2', 'plank3', 'relink', 'notice', 'rescue', 'pickup', 'reunion', 'station', 'dock', 'fall', 'respawn']);
 const eventKey = e => e.type + ':' + e.beat + ':' + (e.who ?? e.index ?? '');
 // Green's legs clamp on with a magnet; red's hook ratchets in.
 const cueName = e => e.type === 'fit' ? 'fit-' + e.who : e.type;
 // A friend's call and the hero's answer are pitched to the song's chord on that beat.
-const cueExtra = e => e.type === 'call' || e.type === 'answer' ? { who: e.who, chord: chordAt(e.beat - Math.round((run.parts.assembledAt ?? 0) / BEAT)) } : null;
+const cueExtra = e => e.type === 'call' || e.type === 'answer' || e.type === 'spire' ? { who: e.who, index: e.index, chord: chordAt(e.beat - Math.round((run.parts.assembledAt ?? 0) / BEAT)) } : null;
 function predict() {
   ahead = structuredClone(run);
   if (!audio.running || clock.domain !== 'audio' || run.status === 'docked') return;
@@ -309,6 +309,7 @@ function handle(events) {
     else if (e.type === 'fit' || e.type === 'join') flashes.push({ kind: e.type, who: e.who, x: run[e.who].x, at: e.t });
     else if (e.type === 'relink') flashes.push({ kind: 'relink', x: COURSE.relays.filter(r => r <= run.x).at(-1), at: s });
     else if (e.type === 'switch') flashes.push({ kind: 'switch', x: COURSE.switchX, at: e.t });
+    else if (e.type === 'spire') { flashes.push({ kind: 'spire', x: e.x, index: e.index, at: e.t }); burst(e.x, FLOOR - COURSE.spires[e.index].h, ['#e6f4ff', '#a9d6ff'], 10); }
     else if (e.type === 'plate') flashes.push({ kind: 'plate', x: COURSE.plateX, at: e.t });
     else if (e.type === 'bump') { flashes.push({ kind: 'bump', x: COURSE.barX, at: e.t }); burst(COURSE.barX, BAR_Y, ['#ffd2c4', '#ffffff'], 8); }
     else if (e.type === 'assemble') flashes.push({ kind: 'dawn', x: run.x, at: s });
@@ -528,6 +529,31 @@ function drawFallHint(cam) {
 // Checkpoints: a small lantern where a fall brings the hero back. It lights
 // as the hero passes and stays lit, so a fall never feels like losing much.
 // Drawn after the darkness, so a lit one glows through it. No sound.
+// Crystal spires on the plain past the dawn: dark glass until blue's light
+// reaches them, then lit from inside, a thin ray up, breathing on the beat.
+function drawSpires(cam) {
+  const beat = beatIndex(s), phase = s - beat * BEAT;
+  COURSE.spires.forEach((sp, i) => {
+    const x = Math.round(sp.x - cam); if (x < -40 - cull || x > W + 40 + cull) return;
+    const lit = i < run.spires, since = lit ? s - (flashes.find(f => f.kind === 'spire' && f.index === i)?.at ?? -9) : 0;
+    const wake = lit ? smooth(0, .5, since) : 0, breathe = lit && !reducedMotion.matches ? .15 * Math.max(0, 1 - phase / .5) : 0, h = sp.h, y = FLOOR;
+    if (lit) {
+      const glow = ctx.createRadialGradient(x, y - h * .5, 2, x, y - h * .5, h);
+      glow.addColorStop(0, `rgba(169,214,255,${(.22 + breathe) * wake})`); glow.addColorStop(1, 'rgba(169,214,255,0)');
+      ctx.fillStyle = glow; ctx.fillRect(x - h, y - h * 1.5, h * 2, h * 1.5);
+      ctx.fillStyle = `rgba(200,232,255,${(.08 + breathe * .5) * wake})`; ctx.fillRect(x - 1, 0, 2, y - h);
+    }
+    // Three shards: the tall one, and two shorter leaning ones at its foot.
+    for (const [dx, hh, w] of [[0, h, 12], [-9, h * .55, 8], [9, h * .4, 7]]) {
+      const k = wake;
+      ctx.fillStyle = `rgb(${Math.round(38 + 150 * k)},${Math.round(52 + 170 * k)},${Math.round(70 + 180 * k)})`;
+      ctx.beginPath(); ctx.moveTo(x + dx - w / 2, y); ctx.lineTo(x + dx, y - hh); ctx.lineTo(x + dx + w / 2, y); ctx.closePath(); ctx.fill();
+      // The face towards Earth catches its light even while dark.
+      ctx.fillStyle = `rgba(${lit ? '255,255,255' : '120,150,180'},${lit ? .3 + .5 * k : .45})`;
+      ctx.beginPath(); ctx.moveTo(x + dx, y - hh); ctx.lineTo(x + dx + w / 2, y); ctx.lineTo(x + dx + w / 6, y); ctx.closePath(); ctx.fill();
+    }
+  });
+}
 function drawLanterns(cam) {
   COURSE.checkpoints.forEach((cp, i) => {
     const x = Math.round(cp.x - cam) - 22; if (x < -20 || x > W + 20) return;
@@ -940,6 +966,10 @@ function drawFlashes(cam) {
       const y = f.kind === 'plate' ? FLOOR - 2 : BAR_Y + 2, c = f.kind === 'plate' ? '159,240,196' : '255,210,196';
       ctx.strokeStyle = `rgba(${c},${1 - age / .8})`; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.ellipse(x, y, 20 + age * 70, 4 + age * 18, 0, 0, Math.PI * 2); ctx.stroke();
+    } else if (f.kind === 'spire' && age < 1.2) {
+      // Waking: a ring climbs the spire and opens out from its tip.
+      const h = COURSE.spires[f.index].h; ctx.strokeStyle = `rgba(200,232,255,${1 - age / 1.2})`; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.ellipse(x, FLOOR - h * Math.min(1, age / .25), 6 + age * 40, 2 + age * 10, 0, 0, Math.PI * 2); ctx.stroke();
     } else if (f.kind === 'answer' && age < 1) {
       // The friend who called answers back: its own rings rise from its head.
       const hx = run[f.who].x - cam, hy = friendY(f.who, run[f.who]) - answerLeap(f.who) - 26;
@@ -1150,7 +1180,7 @@ function drawScene() {
   drawPit(ctx, { W, floor: FLOOR, bottom: H });
   ctx.save();
   if (zoom < 1) { ctx.translate(0, FLOOR); ctx.scale(zoom, zoom); ctx.translate(0, -FLOOR); cull = W / zoom - W + 20; }
-  drawRange(); drawPlatforms(cam); drawDevices(cam);
+  drawRange(); drawSpires(cam); drawPlatforms(cam); drawDevices(cam);
   for (const d of dust) drawDust(ctx, d.x - cam, FLOOR - 2, s - d.at);
   dust = dust.filter(d => s - d.at < DUST);
   drawNotes(cam); drawFriends(cam); drawHero(cam); drawKits(cam);

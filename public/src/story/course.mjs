@@ -49,7 +49,11 @@ export function buildCourse() {
   run([[60, 180], [92, 100], [40, 140], [96, 100], [44, 170]]);
   p = c.plat(60, 200); parts.push(Math.round((p.a + p.b) / 2));
   // The light opens: a wide, generous plain to feel how large the moon is.
+  // Dark crystal spires stand on every other stone; blue's new light wakes
+  // them one by one as the two pass (see `spires` in sim.mjs).
+  const plain = c.platforms.length;
   c.filler(12, r, [40, 64], [190, 260]);
+  c.marks.spires = c.platforms.slice(plain).filter((_, i) => i % 2 === 1).map((q, i) => ({ x: Math.round(q.a + (q.b - q.a) * (.3 + .4 * ((i * 7) % 5) / 4)), h: [74, 52, 92, 62, 104, 80][i % 6] }));
 
   // ② APART: green lies here without its legs; its magnetic leg unit lies
   // 300px before it, so even at FAST it is fitted before the hero passes
