@@ -68,7 +68,10 @@ export const FALL_BEATS = 2;
 // fall. The wanted distance changes from call to call, so neither SLOW nor
 // FAST alone answers them all.
 export const NOTE_REACH = 22, NOTE_BEATS = 2, NOTE_WHO = Object.freeze(['blue', 'green', 'red']);
-const NOTE_REACHES = [380, 220, 310, 250, 400, 235, 290];
+// At most NOTE_FAR px ahead, so with the view pulled back (zoom .78) the
+// light is on screen from the moment it lands.
+export const NOTE_FAR = 290;
+const NOTE_REACHES = [285, 195, 255, 215, 290, 185, 240];
 const HOP_MIN = SLOW_SPEED * BEAT, HOP_MAX = FAST_SPEED * BEAT, NOTE_ROOM = 50;
 
 
@@ -274,7 +277,7 @@ function room(course, x, m) {
 export function noteSpot(course, x0, want) {
   for (let off = 0; off <= 140; off += 3) for (const sign of off ? [1, -1] : [1]) {
     const x = Math.round(x0 + want + sign * off);
-    if (x - x0 < 2 * HOP_MIN + 2 || x - x0 > 2 * HOP_MAX - 2 || !onRock(course, x, 12) || room(course, x, 4) < NOTE_ROOM) continue;
+    if (x - x0 < 2 * HOP_MIN + 2 || x - x0 > NOTE_FAR || !onRock(course, x, 12) || room(course, x, 4) < NOTE_ROOM) continue;
     const lo = Math.max(x0 + HOP_MIN + 2, x - HOP_MAX + 2), hi = Math.min(x0 + HOP_MAX - 2, x - HOP_MIN - 2);
     for (let y = lo; y <= hi; y += 2) if (onRock(course, y, 6)) return x;
   }

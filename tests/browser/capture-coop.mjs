@@ -65,7 +65,7 @@ if (!only || only === 'ensemble') {
     const [f] = safe.reduce((a, b) => cost(b) < cost(a) ? b : a); path.push(f); hop(r, COURSE, f);
   }
   let n = 0;
-  await (await play(cp, path, (r, i) => i >= 5 && n < 6 ? `ensemble-${++n}` : null, .2)).close();
+  await (await play(cp, path, (r, i) => i >= 4 && n < 8 ? `ensemble-${++n}` : null, .2)).close();
 }
 if (!only || only === 'switches') {
   // Green's plate and the bridge; red's bar and the span. SLOW-leaning.

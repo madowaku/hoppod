@@ -369,7 +369,10 @@ function steerCamera() {
   heroX += (target - heroX) * (1 - Math.exp(-dt * 5));
   // The view stops on a booting friend while the hero hops on ahead.
   if (meet) heroX = Math.max(heroX, hold);
-  zoom += ((framing || meet ? .75 : 1) - zoom) * (1 - Math.exp(-dt * 4));
+  // Playing with the friends the view pulls back a little, so a light thrown
+  // two touchdowns ahead (at most NOTE_FAR) is in view from the start.
+  const ensemble = run.together && ['rescue', 'base'].includes(run.chapter) && run.x < COURSE.ensembleEnd + 200;
+  zoom += ((framing || meet ? .75 : ensemble ? .78 : 1) - zoom) * (1 - Math.exp(-dt * 4));
   if (Math.abs(zoom - 1) < 1e-3) zoom = 1;
 }
 const camera = () => run.x - heroX;
@@ -1015,7 +1018,7 @@ function drawNotes(cam) {
   if (!n) return;
   const x = n.x - cam, f = run[n.who], age = s - n.at, color = GLOW[n.who];
   if (x < -40 - cull || x > W + 40 + cull) return;
-  const fly = Math.min(1, age / .35), fx = f.x - cam, fy = friendY(n.who, f) - 24;
+  const fly = Math.min(1, age / .25), fx = f.x - cam, fy = friendY(n.who, f) - 24;
   if (fly < 1) {
     const u = fly * (2 - fly), px = fx + (x - fx) * u, py = fy + (FLOOR - 6 - fy) * u - Math.sin(u * Math.PI) * 60;
     ctx.fillStyle = color; ctx.beginPath(); ctx.arc(px, py, 4, 0, Math.PI * 2); ctx.fill();
