@@ -7,6 +7,36 @@
       "runtimeArgs": ["-m", "http.server", "8010", "--bind", "127.0.0.1", "--directory", "public"],
       "port": 8010,
       "autoPort": false
+    },
+    {
+      "name": "hoppod-lan",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8030", "--bind", "0.0.0.0", "--directory", "public"],
+      "port": 8030,
+      "autoPort": false
+    },
+    {
+      "name": "string-valley",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8040", "--bind", "127.0.0.1", "--directory", ".claude/worktrees/string-valley/public"],
+      "port": 8040,
+      "autoPort": false,
+      "url": "http://localhost:8040"
+    },
+    {
+      "name": "string-valley-lan",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8041", "--bind", "0.0.0.0", "--directory", ".claude/worktrees/string-valley/public"],
+      "port": 8041,
+      "autoPort": false
+    },
+    {
+      "name": "clock-tower",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8042", "--bind", "127.0.0.1", "--directory", "C:/Dev/Projects/hoppod/.claude/worktrees/clock-tower/public"],
+      "port": 8042,
+      "autoPort": false,
+      "url": "http://localhost:8042"
     }
   ]
 }

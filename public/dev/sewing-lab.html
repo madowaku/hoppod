@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#120f1c">
+<title>RAPIPPO | 銀河縫いのミシン工房 LAB</title>
+<link rel="icon" href="../icon.svg" type="image/svg+xml">
+<style>
+*{box-sizing:border-box}[hidden]{display:none!important}
+html{background:#120f1c}
+body{margin:0;color:#fff0d0;background:radial-gradient(ellipse at top,#2a2440 0%,#120f1c 75%);font-family:ui-monospace,Menlo,Consolas,"Hiragino Sans","Yu Gothic",monospace;overscroll-behavior:none;min-height:100dvh}
+main{width:min(460px,100%);margin:0 auto;padding:8px 10px 24px;display:flex;flex-direction:column;gap:7px}
+button{font:inherit;cursor:pointer;touch-action:manipulation;color:#c9bfae;background:transparent;border:1px solid #5e5264;border-radius:6px;min-height:36px;padding:4px 8px}
+button:focus-visible{outline:3px solid #ffd27a;outline-offset:2px}
+header{display:flex;align-items:center;justify-content:space-between;gap:6px}
+h1{font-size:15px;margin:0;letter-spacing:.06em}
+header small{display:block;font-size:9px;color:#b5a68f;letter-spacing:.08em;font-weight:400}
+.to-select{display:inline-flex;align-items:center;min-height:32px;padding:4px 8px;font-size:10px;color:#c9bfae;text-decoration:none;border:1px solid #5e5264;border-radius:6px}
+header div{display:flex;gap:4px}header button{font-size:10px;min-height:32px}
+#goal{font-size:13px;line-height:1.4;font-weight:700;margin:0;min-height:2.8em;display:flex;align-items:center}
+.frame{border:1px solid #6c6a80;border-radius:8px;overflow:hidden;background:#17121f;line-height:0;align-self:center;width:min(100%,calc((100dvh - 300px)*360/510));min-width:230px}
+canvas{display:block;width:100%;height:auto;aspect-ratio:360/510;image-rendering:pixelated;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+#outcome{font-size:12px;line-height:1.4;margin:0;min-height:2.8em;color:#ffe3ad;display:flex;align-items:center}
+#hold{width:100%;min-height:64px;font-size:18px;font-weight:700;border:1px solid #8a86a8;border-bottom:4px solid #4a4466;background:#2c2840;color:#cfe4ff;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+#hold.active{background:#a9d6ff;color:#1a2238;border-color:#a9d6ff;border-bottom-color:#4f7fb0}
+.tools{display:grid;grid-template-columns:1fr 1fr;gap:6px}.tools button{font-size:12px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
+.stat{background:#221d30;border-radius:6px;padding:6px 3px;text-align:center}
+.stat small{display:block;color:#b5a68f;font-size:9px}
+.stat strong{font-size:14px;font-variant-numeric:tabular-nums}
+details{font-size:11px;color:#bbb0a5;line-height:1.5}summary{cursor:pointer;padding:6px 0}
+textarea{width:100%;height:120px;background:#17121f;color:#ffe3ad;border:1px solid #5e5264;border-radius:6px;font:10px ui-monospace,Consolas,monospace}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1>銀河縫いのミシン工房<small>SEWING LAB · 実験</small></h1>
+  <div><a class="to-select" href="../select.html">ステージ選択</a><button id="sound" type="button">音 ON</button></div>
+</header>
+<p id="goal">押すと布が速く進む（長い縫い目）。離すとゆっくり（細かい縫い目）。チャコの印 × に針を落とそう。</p>
+<div class="frame"><canvas id="scene" width="360" height="510"></canvas></div>
+<p id="outcome" role="status" aria-live="polite"></p>
+<button id="hold" type="button">押し続ける</button>
+<div class="tools">
+  <button id="restart" type="button">最初から</button>
+  <button id="skip" type="button">完成を見る（デモ）</button>
+</div>
+<div class="stats">
+  <div class="stat"><small>拍</small><strong id="beats">0/80</strong></div>
+  <div class="stat"><small>チャコの印</small><strong id="stitches">0</strong></div>
+  <div class="stat"><small>繕い 青/緑/赤</small><strong id="mend">—</strong></div>
+  <div class="stat"><small>まち針</small><strong id="pins">0</strong></div>
+</div>
+<details>
+  <summary>記録（縫い目ごと）</summary>
+  <p>拍ごとの針の位置・縫い目の長さ・速さ。手触りの調整に使う。採点はしない。</p>
+  <textarea id="log" readonly></textarea>
+  <button id="copy" type="button">コピー</button>
+</details>
+</main>
+<script type="module" src="./sewing/sewing.mjs"></script>
+</body>
+</html>

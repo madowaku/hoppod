@@ -1,0 +1,162 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>RAPIPPO itch.io cover</title>
+<style>html,body{margin:0;background:#000}canvas{display:block;image-rendering:pixelated}</style>
+<canvas id="c" width="315" height="250"></canvas>
+<script type="module">
+// The itch.io cover (630×500), drawn with the game's own sprites on a 315×250
+// grid and doubled, so every pixel on it is the same size. Run it through
+// scripts/render-itch-cover.mjs. ?friends=0 draws the hero alone.
+import { drawPod } from '/public/src/pod.mjs';
+import { drawCrewParts } from '/public/src/story/crew.mjs';
+import { COMPANION_PALETTE } from '/public/src/companion.mjs';
+
+const W = 315, H = 250, G = 206; // G: the platforms' lit tops
+const friends = new URLSearchParams(location.search).get('friends') !== '0';
+const g = document.getElementById('c').getContext('2d');
+g.imageSmoothingEnabled = false;
+const PALETTE = { blue: COMPANION_PALETTE, green: { c: '#b4f2c8', w: '#ecfff2', s: '#73c290', a: '#3fcf7f' }, red: { c: '#ffbcae', w: '#fff1ec', s: '#d98a7a', a: '#ff6a4f' } };
+const GLOW = { blue: '111,182,255', green: '95,227,154', red: '255,127,102' };
+const OUTLINE = '#172638';
+const px = (c, x, y, w = 1, h = 1) => { g.fillStyle = c; g.fillRect(Math.round(x), Math.round(y), w, h); };
+const rand = (i, k) => { const v = Math.sin(i * 127.1 + k * 311.7) * 43758.5453; return v - Math.floor(v); };
+
+// ---------- sky ----------
+const sky = g.createLinearGradient(0, 0, 0, G);
+sky.addColorStop(0, '#0b142b'); sky.addColorStop(.7, '#121d38'); sky.addColorStop(1, '#1c2946');
+g.fillStyle = sky; g.fillRect(0, 0, W, H);
+for (let i = 0; i < 120; i++) {
+  g.globalAlpha = .35 + .65 * rand(i, 3);
+  px(i % 5 ? '#c3d0f5' : '#ffe2a0', rand(i, 1) * W, rand(i, 2) * (G - 30), i % 11 ? 1 : 2, i % 11 ? 1 : 2);
+}
+g.globalAlpha = 1;
+const sparkle = (x, y, r, c = '#ffd88a') => { px(c, x - r, y, r * 2 + 1, 1); px(c, x, y - r, 1, r * 2 + 1); px(c, x - 1, y - 1, 3, 3); };
+sparkle(292, 92, 5); sparkle(26, 104, 4); sparkle(84, 138, 2); sparkle(278, 150, 2, '#c3d0f5');
+// A shooting star toward the Earth.
+for (let k = 0; k < 26; k++) { g.globalAlpha = (k / 26) ** 1.6; px('#ffffff', 12 + k * 1.5, 72 + k * .6 | 0, 1, 1); }
+g.globalAlpha = 1; px('#ffffff', 50, 87, 2, 2);
+
+// ---------- Earth, from the title screen's recipe ----------
+const EX = 172, EY = 128, ER = 80;
+const halo = g.createRadialGradient(EX, EY, ER - 8, EX, EY, ER + 42);
+halo.addColorStop(0, 'rgba(80,140,255,.38)'); halo.addColorStop(1, 'rgba(80,140,255,0)');
+g.fillStyle = halo; g.fillRect(0, 0, W, H);
+const cell = 2;
+for (let y = -ER; y < ER; y += cell) for (let x = -ER; x < ER; x += cell) {
+  const nx = (x + 1) / ER, ny = (y + 1) / ER, d = nx * nx + ny * ny;
+  if (d > 1) continue;
+  const z = Math.sqrt(1 - d), u = Math.atan2(nx, z) + 2.3, v = Math.asin(ny);
+  const land = Math.sin(u * 3.1 + 1.3) + Math.sin(v * 4.7 + u * 1.7) * .8 + Math.sin(u * 7.3 - v * 5.1) * .35 > .55;
+  const cloud = Math.sin(u * 5.3 + v * 9.1 + 2) + Math.sin(v * 13 - u * 2.3) * .6 > 1.05;
+  const light = Math.max(0, -.55 * nx - .5 * ny + .67 * z);
+  const base = cloud ? [232, 242, 255] : land ? [96, 166, 104] : [44, 104, 186];
+  const k = .28 + .82 * Math.min(1, light * 1.25);
+  g.fillStyle = `rgb(${base[0] * k | 0},${base[1] * k | 0},${base[2] * k | 0})`;
+  g.fillRect(EX + x, EY + y, cell, cell);
+}
+for (let a = Math.PI * .75; a < Math.PI * 1.75; a += .012) px('rgba(170,215,255,.8)', EX + Math.cos(a) * (ER + 1), EY + Math.sin(a) * (ER + 1));
+
+// ---------- far ridges and the base ----------
+for (const [base, amp, body, rim] of [[G - 26, 16, '#19243f', '#3a4a76'], [G - 8, 10, '#212e4e', '#56699a']]) {
+  for (let x = 0; x < W; x += 3) {
+    const h = amp * (1 + .6 * Math.sin(x * .037 + base) + .4 * Math.sin(x * .013 + base * .3));
+    px(body, x, base - h, 3, G - base + h + 2); px(rim, x, base - h, 3, 1);
+  }
+}
+const BX = -6, BY = G;
+px('#34416c', BX, BY - 26, 44, 26); px('#46558a', BX + 4, BY - 33, 36, 7); px('#46558a', BX, BY - 26, 44, 1);
+px('rgba(255,210,122,.2)', BX + 21, BY - 24, 20, 16); px('#ffd27a', BX + 24, BY - 21, 5, 9); px('#ffd27a', BX + 33, BY - 21, 5, 9);
+px('#56699a', BX + 12, BY - 50, 1, 17); px('#ffe3ac', BX + 10, BY - 53, 5, 4);
+
+// ---------- the road: lit flat tops and the black pits between ----------
+const PLATFORMS = [[-4, 104], [168, 238], [254, 320]];
+px('#04070f', 0, G, W, H - G);
+for (const [a, b] of PLATFORMS) {
+  const body = g.createLinearGradient(0, G, 0, H);
+  body.addColorStop(0, '#2c3a64'); body.addColorStop(1, '#141c36');
+  g.fillStyle = body; g.fillRect(a, G, b - a, H - G);
+  px('#4a5a8c', a, G + 4, 2, H - G); px('#0d1428', b - 2, G + 4, 2, H - G);
+  px('#fff0d0', a, G, b - a, 2); px('#9fb2e4', a, G + 2, b - a, 1); px('#5d6d9e', a, G + 3, b - a, 1);
+  for (let i = 0, n = (b - a) / 12 | 0; i < n; i++) px('#1d2746', a + 6 + rand(i, a + 9) * (b - a - 16), G + 10 + rand(i, a + 4) * 30, 4 + rand(i, a) * 12 | 0, 2);
+}
+
+// ---------- the hop: the beat's dotted arc over the pit ----------
+const HERO = [144, 178], FROM = [92, G], TO = [196, G];
+const arc = k => [FROM[0] + (TO[0] - FROM[0]) * k, FROM[1] - 4 * 32 * k * (1 - k)];
+for (let k = .04; k < .97; k += .075) {
+  const [x, y] = arc(k), passed = x < HERO[0] - 26, skip = Math.abs(x - HERO[0]) < 26;
+  if (skip) continue;
+  g.globalAlpha = passed ? .9 : .4; px('#ffe3ac', x - 1, y - 1, 3, 3); g.globalAlpha = 1;
+}
+// A ring on the ground where it took off, the beat it left on.
+for (const [rx, ry, c, a] of [[12, 3, '#ffe3ac', .8]]) {
+  g.globalAlpha = a;
+  for (let t = 0; t < Math.PI * 2; t += .05) { const y = G - 1 + Math.sin(t) * ry; if (y <= G + 6) px(c, FROM[0] + Math.cos(t) * rx, y); }
+  g.globalAlpha = 1;
+}
+
+// ---------- the friends, each with its part of the song ----------
+const NOTE = ['..##.', '..###', '..#.#', '..#..', '###..', '###..', '.#...'];
+const note = (x, y, c, a = 1) => { g.globalAlpha = a; NOTE.forEach((r, j) => [...r].forEach((p, i) => { if (p === '#') px(OUTLINE, x + i * 2 - 1, y + j * 2 - 1, 4, 4); })); NOTE.forEach((r, j) => [...r].forEach((p, i) => { if (p === '#') px(c, x + i * 2, y + j * 2, 2, 2); })); g.globalAlpha = 1; };
+function friend(who, x, opts = {}) {
+  const pool = g.createRadialGradient(x, G - 4, 2, x, G - 4, 40);
+  pool.addColorStop(0, `rgba(${GLOW[who]},.32)`); pool.addColorStop(1, `rgba(${GLOW[who]},0)`);
+  g.fillStyle = pool; g.fillRect(x - 40, G - 44, 80, 46);
+  drawPod(g, x, G - 1, 2, { phase: 0, palette: PALETTE[who] });
+  drawCrewParts(g, who, x, G - 1, 2, { palette: PALETTE[who], top: -21, on: true, ...opts });
+}
+if (friends) {
+  friend('blue', 52, { form: .5, pulse: 0 });
+  friend('green', 202, { form: 1, plant: 9 });
+  friend('red', 286, { form: 1, dir: 'up' });
+  note(78, 112, '#a9d6ff'); note(16, 124, '#a9d6ff', .75);
+  note(232, 124, '#b4f2c8'); note(186, 116, '#b4f2c8', .8);
+  note(262, 112, '#ffbcae'); note(298, 130, '#ffbcae', .75);
+}
+
+// ---------- the hero, mid-hop on FAST ----------
+const spot = g.createRadialGradient(HERO[0], HERO[1] - 28, 8, HERO[0], HERO[1] - 28, 56);
+spot.addColorStop(0, 'rgba(255,233,190,.26)'); spot.addColorStop(1, 'rgba(255,233,190,0)');
+g.fillStyle = spot; g.fillRect(HERO[0] - 56, HERO[1] - 84, 112, 112);
+drawPod(g, HERO[0], HERO[1], 3, { phase: .5, fast: true });
+
+// ---------- the logo: RAPIPP in blocks, the hero's head for its O ----------
+const GLYPH = {
+  R: ['#######.', '########', '##....##', '##....##', '##....##', '########', '#######.', '##..##..', '##...##.', '##....##', '##....##'],
+  A: ['..####..', '.######.', '##....##', '##....##', '##....##', '########', '########', '##....##', '##....##', '##....##', '##....##'],
+  P: ['#######.', '########', '##....##', '##....##', '##....##', '########', '#######.', '##......', '##......', '##......', '##......'],
+  I: ['######', '######', '..##..', '..##..', '..##..', '..##..', '..##..', '..##..', '..##..', '######', '######'],
+};
+const S = 4, GAP = 5, TOP = 18, BASE = TOP + 11 * S;
+const word = [...'RAPIPP'], width = word.reduce((n, c) => n + GLYPH[c][0].length * S + GAP, 0) + 40;
+const LX = Math.round((W - width) / 2);
+const glyphs = (c, ox, oy, fill) => {
+  let x = LX;
+  for (const ch of word) {
+    GLYPH[ch].forEach((row, j) => [...row].forEach((p, i) => { if (p === '#') px(typeof c === 'function' ? c(j) : c, x + i * S + ox, TOP + j * S + oy, S + fill, S + fill); }));
+    x += GLYPH[ch][0].length * S + GAP;
+  }
+};
+// A soft dark plate so the word holds over the Earth at thumbnail size.
+for (const [o, a] of [[6, .25], [4, .45]]) { g.globalAlpha = a; glyphs('#060b1c', -o, -o, o * 2); }
+g.globalAlpha = 1;
+glyphs(OUTLINE, -2, -2, 4);          // outline
+glyphs('#c98a4a', 0, 3, 0);          // the title's amber drop
+glyphs(j => (j >= 9 ? '#ffd88a' : j === 0 ? '#fffbea' : '#fff1d2'), 0, 0, 0);
+// The O: the same head, clipped above the spring, as on the title screen.
+const OX = LX + width - 20, OY = BASE + 8;
+g.save(); g.beginPath(); g.rect(OX - 30, 0, 60, OY - 6); g.clip();
+drawPod(g, OX, OY, 2, { phase: 0 });
+g.restore();
+// Under the word, the title's orbit: the four colours of the song around a star.
+const OY2 = BASE + 7;
+for (let i = 0; i <= 110; i++) {
+  const k = i / 110, x = LX + 4 + k * (width - 8), y = OY2 + Math.round(6 * (1 - (2 * k - 1) ** 2));
+  if (i % 5 < 3) px('#e9c98a', x, y, 2, 1);
+}
+const MID = LX + (width - 8) / 2 + 4, DOT = (dx, c) => { const k = (MID + dx - LX - 4) / (width - 8), y = OY2 + Math.round(6 * (1 - (2 * k - 1) ** 2)); px(OUTLINE, MID + dx - 3, y - 3, 7, 7); px(c, MID + dx - 2, y - 2, 5, 5); };
+DOT(-38, '#6fb6ff'); DOT(-20, '#5fe39a'); DOT(20, '#ff7f66'); DOT(38, '#ffbcae');
+sparkle(MID, OY2 + 6, 5, '#ffd88a');
+
+window.coverReady = true;
+</script>
