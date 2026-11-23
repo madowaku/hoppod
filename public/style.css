@@ -32,3 +32,7 @@
 
 .milestone-help{font-size:9px;color:#d6c7a1;text-align:center;line-height:1.35}
 .overlay[data-screen=result] .milestone-help,.overlay[data-screen=pause] .milestone-help{display:none}
+
+/* Link to the separate STORY page. */
+.mode .story-link{display:inline-flex;align-items:center;border:1px solid #6a8f8a;border-radius:5px;color:#ffe3ac;padding:9px 7px;font-size:9px;min-height:34px;text-decoration:none}
+.mode .story-link:focus-visible{outline:3px solid #8ee6c4;outline-offset:4px}

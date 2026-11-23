@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#120f1c">
+<title>RAPIPPO | CLOCK TOWER LAB</title>
+<link rel="icon" href="../icon.svg" type="image/svg+xml">
+<style>
+*{box-sizing:border-box}[hidden]{display:none!important}
+html{background:#120f1c}
+body{margin:0;color:#fff0d0;background:radial-gradient(ellipse at top,#2c2438 0%,#120f1c 75%);font-family:ui-monospace,Menlo,Consolas,"Hiragino Sans","Yu Gothic",monospace;overscroll-behavior:none;min-height:100dvh}
+main{width:min(460px,100%);margin:0 auto;padding:8px 10px 24px;display:flex;flex-direction:column;gap:7px}
+button{font:inherit;cursor:pointer;touch-action:manipulation;color:#c9bfae;background:transparent;border:1px solid #5e5264;border-radius:6px;min-height:36px;padding:4px 8px}
+button:focus-visible{outline:3px solid #ffd27a;outline-offset:2px}
+header{display:flex;align-items:center;justify-content:space-between;gap:6px}
+h1{font-size:15px;margin:0;letter-spacing:.06em}
+header small{display:block;font-size:9px;color:#b5a68f;letter-spacing:.08em;font-weight:400}
+.to-select{display:inline-flex;align-items:center;min-height:32px;padding:4px 8px;font-size:10px;color:#c9bfae;text-decoration:none;border:1px solid #5e5264;border-radius:6px}
+header div{display:flex;gap:4px}header button{font-size:10px;min-height:32px}
+#goal{font-size:13px;line-height:1.4;font-weight:700;margin:0;min-height:2.8em;display:flex;align-items:center}
+.frame{border:1px solid #7c6c70;border-radius:8px;overflow:hidden;background:#17121f;line-height:0;align-self:center;width:min(100%,calc((100dvh - 300px)*360/510));min-width:230px}
+canvas{display:block;width:100%;height:auto;aspect-ratio:360/510;image-rendering:pixelated;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+#outcome{font-size:12px;line-height:1.4;margin:0;min-height:2.8em;color:#ffe3ad;display:flex;align-items:center}
+#hold{width:100%;min-height:64px;font-size:18px;font-weight:700;border:1px solid #96806a;border-bottom:4px solid #5c4636;background:#3a2a26;color:#ffd27a;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+#hold.active{background:#ffc38e;color:#2a1c18;border-color:#ffc38e;border-bottom-color:#aa6647}
+.tools{display:grid;grid-template-columns:1fr 1fr;gap:6px}.tools button{font-size:12px}
+#restart.suggest{border-color:#ffd27a;color:#ffd27a;font-weight:700}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
+.stat{background:#221a2a;border-radius:6px;padding:6px 3px;text-align:center}
+.stat small{display:block;color:#b5a68f;font-size:9px}
+.stat strong{font-size:14px;font-variant-numeric:tabular-nums}
+details{font-size:11px;color:#bbb0a5;line-height:1.5}summary{cursor:pointer;padding:6px 0}
+textarea{width:100%;height:120px;background:#17121f;color:#ffe3ad;border:1px solid #5e5264;border-radius:6px;font:10px ui-monospace,Consolas,monospace}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1 id="title"></h1>
+  <div><a id="to-select" class="to-select" href="../select.html"></a><button id="sound" type="button"></button><button id="language" type="button"></button></div>
+</header>
+<p id="goal"></p>
+<div class="frame"><canvas id="scene" width="360" height="510"></canvas></div>
+<p id="outcome" role="status" aria-live="polite"></p>
+<button id="hold" type="button"></button>
+<div class="tools">
+  <button id="demo-clear" type="button"></button>
+  <button id="demo-full" type="button"></button>
+  <button id="retry" type="button"></button>
+  <button id="restart" type="button"></button>
+</div>
+<div class="stats">
+  <div class="stat"><small id="label-gears"></small><strong id="gears-state">0/3</strong></div>
+  <div class="stat"><small id="label-wheel"></small><strong id="wheel-state">0/3</strong></div>
+  <div class="stat"><small id="label-room"></small><strong id="room-state">1/3</strong></div>
+  <div class="stat"><small id="label-best"></small><strong id="best-state">—</strong></div>
+</div>
+<details>
+  <summary id="notes-title"></summary>
+  <p id="notes"></p>
+  <textarea id="log" readonly aria-labelledby="notes-title"></textarea>
+  <button id="copy" type="button"></button>
+</details>
+</main>
+<script type="module" src="./clocktower/clock-tower.mjs"></script>
+</body>
+</html>

@@ -4,13 +4,16 @@ import {chooseLanguage,copy,earthText,partsText,milestoneText} from '../public/s
 import {resolveRun,shareUrl} from '../public/src/links.mjs';
 import {Terrain,newRun,advance,PERIOD} from '../public/src/engine.mjs';
 
-test('Japanese and English preferences choose query, saved preference then browser without modifying course',()=>{
+test('language: a valid ?lang=, then the saved choice, then English (never the browser language), without modifying course',()=>{
   const url='https://example.test/?mode=free&seed=42';
-  assert.equal(chooseLanguage(url,null,'ja-JP'),'ja');
-  assert.equal(chooseLanguage(url,null,'en-US'),'en');
-  assert.equal(chooseLanguage(url,'ja','en-US'),'ja');
-  assert.equal(chooseLanguage(url+'\&lang=en','ja','ja-JP'),'en');
-  assert.equal(chooseLanguage(url+'\&lang=zz',null,'en-US'),'en');
+  assert.equal(chooseLanguage(url,null),'en');
+  assert.equal(chooseLanguage(url,'ja'),'ja');
+  assert.equal(chooseLanguage(url,'en'),'en');
+  assert.equal(chooseLanguage(url+'\&lang=en','ja'),'en');
+  assert.equal(chooseLanguage(url+'\&lang=ja','en'),'ja');
+  assert.equal(chooseLanguage(url+'\&lang=zz',null),'en');
+  assert.equal(chooseLanguage(url+'\&lang=zz','ja'),'ja');
+  assert.equal(chooseLanguage(url,'zz'),'en');
   const a=resolveRun(url,'2026-11-01',()=>1),b=resolveRun(url+'\&lang=ja','2026-11-01',()=>1);
   assert.deepEqual(a,b);
 });

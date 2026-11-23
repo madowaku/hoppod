@@ -1,0 +1,50 @@
+/* The stage select: every way into RAPIPPO, one screen, under the same sky
+   the stages are played under. */
+*{box-sizing:border-box}
+html{background:#060a18}
+body{margin:0;min-height:100dvh;color:#fff1d2;background:linear-gradient(#060a18,#0c1630 55%,#1c2e54);background-attachment:fixed;font-family:ui-monospace,Menlo,Consolas,"Hiragino Sans","Yu Gothic",monospace}
+/* Stars, Earth and the far ranges sit behind everything and never scroll. */
+.scene{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;
+  background-image:radial-gradient(1px 1px at 12% 9%,#dfe7ff 99%,#0000),radial-gradient(1px 1px at 31% 22%,#c9d6f2 99%,#0000),radial-gradient(1.5px 1.5px at 47% 6%,#ffe2a0 99%,#0000),radial-gradient(1px 1px at 63% 31%,#c9d6f2 99%,#0000),radial-gradient(1px 1px at 78% 12%,#dfe7ff 99%,#0000),radial-gradient(1.5px 1.5px at 91% 27%,#9fc4ff 99%,#0000),radial-gradient(1px 1px at 6% 41%,#c9d6f2 99%,#0000),radial-gradient(1px 1px at 22% 57%,#9fc4ff 99%,#0000),radial-gradient(1px 1px at 39% 46%,#dfe7ff 99%,#0000),radial-gradient(1.5px 1.5px at 56% 62%,#c9d6f2 99%,#0000),radial-gradient(1px 1px at 71% 51%,#ffe2a0 99%,#0000),radial-gradient(1px 1px at 86% 66%,#c9d6f2 99%,#0000),radial-gradient(1px 1px at 96% 44%,#dfe7ff 99%,#0000),radial-gradient(1px 1px at 16% 74%,#c9d6f2 99%,#0000),radial-gradient(1px 1px at 68% 78%,#9fc4ff 99%,#0000)}
+.earth{position:absolute;top:10px;right:max(8px,calc(50% - 250px));width:96px;height:96px;opacity:.9}
+@media(max-width:520px){.earth{top:2px;right:2px;width:60px;height:60px;opacity:.7}}
+.ridge{position:absolute;left:0;bottom:0;width:100%;height:120px}
+main{position:relative;z-index:1;width:min(460px,100%);margin:0 auto;padding:max(20px,env(safe-area-inset-top)) 14px 40px;display:flex;flex-direction:column;gap:12px}
+header{text-align:center}
+h1{margin:0;font-size:34px;font-weight:900;letter-spacing:3px;text-shadow:0 3px 0 #c98a4a,0 0 22px rgba(255,214,150,.3)}
+h1 span{color:#ffb07a;font-size:20px;vertical-align:super}
+header p{margin:4px 0 0;font-size:13px;color:#c3d0f5}
+/* How it plays, in one picture: the same hop, near when let go, far when held. */
+.how{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 12px 10px;background:#0b142bb8;border:1px solid #2c3d66;border-radius:8px}
+.how svg{width:min(300px,100%);height:auto}
+.how p{margin:0;font-size:12px;color:#dfe7ff;text-align:center;line-height:1.5}
+.how .keys{display:flex;gap:18px;font-size:12px}
+.how .keys span{display:inline-flex;align-items:center;gap:6px}
+.how .keys i{width:18px;height:0;border-top:3px dotted #8ee6c4}
+.how .keys .fast i{border-top:3px dashed #ffb07a}
+.how .keys b{font-weight:900}.how .slow b{color:#8ee6c4}.how .fast b{color:#ffb07a}
+nav{display:flex;flex-direction:column;gap:10px}
+.stage{display:flex;align-items:center;gap:12px;min-height:84px;padding:12px;color:inherit;text-decoration:none;background:#0f1930d9;border:1px solid #34466e;border-bottom-width:3px;border-radius:8px;transition:transform .12s,background .12s,border-color .12s}
+.stage:hover{background:#17244af0;border-color:#5f80b8;transform:translateY(-1px)}
+.stage:active{transform:translateY(1px)}
+.stage:focus-visible,#language:focus-visible{outline:3px solid #8ee6c4;outline-offset:3px}
+.stage svg{flex:0 0 56px;width:56px;height:56px}
+.stage span{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1}
+.stage strong{font-size:17px;font-weight:900;line-height:1.25}
+.stage small{font-size:12px;line-height:1.4;color:#c3cde6}
+/* Length and what it is about, then how far this player has got. */
+.meta{display:flex;flex-wrap:wrap;gap:6px;font-style:normal;font-size:10.5px;letter-spacing:.5px;color:#9fb2d8}
+.meta:empty{display:none}
+.meta u{text-decoration:none;padding:1px 6px;border:1px solid #34466e;border-radius:9px}
+.meta u.done{color:#0b142b;background:#8ee6c4;border-color:#8ee6c4;font-weight:900}
+.meta u.saved{color:#0b142b;background:#ffd88a;border-color:#ffd88a;font-weight:900}
+.go{flex:0 0 auto;font-size:22px;font-weight:400;color:#5f80b8}
+.stage:hover .go{color:#fff1d2}
+/* The first stage to play: it teaches the hop the others build on. */
+.primary{min-height:96px;background:linear-gradient(120deg,#16305a,#0f1930);border-color:#8ee6c4;box-shadow:0 0 18px #8ee6c433}
+.primary:hover{background:linear-gradient(120deg,#1c3a6c,#17244a);border-color:#b6f3dc}
+.primary .go{color:#8ee6c4}
+.first{align-self:flex-start;padding:1px 7px;font-style:normal;font-size:11px;font-weight:900;letter-spacing:1px;color:#14243a;background:#8ee6c4;border-radius:3px}
+#language{align-self:center;min-height:40px;padding:0 14px;font:inherit;font-size:12px;color:#c3cde6;background:#0b142bb8;border:1px solid #34466e;border-radius:6px;cursor:pointer}
+@media(prefers-reduced-motion:reduce){.stage{transition:none}.stage:hover,.stage:active{transform:none}}
+@media(max-height:700px){.earth{width:72px;height:72px}.how svg{width:min(240px,100%)}}

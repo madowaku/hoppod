@@ -6,6 +6,31 @@
 <meta name="theme-color" content="#101f2c">
 <meta name="description" content="ONE MORE HOP! A tiny capsule, an endless moon. It hops. You set the pace. Play RAPIPPO and share your best.">
 <title>RAPIPPO | ONE MORE HOP!</title>
+<meta property="og:type" content="website">
+<meta property="og:title" content="RAPIPPO | ONE MORE HOP!">
+<meta property="og:description" content="ボタンひとつ、拍ひとつ。月面を跳ねて、仲間に出会い、音を奏でよう。">
+<meta property="og:url" content="https://hoppod-story-jam-02.cacao-ixora-coccinea.workers.dev/">
+<meta property="og:image" content="https://hoppod-story-jam-02.cacao-ixora-coccinea.workers.dev/rapippo-og.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="630">
+<meta property="og:image:height" content="500">
+<meta property="og:image:alt" content="星空と地球を背に、ラピッポと仲間たちが月面を跳ねるイラスト">
+<meta name="twitter:card" content="summary">
+<script>
+// Entry, before any game code loads: the stage select, unless the address names FREE
+// RUN (mode, date, seed: every shared replay link has them; marker, compare,
+// sfx: developer links). Anything else is not ours and is ignored: itch.io
+// loads the game as index.html?v=<build stamp>, and `v` alone is not a
+// course. Relative, so it also works inside an itch.io ZIP.
+(function () {
+  var query = new URLSearchParams(location.search), lang = query.get('lang');
+  var freeRun = ['mode', 'date', 'seed', 'marker', 'compare', 'sfx'].some(function (key) { return query.has(key); });
+  if (!freeRun) { location.replace('select.html' + (lang === 'ja' || lang === 'en' ? '?lang=' + lang : '')); return; }
+  document.addEventListener('DOMContentLoaded', function () {
+    var game = document.createElement('script'); game.type = 'module'; game.src = './src/app.mjs'; document.body.appendChild(game);
+  });
+})();
+</script>
 <link rel="icon" href="./icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="./style.css">
 </head>
@@ -15,7 +40,7 @@
     <div class="brand"><strong>RAPIPPO<span class="brand-star">✦</span></strong><span>ONE MORE HOP!</span></div>
     <div class="hud"><div><small id="hops-label">HOPS</small><strong id="score">0</strong></div><div><small id="best-label">BEST</small><strong id="best">0</strong></div></div>
   </header>
-  <nav class="mode" aria-label="Course"><span id="mode-name">DAILY MOON</span><div><button id="daily" type="button">DAILY</button><button id="free" type="button">FREE RUN</button></div></nav>
+  <nav class="mode" aria-label="Course"><span id="mode-name">DAILY MOON</span><div><button id="daily" type="button" hidden>DAILY</button><button id="free" type="button">FREE RUN</button><a id="story" class="story-link" href="./select.html">STAGES ›</a></div></nav>
   <nav id="marker-compare" class="marker-compare" aria-label="Marker experiment modes" hidden><span>LANDING GUIDE TEST</span><div><button id="marker-full" type="button" aria-pressed="true">A · FULL</button><button id="marker-neutral" type="button" aria-pressed="false">B · POSITION</button><button id="marker-off" type="button" aria-pressed="false">C · NONE</button></div></nav>
   <section class="play-area" aria-label="Moon course"><div id="milestone-notice" class="milestone-notice" role="status" aria-live="polite" hidden></div>
     <canvas id="play" width="360" height="510" aria-label="Automatic hopping. Hold this canvas or the control below for FAST; release for SLOW. Judge the terrain and your rhythm without a landing preview."></canvas>
@@ -34,5 +59,4 @@
   <div class="below"><span id="marker-guide" hidden></span><div class="prefs"><button id="language" type="button" aria-label="Switch to Japanese">日本語</button><button id="sound" type="button" aria-pressed="true">SOUND ON</button></div></div>
   <footer><span id="footer-tag">A tiny capsule. An endless moon.</span><span id="footer-keys">SPACE = HOLD · R = RETRY</span></footer>
 </main>
-<script type="module" src="./src/app.mjs"></script>
 </body></html>

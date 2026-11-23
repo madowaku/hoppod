@@ -1,0 +1,28 @@
+/* Moon Workshop: shares the STORY shell; only the workshop's own pieces here. */
+body.workshop{background:radial-gradient(ellipse at top,#231c2e 0%,#0b0a14 75%)}
+.workshop .hold[data-tint=push]{box-shadow:0 0 0 3px #f2b84b,0 0 18px #f2b84b88}
+.workshop .hold[data-tint=pull]{box-shadow:0 0 0 3px #68aef0,0 0 18px #68aef088}
+.workshop .play-area{background:#0b0a14}
+.workshop .overlay[data-screen=start]{gap:9px;padding-top:30px;background:linear-gradient(#0b0a1466,#0b0a1400 45%,#0b0a14aa)}
+.work-title{margin:-6px 0 0!important;color:#f0c67a!important;font-weight:900;letter-spacing:2px;font-size:15px!important;text-shadow:0 2px 0 #4a2e12}
+.workshop .overlay[data-screen=start] .work-title{display:block}
+.workshop .overlay:not([data-screen=start]) .work-title{display:none}
+.work-link{min-height:40px;padding:0 16px;background:transparent;color:#f0c67a;border:1px solid #8a6b3c;border-radius:5px;font-weight:800;font-size:12px;cursor:pointer}
+.work-link[hidden]{display:none}
+.work-link:focus-visible{outline:3px solid #8ee6c4;outline-offset:3px}
+.workshop .title-free{cursor:pointer;font-family:inherit}
+.workshop .title-free[hidden]{display:none}
+.workshop .title-free::before{content:none}
+.workshop .overlay[data-screen=end]{background:transparent;justify-content:flex-end;padding-bottom:18px;gap:8px}
+.workshop .overlay[data-screen=end] h1{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.workshop .overlay[data-screen=end] #overlay-subtitle{color:#fff1d2;font-size:13px;text-shadow:0 1px 3px #000;background:#0b0a14d9;padding:3px 12px;border-radius:5px}
+.workshop .overlay[data-screen=end] .title-actions{display:none}
+.workshop .share-actions{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;max-width:320px}
+.workshop .share-actions[hidden]{display:none}
+.workshop .share-actions button{min-height:44px;padding:0 10px;font-size:11px;font-weight:800;background:#17131fcc;color:#f6e4c2;border:1px solid #8a6b3c;border-radius:5px;cursor:pointer}
+.workshop .share-actions button:focus-visible{outline:3px solid #8ee6c4;outline-offset:3px}
+.workshop .overlay[data-screen=free]{background:transparent;justify-content:flex-start;padding-top:12px;gap:6px;pointer-events:none}
+.workshop .overlay[data-screen=free] h1,.workshop .overlay[data-screen=free] .intro-mark,.workshop .overlay[data-screen=free] .intro-controls,.workshop .overlay[data-screen=free] .auto-hop,.workshop .overlay[data-screen=free] .headphones,.workshop .overlay[data-screen=free] .title-actions,.workshop .overlay[data-screen=free] .share-actions{display:none}
+.workshop .overlay[data-screen=free] #overlay-subtitle{font-size:11px;color:#f6e4c2;max-width:300px;text-shadow:0 1px 3px #000}
+.workshop .overlay[data-screen=free] .work-link{pointer-events:auto;background:#17131fcc}
+.workshop .overlay[data-screen=end] #overlay-subtitle:empty{display:none}

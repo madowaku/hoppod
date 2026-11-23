@@ -14,6 +14,18 @@ Small bouncing space capsule with rabbit-ear antennas, a face-display, and a spr
 - **Distribution target:** Cloudflare Workers Static Assets (deploy only after device and sharing tests).
 - **Source:** Gameplay mechanics inspired by the user's earlier [HOPSCROLL](https://github.com/madowaku/hopscroll). Independent project and release lifecycle; carry over attribution and validated mechanics.
 
+## STORY (thatgamejam #02, in progress)
+
+A separate five-minute STORY page, `story.html`, is being built on `feature/story-jam-02`. Hops and original Web Audio music share one beat clock. The bare top address opens the stage select in English; every FREE RUN and DAILY address (mode, date, seed, shared replay links) still opens FREE RUN unchanged. See [STORY design and status](docs/STORY_JAM02.md).
+
+## STARLIGHT WORKSHOP / 星明りの楽器工房
+
+A separate episode at `workshop.html`, in the jam build on `feature/story-jam-02`: wake sleeping instruments with FAST and SLOW, land on the metronome as its missing weight, and let go while your own song keeps going. Reached from the stage select; the owner has played it twice and it has been revised from that. See [Moon Workshop design and status](docs/MOON_WORKSHOP.md).
+
+## Stages
+
+The bare address opens `select.html`: 月渡りのラピッポ (STORY), 星明りの楽器工房, 陽周りの時計台 ([design](docs/CLOCK_TOWER.md)) and フリーラン. Addresses that name a FREE RUN or DAILY course still open it directly.
+
 ## Play locally
 
 Requires Python 3. From this folder:

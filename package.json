@@ -8,9 +8,13 @@
     "dev": "python -m http.server 8000 --bind 127.0.0.1 --directory public",
     "test": "node --test tests/*.test.mjs",
     "test:browser": "playwright test",
+    "test:story-audio": "node -e \"process.env.STORY_AUDIO='required';require('child_process').execSync('npx playwright test tests/browser/story-audio.spec.mjs',{stdio:'inherit'})\"",
     "preview:assets": "wrangler dev --local --compatibility-date 2026-10-30 --ip 127.0.0.1 --port 8011 --inspector-port 9232 --show-interactive-dev-session=false",
+    "test:workshop": "playwright test -c playwright.workshop.config.mjs",
+    "render:workshop": "node tests/browser/render-workshop.mjs",
+    "build:itch": "node scripts/build-itch.mjs",
     "check:assets": "wrangler deploy --dry-run --outdir output/review/worker",
-    "check": "node --check public/src/app.mjs && node --check public/src/engine.mjs && node --check public/src/links.mjs && node --check public/src/pod.mjs && node --check public/src/audio.mjs && node --check public/src/earth.mjs && node --check public/src/marker.mjs && node --check public/src/companion.mjs && node --check public/src/parts.mjs && node --check public/src/ui-copy.mjs"
+    "check": "node --check public/src/app.mjs && node --check public/src/engine.mjs && node --check public/src/links.mjs && node --check public/src/pod.mjs && node --check public/src/scenery.mjs && node --check public/src/audio.mjs && node --check public/src/earth.mjs && node --check public/src/marker.mjs && node --check public/src/companion.mjs && node --check public/src/parts.mjs && node --check public/src/ui-copy.mjs && node --check public/src/story/beat.mjs && node --check public/src/story/course.mjs && node --check public/src/story/sim.mjs && node --check public/src/story/music.mjs && node --check public/src/story/copy.mjs && node --check public/src/story/story-app.mjs && node --check public/src/story/crew.mjs && node --check public/src/workshop/course.mjs && node --check public/src/workshop/sim.mjs && node --check public/src/workshop/arrange.mjs && node --check public/src/workshop/audio.mjs && node --check public/src/workshop/draw.mjs && node --check public/src/workshop/copy.mjs && node --check public/src/workshop/app.mjs && node --check public/src/select.mjs && node --check public/dev/clocktower/string-trajectory.mjs && node --check public/dev/clocktower/clock-tower-model.mjs && node --check public/dev/clocktower/clock-tower.mjs && node --check public/src/tower/course.mjs && node --check public/src/tower/sim.mjs && node --check public/src/tower/music.mjs && node --check public/src/tower/copy.mjs && node --check public/src/tower/draw.mjs && node --check public/src/tower/app.mjs"
   },
   "devDependencies": {
     "@playwright/test": "1.64.1",
